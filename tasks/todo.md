@@ -3,7 +3,7 @@
 Source: GraffitiXR `StencilTones.kt`, `StencilProcessor.kt`, `SubjectIsolator.kt`, `StencilTonesTest.kt`
 (copied; GraffitiXR is not modified).
 
-Status: **in progress.** Phases 0-2 (core) done; app shell next.
+Status: **in progress.** Phases 0-3 done; subject isolation next.
 
 ## Decisions (answered)
 
@@ -26,9 +26,9 @@ stencil-artist/
                 light/    depth -> normals -> relit luminance
                 vector/   contour trace, simplify, islands
                 export/   PNG planes, PDF writer + tiler, SVG, DXF, HPGL, G-code
-  composeApp/   Compose Multiplatform UI: androidMain + wasmJsMain
-                ml/       expect/actual OnnxSession (onnxruntime-android / onnxruntime-web)
-                io/       expect/actual image pick, decode, save/share
+  composeApp/   Compose Multiplatform UI and state: commonMain + androidMain + wasmJsMain
+                expect/actual: image pick + decode, pixels -> ImageBitmap; later ONNX, save/share
+  androidApp/   Activity + manifest (AGP 9 keeps the application plugin out of KMP modules)
   tasks/        todo.md, lessons.md
 ~~~
 
@@ -56,7 +56,9 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       edge closing, tonal bias, forced dark/light base. Defaults reproduce GraffitiXR's
       `StencilProcessor` pixel for pixel on a dark and a light cut-out subject (golden test against
       a transcription of it running on real OpenCV).
-- [ ] **3. App shell** — pick image, stacked preview, sheet cycler, controls. Monochrome dark UI.
+- [x] **3. App shell** — pick image, preview, sheet strip (All + one swatch per sheet), sheet
+      stepper, base, smoothing, closing, bias. Monochrome dark UI. Web build driven in headless
+      Chromium; Android builds (`assembleDebug`) but has not been run on a device.
 - [ ] **4. Subject isolation** — u2netp via `OnnxSession`; lazy load; falls back to whole frame.
 - [ ] **5. Depth + lighting** — Depth Anything V2 Small (Apache-2.0) ONNX -> depth map -> normals
       -> Lambert + ambient relight. Controls: light azimuth, elevation, intensity, ambient, depth
@@ -80,6 +82,15 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 - Wasm build driven in headless Chromium (Playwright): load image, cycle sheets, export, screenshots.
 - Android: `assembleDebug` + unit tests. No emulator in this container — on-device behaviour is
   **not** verifiable here and will be reported as such.
+
+## Known limits (to fix in the phase named)
+
+- Smoothing and closing are in working-image pixels (longest edge 1600). Export at other sizes
+  must scale them (phase 6).
+- On the web the pipeline runs on the only thread; the UI holds still while it works. A Web Worker
+  is the fix if it proves slow on phones (phase 10).
+- Kotlin's Wasm tooling pulls Karma from a GitHub tarball; the root build pins the npm release
+  instead (unused either way).
 
 ## Open questions
 

@@ -36,11 +36,19 @@ data class TonalParams(
     val colors: List<Int>? = null,
 ) {
     init {
-        require(sheets in 1..256) { "a tonal stencil has 1..256 sheets, not $sheets" }
+        require(sheets in 1..MAX_SHEETS) { "a tonal stencil has 1..$MAX_SHEETS sheets, not $sheets" }
         require(smoothing >= 1 && smoothing % 2 == 1) { "smoothing must be odd and positive, got $smoothing" }
         require(closing >= 1) { "closing must be positive, got $closing" }
         require(bias in -255..255) { "bias is in brightness levels, -255..255, got $bias" }
         require(colors == null || colors.size == sheets) { "expected $sheets colours, got ${colors?.size}" }
+    }
+
+    companion object {
+        /**
+         * The most sheets a TONAL separation can have: one per level of 8-bit brightness. It is a
+         * limit of splitting by tone, not of a stencil; [Separation] has none.
+         */
+        const val MAX_SHEETS = 256
     }
 }
 

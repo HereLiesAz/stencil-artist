@@ -1,23 +1,43 @@
 # Stencil Artist
-Turn any image into stencil layers to make stencils of ANY size. 
 
-## HereLiesAz Repository Starter
+Turn any image into stencil layers to make stencils of ANY size.
 
-General-purpose starter for new HereLiesAz repositories.
+A Compose Multiplatform app: Android, and an installable web app. The stencil tool began in
+[GraffitiXR](https://github.com/HereLiesAz/GraffitiXR) and was carried over without OpenCV, so the
+same Kotlin makes the same stencil on every target.
 
-This template deliberately contains **no executable GitHub Actions implementation**. Repository automation is selected from the central `HereLiesAz/workflows` catalog.
+Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 
-## Start here
+## What it does today
 
-1. Rename/update the repository metadata and this README.
-2. Choose automation in `.github/workflow-request.yml`.
-3. Reuse existing central workflows and secrets whenever possible.
-4. If a capability is missing, submit a generalized workflow to `HereLiesAz/workflows`; do not create a one-off local implementation.
-5. Keep `version.properties` as the canonical project version state unless the repository has an established compatible version contract.
+- Opens an image and separates it into sheets by tone.
+- Any number of sheets, each with its own colour (a grey ramp by default).
+- Smoothing, edge closing, tonal bias, and a forced dark or light base.
+- Shows the finished piece, or any one sheet alone.
 
-For framework-specific projects, prefer one of the dedicated templates:
+Not yet: background removal, depth and lighting, export. See the roadmap.
 
-- `HereLiesAz/android-app-template`
-- `HereLiesAz/compose-multiplatform-template`
-- `HereLiesAz/react-app-template`
-- `HereLiesAz/gradle-library-template`
+## Layout
+
+| Module | What it is |
+|---|---|
+| `core` | The stencil pipeline. Pure Kotlin (`jvm`, `wasmJs`), no platform dependencies. |
+| `composeApp` | The app: UI and state, shared by Android and the web. Produces the web build. |
+| `androidApp` | The Android wrapper: an Activity and a manifest. |
+| `tools/golden` | Generates the OpenCV fixtures the pipeline is tested against. |
+
+## Build
+
+~~~
+./gradlew :core:jvmTest :core:wasmJsNodeTest       # tests
+./gradlew :composeApp:wasmJsBrowserDevelopmentRun  # web, served locally
+./gradlew :composeApp:wasmJsBrowserDistribution    # web, static bundle in composeApp/build/dist
+./gradlew :androidApp:assembleDebug                # Android APK
+~~~
+
+Android builds need the SDK (`sdk.dir` in `local.properties`, or `ANDROID_HOME`).
+
+## Automation
+
+Workflows come from the central [`HereLiesAz/workflows`](https://github.com/HereLiesAz/workflows)
+catalog; see `.github/WORKFLOW_POLICY.md`.

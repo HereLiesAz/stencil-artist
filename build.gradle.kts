@@ -3,6 +3,10 @@ import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsRootPlugin
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform) apply false
+    alias(libs.plugins.compose.compiler) apply false
+    alias(libs.plugins.compose.multiplatform) apply false
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.kmp.library) apply false
 }
 
 // Kotlin's Wasm tooling installs Karma from a tarball of JetBrains' GitHub fork, even for projects
