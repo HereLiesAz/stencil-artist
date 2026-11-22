@@ -12,7 +12,7 @@
 //
 // Bump VERSION when a heavy file changes under the same name (a model is replaced, the ONNX
 // runtime is upgraded). The app's own .wasm files are content-hashed and need no bump.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = `stencil-artist-shell-${VERSION}`;
 const HEAVY = `stencil-artist-heavy-${VERSION}`;
 
@@ -71,7 +71,14 @@ async function networkFirst(request) {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
-  // Only this app's own GET requests are handled; everything else goes straight to the network.
-  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
-  event.respondWith(isHeavy(url) ? cacheFirst(request) : networkFirst(request));
+  // Cache just the approved on-demand depth model across sessions. Other cross-origin requests
+  // are never intercepted; background isolation and normal web traffic are unchanged.
+  const depthModel = url.hostname === 'huggingface.co' &&
+    url.pathname === '/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_quantized.onnx';
+  if (request.method !== 'GET') return;
+  if (depthModel) {
+    event.respondWith(cacheFirst(request));
+  } else if (url.origin === self.location.origin) {
+    event.respondWith(isHeavy(url) ? cacheFirst(request) : networkFirst(request));
+  }
 });
