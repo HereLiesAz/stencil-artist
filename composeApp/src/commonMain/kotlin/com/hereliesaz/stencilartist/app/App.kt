@@ -32,6 +32,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,8 +52,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.Sheet
+import com.hereliesaz.stencilartist.core.StencilPrintPdf
+import com.hereliesaz.stencilartist.core.StencilPrintOptions
 import com.hereliesaz.stencilartist.core.TonalParams
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Below this width the controls go under the preview instead of beside it. */
 private val WIDE_LAYOUT = 720.dp
@@ -110,6 +119,10 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
 @Composable
 private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) {
     val params = state.params
+    val saver = rememberFileSaver()
+    val exportScope = rememberCoroutineScope()
+    var printWidthMm by remember { mutableFloatStateOf(203.2f) }
+    var exporting by remember { mutableStateOf(false) }
     Column(
         modifier.background(MaterialTheme.colorScheme.surface).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -158,6 +171,36 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
         LabelledSlider("Tonal bias", params.bias.let { if (it > 0) "+$it" else "$it" }, params.bias.toFloat(), -100f..100f) {
             state.update(params.copy(bias = it.roundToInt()))
+        }
+
+        Section("Print") {
+            LabelledSlider("Physical width", printWidthMm.roundToInt().toString() + " mm",
+                printWidthMm, 50f..1000f) { printWidthMm = it }
+            OutlinedButton(
+                onClick = {
+                    val separation = state.separation ?: return@OutlinedButton
+                    val width = printWidthMm.toDouble()
+                    exportScope.launch {
+                        exporting = true
+                        try {
+                            val pdf = withContext(Dispatchers.Default) {
+                                StencilPrintPdf.make(separation, StencilPrintOptions(widthMm = width))
+                            }
+                            saver.save(ExportFile("stencil-print.pdf", "application/pdf", pdf)) {
+                                if (!it) state.fail("PDF wasn't saved.")
+                            }
+                        } catch (error: Exception) {
+                            state.fail("PDF export failed: " + (error.message ?: "unknown error"))
+                        } finally {
+                            exporting = false
+                        }
+                    }
+                },
+                enabled = state.separation != null && !state.busy && !exporting,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (exporting) "Preparing PDF..." else "Download stencil PDF")
+            }
         }
     }
 }
