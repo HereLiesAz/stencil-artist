@@ -30,6 +30,7 @@ class SubjectIsolator(private val loader: ModelLoader) {
     private val lock = Mutex()
     private var model: Inference? = null
 
+    /** [depth] may refine uncertain saliency edges. Null retains the original U²-Net behavior. */
     suspend fun isolate(image: RgbaImage, depth: FloatArray? = null): Isolation {
         val map = try {
             lock.withLock {
