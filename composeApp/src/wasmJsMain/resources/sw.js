@@ -46,7 +46,7 @@ async function cacheFirst(request) {
   if (hit) return hit;
   const response = await fetch(request);
   // Only complete, successful responses are kept (not a 206 range or an opaque error).
-  if (response.status === 200) cache.put(request, response.clone());
+  if (response.status === 200) await cache.put(request, response.clone());
   return response;
 }
 
