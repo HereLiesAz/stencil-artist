@@ -46,7 +46,15 @@ async function cacheFirst(request) {
   if (hit) return hit;
   const response = await fetch(request);
   // Only complete, successful responses are kept (not a 206 range or an opaque error).
-  if (response.status === 200) await cache.put(request, response.clone());
+  if (response.status === 200) {
+    // Cache Storage can reject when the browser is out of space. Download success must not
+    // depend on optional persistence: keep the app usable online even with no cache capacity.
+    try {
+      await cache.put(request, response.clone());
+    } catch (_) {
+      // The fetched response still belongs to the caller.
+    }
+  }
   return response;
 }
 
