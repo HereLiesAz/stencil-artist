@@ -112,7 +112,7 @@ private class AssetModelLoader(private val context: Context) : ModelLoader {
 
     private companion object {
         const val DEPTH_URL =
-            "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_quantized.onnx"
+            "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/f7421df0cc30f121782ab050d42f0a423291dcde/onnx/model_quantized.onnx"
         const val DEPTH_SHA256 = "fcf51f1b230362b28690bb9d1809bf0431f29cad20534e3f589bd7285547f20d"
         const val MAX_MODEL_BYTES = 40_000_000L
     }
