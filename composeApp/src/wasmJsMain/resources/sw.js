@@ -74,7 +74,7 @@ self.addEventListener('fetch', (event) => {
   // Cache just the approved on-demand depth model across sessions. Other cross-origin requests
   // are never intercepted; background isolation and normal web traffic are unchanged.
   const depthModel = url.hostname === 'huggingface.co' &&
-    url.pathname === '/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_quantized.onnx';
+    url.pathname === '/onnx-community/depth-anything-v2-small/resolve/f7421df0cc30f121782ab050d42f0a423291dcde/onnx/model_quantized.onnx';
   if (request.method !== 'GET') return;
   if (depthModel) {
     event.respondWith(cacheFirst(request));
