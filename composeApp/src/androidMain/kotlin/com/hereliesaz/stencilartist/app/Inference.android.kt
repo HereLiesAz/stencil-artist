@@ -8,8 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.hereliesaz.stencilartist.core.DepthLighting
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import java.nio.FloatBuffer
 import java.io.File
 import java.net.HttpURLConnection
@@ -29,25 +35,43 @@ actual fun rememberModelLoader(): ModelLoader {
 private class AssetModelLoader(private val context: Context) : ModelLoader {
     override suspend fun load(fileName: String): Inference = withContext(Dispatchers.IO) {
         val environment = OrtEnvironment.getEnvironment()
-        val session = if (fileName == DepthLighting.MODEL_FILE) {
-            environment.createSession(depthModelFile().absolutePath)
+        val sourcePath = if (fileName == DepthLighting.MODEL_FILE) depthModelFile().absolutePath else null
+        currentCoroutineContext().ensureActive()
+        val session = if (sourcePath != null) {
+            environment.createSession(sourcePath)
         } else {
             // Bundled subject isolation is unaffected by network availability.
             val bytes = context.assets.open(fileName).use { it.readBytes() }
+            currentCoroutineContext().ensureActive()
             environment.createSession(bytes)
         }
-        OrtInference(environment, session)
+        try {
+            // If cancellation arrived during native session construction, release its resources.
+            currentCoroutineContext().ensureActive()
+            OrtInference(environment, session)
+        } catch (cancelled: Throwable) {
+            session.close()
+            throw cancelled
+        }
     }
 
-    private fun depthModelFile(): File {
+    private suspend fun depthModelFile(): File {
         val folder = File(context.filesDir, "model-cache").apply { mkdirs() }
         val target = File(folder, DepthLighting.MODEL_FILE)
         if (target.isFile && validSha256(target)) return target
         target.delete()
 
-        val temp = File.createTempFile("depth-download-", ".tmp", folder)
-        try {
+        // This block runs on the IO dispatcher. Cancellation invokes the handler even while a
+        // blocking HttpURLConnection read is in progress, interrupting the worker and disconnecting
+        // the socket. An obsolete download cannot hold the estimator's mutex for the full timeout.
+        return suspendCancellableCoroutine { continuation ->
+            val worker = Thread.currentThread()
+            val temp = File.createTempFile("depth-download-", ".tmp", folder)
             val connection = URL(DEPTH_URL).openConnection() as HttpURLConnection
+            continuation.invokeOnCancellation {
+                connection.disconnect()
+                worker.interrupt()
+            }
             try {
                 connection.connectTimeout = 30000
                 connection.readTimeout = 120000
@@ -64,6 +88,7 @@ private class AssetModelLoader(private val context: Context) : ModelLoader {
                     temp.outputStream().buffered().use { output ->
                         val buffer = ByteArray(65536)
                         while (true) {
+                            if (!continuation.isActive) throw CancellationException("Depth download cancelled")
                             val n = input.read(buffer)
                             if (n < 0) break
                             size += n
@@ -73,16 +98,21 @@ private class AssetModelLoader(private val context: Context) : ModelLoader {
                         }
                     }
                 }
+                if (!continuation.isActive) throw CancellationException("Depth download cancelled")
                 require(hex(digest.digest()) == DEPTH_SHA256) {
                     "Depth model failed its SHA-256 integrity check"
                 }
+                if (!continuation.isActive) throw CancellationException("Depth download cancelled")
+                check(temp.renameTo(target)) { "Cannot save depth model in app storage" }
+                continuation.resume(target)
+            } catch (error: Throwable) {
+                if (continuation.isActive) continuation.resumeWithException(error)
             } finally {
                 connection.disconnect()
+                temp.delete()
+                // A cancellation may interrupt the pooled IO worker. Do not poison its next task.
+                Thread.interrupted()
             }
-            check(temp.renameTo(target)) { "Cannot save depth model in app storage" }
-            return target
-        } finally {
-            temp.delete()
         }
     }
 
