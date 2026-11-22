@@ -66,7 +66,7 @@ class StencilState(
     /** Whether isolation has been tried for [source], whatever came of it: it is tried once. */
     private var isolationTried = false
 
-    /** The stencil made from [source] with [params], or null if there is none (yet, or at all). */
+    /** The stencil made from the masked, optionally relit source with [params], or null while pending. */
     var separation: Separation? by mutableStateOf(null)
         private set
 
@@ -74,7 +74,7 @@ class StencilState(
     var shownSheet: Int? by mutableStateOf(null)
         private set
 
-    /** What is drawn: the stencil as [shownSheet] selects it, or the source while there is no stencil. */
+    /** What is drawn: processed base image, selected stencil view, or original source while loading. */
     var preview: ImageBitmap? by mutableStateOf(null)
         private set
 
