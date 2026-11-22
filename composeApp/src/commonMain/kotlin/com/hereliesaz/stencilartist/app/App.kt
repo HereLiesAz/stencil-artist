@@ -175,11 +175,11 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     light.azimuth, -180f..180f) { state.updateLighting(light.copy(azimuth = it)) }
                 LabelledSlider("Light elevation", light.elevation.roundToInt().toString() + "°",
                     light.elevation, 0f..90f) { state.updateLighting(light.copy(elevation = it)) }
-                LabelledSlider("Light intensity", String.formatLight(light.intensity),
+                LabelledSlider("Light intensity", formatLightValue(light.intensity),
                     light.intensity, 0f..2f) { state.updateLighting(light.copy(intensity = it)) }
-                LabelledSlider("Ambient light", String.formatLight(light.ambient),
+                LabelledSlider("Ambient light", formatLightValue(light.ambient),
                     light.ambient, 0f..2f) { state.updateLighting(light.copy(ambient = it)) }
-                LabelledSlider("Depth strength", String.formatLight(light.depthStrength),
+                LabelledSlider("Depth strength", formatLightValue(light.depthStrength),
                     light.depthStrength, 0f..10f) { state.updateLighting(light.copy(depthStrength = it)) }
             }
         }
@@ -363,5 +363,5 @@ private fun Modifier.checkerboard(): Modifier = drawBehind {
 }
 
 /** Fixed one decimal place without locale or platform formatting dependencies. */
-private fun String.Companion.formatLight(value: Float): String =
+private fun formatLightValue(value: Float): String =
     (value * 10f).roundToInt().let { (it / 10).toString() + "." + kotlin.math.abs(it % 10) }
