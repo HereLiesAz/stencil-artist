@@ -15,8 +15,10 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Any number of sheets, each with its own colour (a grey ramp by default).
 - Smoothing, edge closing, tonal bias, and a forced dark or light base.
 - Shows the finished piece, or any one sheet alone.
+- Downloads actual-size tiled print PDFs for every stencil sheet. Printouts label trapped islands,
+  delicate openings, and tile joins only inside uncut material, with clearance from every cut.
 
-Not yet: depth and lighting, export. See the roadmap.
+Not yet: depth and lighting, PNG/vector/cutter export. See the roadmap.
 
 ## Layout
 
