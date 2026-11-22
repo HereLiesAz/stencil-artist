@@ -44,10 +44,18 @@ class StencilPrintPdfTest {
     }
 
     @Test
-    fun whenThereIsNoUncutRoomNoAnnotationIsPrintedOverACut() {
+    fun aCuttingProblemWithNoRoomGetsItsOwnAdjacentReferenceDetail() {
         val s = stencil(30, 30) { x, y -> x !in 12..17 || y !in 12..17 }
         val pdf = StencilPrintPdf.make(s, StencilPrintOptions(widthMm = 100.0)).decodeToString()
-        assertFalse(pdf.contains("(ISLAND "))
+        assertTrue(pdf.contains("/Count 2"))
+        assertTrue(pdf.contains("(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE)"))
+        assertTrue(pdf.contains("(ISLAND)"))
+        assertTrue(pdf.contains("(SHEET 1 - LOCAL DETAIL)"))
+        // The template page remains unannotated; the island label is only on its companion.
+        val template = pdf.substringBefore("(Page 1 / 2)")
+        assertFalse(template.contains("(ISLAND)"))
+        // Both pages refer to the same original cut-mask image.
+        assertTrue(Regex("""/Im1 Do Q""").findAll(pdf).count() == 2)
     }
 
     @Test
@@ -59,7 +67,24 @@ class StencilPrintPdfTest {
         val allCut = stencil(400, 400) { _, _ -> true }
         val noRoom = StencilPrintPdf.make(allCut, StencilPrintOptions(widthMm = 300.0))
             .decodeToString()
-        assertFalse(noRoom.contains("(TILE JOIN)"))
+        assertTrue(noRoom.contains("/Count 5"))
+        assertTrue(noRoom.contains("(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE)"))
+        assertTrue(Regex("""\(TILE JOIN\)""").findAll(noRoom).count() == 4)
+    }
+
+    @Test
+    fun pervasiveIslandsAllGetNearbyReferenceDetailsRatherThanBeingDropped() {
+        // Dense cuts leave twenty-five 1px islands of surviving material, too small for text.
+        // There is nowhere safe on the stencil to put even a single heading.
+        val s = stencil(40, 40) { x, y ->
+            !(x in setOf(4, 11, 18, 25, 32) && y in setOf(4, 11, 18, 25, 32))
+        }
+        val pdf = StencilPrintPdf.make(s, StencilPrintOptions(widthMm = 150.0)).decodeToString()
+        assertTrue(pdf.contains("/Count 8")) // One stencil page and seven detail pages.
+        assertTrue(Regex("""\(ISLAND\)""").findAll(pdf).count() == 25)
+        assertTrue(Regex("""\(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE\)""")
+            .findAll(pdf).count() == 7)
+        assertFalse(pdf.substringBefore("(Page 1 / 8)").contains("(ISLAND)"))
     }
 
     @Test
