@@ -28,8 +28,6 @@ object StencilPrintTips {
         val visited = BooleanArray(mask.size)
         val queue = IntArray(mask.size)
         val tips = ArrayList<PrintTip>()
-        var islands = 0
-        var fineCuts = 0
 
         for (start in mask.indices) {
             if (visited[start]) continue
@@ -68,14 +66,12 @@ object StencilPrintTips {
 
             val centerX = (minX + maxX) / 2
             val centerY = (minY + maxY) / 2
-            if (!opening && !boundary && islands < 128) {
+            if (!opening && !boundary) {
                 tips += PrintTip(PrintTipKind.ISLAND, centerX, centerY)
-                islands++
-            } else if (opening && fineCuts < 128 &&
+            } else if (opening &&
                 minOf(maxX - minX + 1, maxY - minY + 1) * mmPerPixel < fineCutMm
             ) {
                 tips += PrintTip(PrintTipKind.FINE_CUT, centerX, centerY)
-                fineCuts++
             }
         }
         return tips
