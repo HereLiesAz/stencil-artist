@@ -20,6 +20,8 @@ Rules written after corrections. Read at the start of every session on this repo
 
 - Contextual PDF tips belong **inside uncut, surviving stencil stock**, never in a side gutter.
 - Check the entire note's physical bounding rectangle plus safety clearance against the full
-  sheet's cut mask. If no safe location exists on that tile, omit the note.
+  sheet's cut mask. If it cannot fit, use an adjacent detail on a non-cutting reference page.
 - Never draw a pointer, leader, frame, or marker across a cut. Detect islands on the complete
   sheet, not separately on each tile, because tile borders are not physical cut lines.
+- Keep the tip adjacent to a cropped depiction of its original cut issue on that reference
+  page. Never silently limit or discard detected problem annotations.
