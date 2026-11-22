@@ -42,6 +42,17 @@ class StencilPrintTipsTest {
     }
 
     @Test
+    fun aPervasiveProblemIsNotTruncatedAtAnArbitraryTipLimit() {
+        val width = 50
+        val mask = BooleanArray(width * width) { true }
+        for (y in 1 until 48 step 3) {
+            for (x in 1 until 48 step 3) mask[y * width + x] = false
+        }
+        val tips = StencilPrintTips.detect(mask, width, width, physicalWidthMm = 150.0)
+        assertEquals(256, tips.count { it.kind == PrintTipKind.ISLAND })
+    }
+
+    @Test
     fun physicallyWideCutsAreNotMarkedTinySimplyBecauseTheyUseFewPixels() {
         val width = 12
         val mask = BooleanArray(width * width)
