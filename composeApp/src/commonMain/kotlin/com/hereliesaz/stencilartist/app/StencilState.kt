@@ -57,6 +57,7 @@ class StencilState(
 
     private var depthMap: FloatArray? = null
     private var depthAttempted = false
+    private var depthError: String? = null
     private var processed: RgbaImage? = null
 
     /** [source] with its background removed, once that has been done and found a subject. */
@@ -93,6 +94,7 @@ class StencilState(
         isolationTried = false
         depthMap = null
         depthAttempted = false
+        depthError = null
         processed = null
         viewProcessedImage = false
         shownSheet = null
@@ -124,7 +126,10 @@ class StencilState(
         depthAssistedBackground = on
         cutOut = null
         isolationTried = false
-        if (on) depthAttempted = false // Allow an explicit retry after a failed download.
+        if (on && depthMap == null) {
+            depthAttempted = false // An explicit toggle retries a failed depth download.
+            depthError = null
+        }
         remake(settle = false)
     }
 
@@ -177,9 +182,14 @@ class StencilState(
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {
-                        if (generation == request) depthAttempted = true
-                        notes += "Depth unavailable; using normal masking and lighting."
+                        if (generation == request) {
+                            depthAttempted = true
+                            depthError = "Depth unavailable; using standard masking and original lighting."
+                        }
                     }
+                }
+                if (needsDepth && depthMap == null) {
+                    notes += depthError ?: "Depth unavailable; using standard masking and original lighting."
                 }
                 if (remove && !isolationTried && !image.hasTransparency()) {
                     when (val isolation = isolator.isolate(image, if (assist) depthMap else null)) {
