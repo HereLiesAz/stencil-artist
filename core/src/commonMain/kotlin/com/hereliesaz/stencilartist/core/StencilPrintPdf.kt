@@ -239,7 +239,7 @@ object StencilPrintPdf {
 
     /**
      * Place contextual notes INSIDE the uncut white regions of the physical stencil, not in
-     * margins or in cut openings. A note is omitted rather than touching a cut edge.
+     * margins or in cut openings. A note that cannot fit moves to a companion reference page.
      */
     private fun pageContent(
         tile: Tile,
@@ -255,6 +255,8 @@ object StencilPrintPdf {
         sheetCount: Int,
         number: Int,
         totalPages: Int,
+        required: MutableMap<String, Note>,
+        placed: MutableSet<String>,
     ): String {
         val topY = pageH - TOP
         val builder = StringBuilder()
@@ -299,7 +301,7 @@ object StencilPrintPdf {
             val x = (it.x + 0.5) * totalW / sourceWidth
             val y = (it.y + 0.5) * totalH / sourceHeight
             x >= tile.x && x < tile.x + tile.width && y >= tile.y && y < tile.y + tile.height
-        }.take(8)
+        }
         val notes = ArrayList<Note>()
         for (tip in relevant) {
             val x = (tip.x + 0.5) * totalW / sourceWidth
@@ -307,21 +309,29 @@ object StencilPrintPdf {
             val position = ((x / PT_PER_MM).roundToInt()).toString() + "," +
                 ((y / PT_PER_MM).roundToInt()).toString() + "mm"
             val lines = when (tip.kind) {
-                PrintTipKind.ISLAND -> listOf("ISLAND " + position,
-                    "Leave small bridges", "joining this piece", "to the outer sheet.")
-                PrintTipKind.FINE_CUT -> listOf("FINE CUT " + position,
-                    "Use a sharp blade.", "Cut this part last.", "Lift waste slowly.")
+                PrintTipKind.ISLAND -> listOf("ISLAND", "At " + position,
+                    "Add small bridges", "before cutting.")
+                PrintTipKind.FINE_CUT -> listOf("FINE DETAIL", "At " + position,
+                    "Cut this part last.", "Lift waste slowly.")
             }
-            notes += Note(lines, x, y)
+            val key = "S" + tile.sheet + ":" + tip.kind + ":" + tip.x + ":" + tip.y
+            notes += Note(key, tile.sheet, lines, x, y)
         }
         if (tile.columns > 1 || tile.rows > 1) {
-            notes += Note(listOf("TILE JOIN", "Align crop ticks.",
-                "Overlap " + p(options.overlapMm) + " mm.", "Tape from behind."),
-                tile.x + tile.width / 2, tile.y + tile.height / 2)
+            notes += Note(
+                "S" + tile.sheet + ":JOIN:" + tile.row + ":" + tile.col,
+                tile.sheet,
+                listOf("TILE JOIN", "Align crop ticks.", "Overlap " + p(options.overlapMm) + " mm.",
+                    "Tape from behind."),
+                tile.x + tile.width / 2,
+                tile.y + tile.height / 2,
+            )
         }
 
         val used = ArrayList<Rect>()
         for (note in notes) {
+            required[note.key] = note
+            if (note.key in placed) continue
             // Helvetica glyph widths never exceed one em. Using that upper bound prevents
             // even an unusually long heading from escaping its pixel-verified clear rectangle.
             if (note.lines.withIndex().any { (index, line) ->
@@ -356,6 +366,7 @@ object StencilPrintPdf {
             }
             val rect = best ?: continue
             used += rect
+            placed += note.key
             // Muted text, no boxes, leaders or arrows: the only marks in the stencil are words
             // entirely enclosed by surviving stock. Every glyph lies inside the checked rectangle.
             builder.append("q 0.42 g\n")
@@ -370,6 +381,58 @@ object StencilPrintPdf {
         text("Page " + number + " / " + totalPages, LEFT, 23.0, 8.0)
         text("Width: " + p(options.widthMm) + " mm | " + options.paper.name +
             " | Keep scaling OFF", pageW - 247.0, 23.0, 7.0)
+        return builder.toString()
+    }
+
+    /**
+     * The companion page is non-cutting reference material. Each original-size local cut detail
+     * occupies the left of a row; its associated tip is immediately to its right on clear paper.
+     * The cutting templates themselves stay untouched, and no information is lost.
+     */
+    private fun referenceContent(
+        notes: List<Note>,
+        pageW: Double,
+        pageH: Double,
+        totalW: Double,
+        totalH: Double,
+        number: Int,
+        totalPages: Int,
+    ): String {
+        val builder = StringBuilder()
+        fun text(label: String, x: Double, y: Double, size: Double = 9.0, bold: Boolean = false) {
+            builder.append("BT /").append(if (bold) "F2" else "F1").append(' ')
+                .append(p(size)).append(" Tf ").append(p(x)).append(' ').append(p(y))
+                .append(" Td (").append(escape(label)).append(") Tj ET\n")
+        }
+        text("CONTEXTUAL CUTTING NOTES", LEFT, pageH - 29, 12.0, bold = true)
+        text("REFERENCE ONLY - DO NOT CUT FROM THIS PAGE", LEFT, pageH - 48, 9.0, bold = true)
+        text("Details shown at actual scale. Coordinates are mm from the stencil's top-left.",
+            LEFT, pageH - 64, 8.0)
+
+        for ((row, note) in notes.withIndex()) {
+            val refX = LEFT + 8.0
+            val refTop = pageH - 104.0 - row * 153.0
+            val cropW = minOf(120.0, totalW)
+            val cropH = minOf(105.0, totalH)
+            val cropX = (note.x - cropW / 2).coerceIn(0.0, totalW - cropW)
+            val cropY = (note.y - cropH / 2).coerceIn(0.0, totalH - cropH)
+            // The excerpt and the notes are separate, so no glyph can touch the cut geometry.
+            builder.append("q ").append(p(refX)).append(' ').append(p(refTop - cropH))
+                .append(' ').append(p(cropW)).append(' ').append(p(cropH))
+                .append(" re W n ").append(p(totalW)).append(" 0 0 ").append(p(totalH))
+                .append(' ').append(p(refX - cropX)).append(' ').append(p(refTop + cropY - totalH))
+                .append(" cm /Im").append(note.sheet + 1).append(" Do Q\n")
+
+            val labelX = LEFT + 148.0
+            text("SHEET " + (note.sheet + 1) + " - LOCAL DETAIL", labelX, refTop - 11.0,
+                8.5, bold = true)
+            for ((i, line) in note.lines.withIndex()) {
+                text(line, labelX, refTop - 30.0 - i * 17.0,
+                    if (i == 0) 9.5 else 9.0, bold = i == 0)
+            }
+            text("NOT A CUTTING TEMPLATE", labelX, refTop - 105.0, 7.5)
+        }
+        text("Page " + number + " / " + totalPages, LEFT, 23.0, 8.0)
         return builder.toString()
     }
 
