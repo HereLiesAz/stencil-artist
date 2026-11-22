@@ -13,6 +13,7 @@ data class PrintTip(val kind: PrintTipKind, val x: Int, val y: Int)
  * fall out once the surrounding opening is removed. Fine cuts are separate openings whose
  * narrowest bounding dimension is under the requested physical threshold. The same full-sheet
  * analysis is used for every tile, avoiding false islands created by a page boundary.
+ * A tip is anchored to a pixel belonging to its own component, never an empty bounding box center.
  */
 object StencilPrintTips {
     fun detect(
@@ -21,9 +22,11 @@ object StencilPrintTips {
         height: Int,
         physicalWidthMm: Double,
         fineCutMm: Double = 1.5,
+        maxTips: Int = Int.MAX_VALUE,
     ): List<PrintTip> {
         require(width > 0 && height > 0 && mask.size == width * height)
         require(physicalWidthMm > 0.0 && fineCutMm > 0.0)
+        require(maxTips >= 0)
         val mmPerPixel = physicalWidthMm / width
         val visited = BooleanArray(mask.size)
         val queue = IntArray(mask.size)
@@ -64,14 +67,34 @@ object StencilPrintTips {
                 if (y + 1 < height) visit(index + width)
             }
 
-            val centerX = (minX + maxX) / 2
-            val centerY = (minY + maxY) / 2
-            if (!opening && !boundary) {
-                tips += PrintTip(PrintTipKind.ISLAND, centerX, centerY)
-            } else if (opening &&
+            val island = !opening && !boundary
+            val fine = opening &&
                 minOf(maxX - minX + 1, maxY - minY + 1) * mmPerPixel < fineCutMm
-            ) {
-                tips += PrintTip(PrintTipKind.FINE_CUT, centerX, centerY)
+            if (island || fine) {
+                // Reject impossible outputs before allocating millions of notes or looking for
+                // printable positions. Rejecting is preferable to silently losing guidance.
+                require(tips.size < maxTips) {
+                    "Too many stencil details for a printable PDF; simplify the stencil or use fewer sheets."
+                }
+                val centerX = (minX + maxX) / 2
+                val centerY = (minY + maxY) / 2
+                var anchor = queue[0]
+                var distance = Long.MAX_VALUE
+                for (i in 0 until tail) {
+                    val pixel = queue[i]
+                    val dx = (pixel % width - centerX).toLong()
+                    val dy = (pixel / width - centerY).toLong()
+                    val d = dx * dx + dy * dy
+                    if (d < distance) {
+                        distance = d
+                        anchor = pixel
+                    }
+                }
+                tips += PrintTip(
+                    if (island) PrintTipKind.ISLAND else PrintTipKind.FINE_CUT,
+                    anchor % width,
+                    anchor / width,
+                )
             }
         }
         return tips

@@ -63,6 +63,7 @@ class StencilState(private val scope: CoroutineScope, private val isolator: Subj
         private set
 
     private var run: Job? = null
+    private var generation = 0L
 
     fun open(image: RgbaImage) {
         source = image
@@ -104,10 +105,14 @@ class StencilState(private val scope: CoroutineScope, private val isolator: Subj
     private fun remake(settle: Boolean) {
         val image = source ?: return
         val wanted = params
+        val request = ++generation
         run?.cancel()
+        // A debounced request is still pending work. Invalidate the old result synchronously,
+        // before the coroutine starts, so PDF export cannot capture stale cut geometry.
+        separation = null
+        busy = true
         run = scope.launch {
             if (settle) delay(SETTLE_MILLIS)
-            busy = true
             try {
                 // On the web there is one thread, so let the "working" state reach the screen first.
                 delay(1)
@@ -131,7 +136,8 @@ class StencilState(private val scope: CoroutineScope, private val isolator: Subj
                     preview = result.separation.toImageBitmap(shownSheet)
                 }
             } finally {
-                busy = false
+                // A cancelled predecessor must not clear the next request's pending flag.
+                if (generation == request) busy = false
             }
         }
     }

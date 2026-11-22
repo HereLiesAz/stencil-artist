@@ -25,3 +25,15 @@ Rules written after corrections. Read at the start of every session on this repo
   sheet, not separately on each tile, because tile borders are not physical cut lines.
 - Keep the tip adjacent to a cropped depiction of its original cut issue on that reference
   page. Never silently limit or discard detected problem annotations.
+
+## 2026-11-22 — PDF review findings
+
+- Debounced stencil changes invalidate any previously exportable separation **synchronously**;
+  a previous cancelled job must not clear the current busy flag.
+- Print tips are anchored to pixels on the detected connected component. The chosen component
+  pixel also uniquely identifies it across tiled pages; a bounding-box center is insufficient.
+- Never retain cut masks and integral-image clearance buffers for every sheet at once. Analyze
+  one sheet at a time, then retain only encoded PDF data.
+- Bound pathological detail counts before searching for available annotation space. Reject an
+  impossible export with a clear error instead of hanging or omitting warnings.
+- Calculate candidate safe text positions once per page, not once for every tip.

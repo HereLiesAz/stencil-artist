@@ -18,6 +18,8 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Downloads actual-size tiled print PDFs for every stencil sheet. Printouts label trapped islands,
   delicate openings, and tile joins inside uncut material. When a note cannot safely fit,
   a non-cutting reference page shows the affected detail immediately beside its tip.
+- PDF export bounds pathological detail counts, diagnoses actual surviving components, and handles
+  one stencil sheet at a time to keep memory use predictable.
 
 Not yet: depth and lighting, PNG/vector/cutter export. See the roadmap.
 
