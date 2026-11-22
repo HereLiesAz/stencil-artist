@@ -57,7 +57,7 @@ actual fun rememberModelLoader(): ModelLoader = remember { WebModelLoader }
 /** U²-Net is bundled, while quantised depth is requested and HTTP-cached on first use. */
 private object WebModelLoader : ModelLoader {
     private const val DEPTH_URL =
-        "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_quantized.onnx"
+        "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/f7421df0cc30f121782ab050d42f0a423291dcde/onnx/model_quantized.onnx"
 
     override suspend fun load(fileName: String): Inference {
         val url = if (fileName == DepthLighting.MODEL_FILE) DEPTH_URL else "models/$fileName"
