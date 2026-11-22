@@ -6,6 +6,11 @@
     <meta name="theme-color" content="#000000">
     <meta name="description" content="Turn any image into stencil layers, at any size.">
     <title>Stencil Artist</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <style>
         html, body { margin: 0; height: 100%; background: #000; color: #e6e6e6; overflow: hidden;
             font-family: system-ui, sans-serif; }
@@ -18,5 +23,12 @@
 <div id="loading">Stencil Artist</div>
 <noscript>Stencil Artist needs JavaScript and WebAssembly.</noscript>
 <script src="stencil-artist.js"></script>
+<script>
+    // The service worker makes the app installable and keeps it working offline (see sw.js).
+    // Registered after load so it never competes with the app's own first download.
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+</script>
 </body>
 </html>
