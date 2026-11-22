@@ -4,10 +4,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
+import com.hereliesaz.stencilartist.core.DepthLighting
+import com.hereliesaz.stencilartist.core.LightingParams
 import com.hereliesaz.stencilartist.core.RgbaImage
 import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.TonalParams
 import com.hereliesaz.stencilartist.core.TonalSeparator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -20,7 +23,11 @@ import kotlinx.coroutines.withContext
  * image or a parameter changes, off the main thread where the platform has one to spare, and a
  * run that has been overtaken is cancelled, not finished.
  */
-class StencilState(private val scope: CoroutineScope, private val isolator: SubjectIsolator) {
+class StencilState(
+    private val scope: CoroutineScope,
+    private val isolator: SubjectIsolator,
+    private val depthEstimator: DepthEstimator,
+) {
 
     /** The opened image, or null before one is opened. */
     var source: RgbaImage? by mutableStateOf(null)
@@ -36,6 +43,21 @@ class StencilState(private val scope: CoroutineScope, private val isolator: Subj
      */
     var removeBackground: Boolean by mutableStateOf(true)
         private set
+
+    /** Depth helps uncertain U²-Net boundaries, using a model downloaded only when needed. */
+    var depthAssistedBackground: Boolean by mutableStateOf(true)
+        private set
+
+    /** Changes to light and depth modify the base image before stencil separation. */
+    var lighting: LightingParams by mutableStateOf(LightingParams())
+        private set
+
+    var viewProcessedImage: Boolean by mutableStateOf(false)
+        private set
+
+    private var depthMap: FloatArray? = null
+    private var depthAttempted = false
+    private var processed: RgbaImage? = null
 
     /** [source] with its background removed, once that has been done and found a subject. */
     private var cutOut: RgbaImage? = null
@@ -69,6 +91,10 @@ class StencilState(private val scope: CoroutineScope, private val isolator: Subj
         source = image
         cutOut = null
         isolationTried = false
+        depthMap = null
+        depthAttempted = false
+        processed = null
+        viewProcessedImage = false
         shownSheet = null
         message = null
         preview = argbToImageBitmap(image.pixels, image.width, image.height)
@@ -93,8 +119,30 @@ class StencilState(private val scope: CoroutineScope, private val isolator: Subj
         remake(settle = false)
     }
 
+    fun depthAssistedBackground(on: Boolean) {
+        if (on == depthAssistedBackground) return
+        depthAssistedBackground = on
+        cutOut = null
+        isolationTried = false
+        if (on) depthAttempted = false // Allow an explicit retry after a failed download.
+        remake(settle = false)
+    }
+
+    fun updateLighting(next: LightingParams) {
+        if (next == lighting) return
+        lighting = next
+        remake(settle = true)
+    }
+
+    fun showProcessed(on: Boolean) {
+        viewProcessedImage = on
+        if (on) processed?.let { preview = argbToImageBitmap(it.pixels, it.width, it.height) }
+        else separation?.let { preview = it.toImageBitmap(shownSheet) }
+    }
+
     fun show(sheet: Int?) {
         shownSheet = sheet
+        viewProcessedImage = false
         separation?.let { preview = it.toImageBitmap(sheet) }
     }
 
@@ -105,38 +153,66 @@ class StencilState(private val scope: CoroutineScope, private val isolator: Subj
     private fun remake(settle: Boolean) {
         val image = source ?: return
         val wanted = params
+        val wantedLighting = lighting
+        val remove = removeBackground
+        val assist = depthAssistedBackground
         val request = ++generation
         run?.cancel()
-        // A debounced request is still pending work. Invalidate the old result synchronously,
-        // before the coroutine starts, so PDF export cannot capture stale cut geometry.
         separation = null
         busy = true
         run = scope.launch {
-            if (settle) delay(SETTLE_MILLIS)
             try {
-                // On the web there is one thread, so let the "working" state reach the screen first.
-                delay(1)
-                var note: String? = null
-                if (removeBackground && !isolationTried && !image.hasTransparency()) {
-                    when (val isolation = isolator.isolate(image)) {
+                if (settle) delay(SETTLE_MILLIS)
+                delay(1) // Allow the busy indicator to paint before inference in the browser.
+                val notes = ArrayList<String>()
+                val needsDepth = wantedLighting.enabled ||
+                    (remove && assist && !image.hasTransparency())
+                if (needsDepth && depthMap == null && !depthAttempted) {
+                    try {
+                        val calculated = depthEstimator.estimate(image)
+                        if (generation == request) {
+                            depthMap = calculated
+                            depthAttempted = true
+                        }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        if (generation == request) depthAttempted = true
+                        notes += "Depth unavailable; using normal masking and lighting."
+                    }
+                }
+                if (remove && !isolationTried && !image.hasTransparency()) {
+                    when (val isolation = isolator.isolate(image, if (assist) depthMap else null)) {
                         is Isolation.Cut -> cutOut = isolation.image
-                        Isolation.NoSubject -> note = "No subject found. Using the whole image."
-                        is Isolation.Unavailable -> note = "Background removal isn't available. Using the whole image."
+                        Isolation.NoSubject -> notes += "No subject found. Using the whole image."
+                        is Isolation.Unavailable ->
+                            notes += "Background removal unavailable. Using the whole image."
                     }
                     isolationTried = true
                 }
-                val subject = cutOut?.takeIf { removeBackground } ?: image
-                val result = withContext(Dispatchers.Default) { TonalSeparator.separate(subject, wanted) }
+                val isolated = cutOut?.takeIf { remove } ?: image
+                val lit = if (wantedLighting.enabled && depthMap != null) {
+                    val map = checkNotNull(depthMap)
+                    withContext(Dispatchers.Default) {
+                        DepthLighting.relight(isolated, map, wantedLighting)
+                    }
+                } else isolated
+                // This is the processing order: source -> depth-assisted mask -> relit base image
+                // -> tonal separation. No relighting occurs after any stencil layer is created.
+                val result = withContext(Dispatchers.Default) {
+                    TonalSeparator.separate(lit, wanted)
+                }
+                processed = lit
                 if (result == null) {
                     separation = null
                     message = "Couldn't make a stencil from this image."
                 } else {
                     separation = result.separation
-                    message = note
-                    preview = result.separation.toImageBitmap(shownSheet)
+                    message = notes.joinToString(" ").ifEmpty { null }
+                    preview = if (viewProcessedImage) argbToImageBitmap(lit.pixels, lit.width, lit.height)
+                        else result.separation.toImageBitmap(shownSheet)
                 }
             } finally {
-                // A cancelled predecessor must not clear the next request's pending flag.
                 if (generation == request) busy = false
             }
         }
