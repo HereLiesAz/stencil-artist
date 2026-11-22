@@ -2,6 +2,8 @@ package com.hereliesaz.stencilartist.core
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -16,7 +18,10 @@ class StencilPrintTipsTest {
             }
         }
         val tips = StencilPrintTips.detect(mask, width, width, physicalWidthMm = 110.0)
-        assertEquals(listOf(PrintTip(PrintTipKind.ISLAND, 5, 5)), tips)
+        assertEquals(1, tips.size)
+        assertEquals(PrintTipKind.ISLAND, tips.single().kind)
+        assertFalse(mask[tips.single().y * width + tips.single().x],
+            "The island anchor must belong to surviving material, not the opening inside it.")
     }
 
     @Test
@@ -50,6 +55,40 @@ class StencilPrintTipsTest {
         }
         val tips = StencilPrintTips.detect(mask, width, width, physicalWidthMm = 150.0)
         assertEquals(256, tips.count { it.kind == PrintTipKind.ISLAND })
+    }
+
+    @Test
+    fun concentricUncutIslandsAreDistinctAndBothAnchoredOnRealMaterial() {
+        val width = 41
+        val mask = BooleanArray(width * width) { true }
+        for (y in 5..35) for (x in 5..35) {
+            if (x == 5 || x == 35 || y == 5 || y == 35) mask[y * width + x] = false
+        }
+        for (y in 13..27) for (x in 13..27) {
+            if (x == 13 || x == 27 || y == 13 || y == 27) mask[y * width + x] = false
+        }
+        val islands = StencilPrintTips.detect(mask, width, width, physicalWidthMm = 150.0)
+            .filter { it.kind == PrintTipKind.ISLAND }
+        assertEquals(2, islands.size)
+        assertNotEquals(islands[0], islands[1])
+        assertEquals(20, (5 + 35) / 2) // Both bounds have this midpoint; it is cut, not material.
+        assertTrue(mask[20 * width + 20])
+        for (tip in islands) {
+            assertFalse(mask[tip.y * width + tip.x])
+        }
+    }
+
+    @Test
+    fun exceedingThePrintableDetailBudgetFailsWithoutDroppingAnyTip() {
+        val width = 60
+        val mask = BooleanArray(width * width) { true }
+        for (y in 1 until width step 2) for (x in 1 until width step 2) {
+            mask[y * width + x] = false
+        }
+        val error = assertFailsWith<IllegalArgumentException> {
+            StencilPrintTips.detect(mask, width, width, physicalWidthMm = 100.0, maxTips = 10)
+        }
+        assertTrue(error.message.orEmpty().contains("Too many stencil details"))
     }
 
     @Test
