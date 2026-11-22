@@ -19,11 +19,26 @@ Depth and U²-Net are complementary, not substitutes. U²-Net supplies confident
 background seeds, depth refines only ambiguous border pixels, then lighting alters the masked source
 image *before* tonal separation. Failed model retrieval never removes the ability to make a stencil.
 
-## MiDaS comparison
+## Verified CPU comparison against MiDaS Small
 
-The alternative under review is MiDaS v2.1 Small (256px ONNX, released as `model-small.onnx`).
-Its unquantised ONNX model is larger and its input resolution smaller than the quantised Depth
-Anything V2 Small model. Equivalent on-device latency and real-image mask-quality measurements
-have not yet been verified. Do not pass published results on different datasets off as an
-app-specific benchmark. The depth processing path stays behind `Inference` so benchmarking and
-swapping a future model will not alter the stencil separation contract.
+[GitHub Actions run 45084318211](https://github.com/HereLiesAz/stencil-artist/actions/runs/45084318211)
+executed both public ONNX files successfully on one Linux runner with ONNX Runtime 1.32.0,
+two CPU inference threads, deterministic tensor inputs and one warm-up followed by three
+measured passes. This compares **latency and model compatibility**, not depth accuracy.
+
+| Model | Model bytes | Input | Warm median CPU inference |
+|---|---:|---|---:|
+| Depth Anything V2 Small, quantised | 27,258,801 | 518 × 518 | 669.6 ms |
+| MiDaS v2.1 Small, float32 | 66,389,153 | 256 × 256 | 55.4 ms |
+
+The Depth Anything V2 model also passed a non-square 1×3×266×518 input/output smoke test
+and its SHA-256 check. The MiDaS model is MIT-licensed; its
+[checkpoint](https://huggingface.co/Heliosoph/midas-small-onnx) is pinned at
+`f3a5a5e4c852c7bfac10517767e5b0636cb42b92`, with SHA-256
+`b0a5b3f12625137e626805167907fe0410665bec671685d59daaa2daab19f977`.
+
+This result does **not** establish mask quality on photographs or performance on Android
+and mobile browsers. The faster 256px MiDaS model trades away depth-map resolution; the
+selected default remains Depth Anything V2 Small for the fine foreground boundaries and
+surface detail sought by the stencil preprocessing phase. The shared `Inference` interface
+keeps a later runtime/performance-based model switch possible.
