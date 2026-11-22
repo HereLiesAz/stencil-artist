@@ -20,12 +20,13 @@ class StencilPrintPdfTest {
         assertTrue(pdf.startsWith("%PDF-1.4"))
         assertTrue(pdf.contains("/MediaBox [0 0 612.0 792.0]"))
         assertTrue(pdf.contains("(PRINT AT 100% - ACTUAL SIZE)"))
-        assertTrue(pdf.contains("(FINE CUT 84,92mm)"))
+        assertTrue(pdf.contains("(FINE DETAIL)"))
+        assertTrue(pdf.contains("(At 84,92mm)"))
 
         // Independently read the first word's PDF position and verify that its complete
         // conservative printed footprint lies on material, not on the one-pixel cut.
         val match = assertNotNull(
-            Regex("""BT /F2 7.4 Tf ([0-9.]+) ([0-9.]+) Td \(FINE CUT""").find(pdf),
+            Regex("""BT /F2 7.4 Tf ([0-9.]+) ([0-9.]+) Td \(FINE DETAIL""").find(pdf),
         )
         val textX = match.groupValues[1].toDouble()
         val textY = match.groupValues[2].toDouble()
