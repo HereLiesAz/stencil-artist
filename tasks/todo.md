@@ -75,7 +75,8 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       row/column labels, assembly map page. Vector, from phase 7 paths.
       **Partial:** a true-size raster-mask PDF exporter now supports Letter/A4 in core (Letter
       in the UI), per-sheet tiled pages, crop ticks, and contextual print tips. Notes sit inside
-      surviving uncut material with a cut-free buffer; tips that cannot fit are omitted. Final
+      surviving uncut material with a cut-free buffer. Unplaceable tips get adjacent cut-detail
+      references on separate, clearly marked non-cutting pages; no tips are silently dropped. Final
       vector paths, custom paper and assembly map remain to finish this phase.
 - [ ] **10. PWA** — manifest, icons, service worker (app shell + model cache), offline, installable.
 - [ ] **11. Release wiring** — bind existing catalog workflows: `github-pages-deploy`,
