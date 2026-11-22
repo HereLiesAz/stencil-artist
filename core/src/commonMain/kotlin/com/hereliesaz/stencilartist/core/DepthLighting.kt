@@ -88,7 +88,10 @@ object DepthLighting {
         require(confidence.size == depth.size)
         val foreground = ArrayList<Float>()
         val background = ArrayList<Float>()
-        for (i in depth.indices) {
+        // Bound median-estimation work on 1600px working images; exhaustive Float boxing
+        // would otherwise retain millions of seed objects on Android and Wasm.
+        val stride = (depth.size / 8192).coerceAtLeast(1)
+        for (i in depth.indices step stride) {
             val d = depth[i]
             if (!d.isFinite()) return confidence
             when {
@@ -108,7 +111,7 @@ object DepthLighting {
         val reach = kotlin.math.abs(difference).coerceAtLeast(0.2f)
         return FloatArray(confidence.size) { i ->
             val c = confidence[i]
-            if (c <= 0.25f || c >= 0.75f) c else {
+            if (c <= 0.25f || c >= 0.75f || !depth[i].isFinite()) c else {
                 val gate = (1f - kotlin.math.abs(c - 0.5f) / 0.25f).coerceIn(0f, 1f)
                 val depthScore = ((depth[i] - midpoint) * direction / reach + 0.5f)
                     .coerceIn(0f, 1f)
