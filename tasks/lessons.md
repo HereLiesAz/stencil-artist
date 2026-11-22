@@ -15,3 +15,11 @@ Rules written after corrections. Read at the start of every session on this repo
   action that is destructive or hard to reverse; access that was deliberately withheld.
 - _(My reading, not Az's words:)_ the up-front plan check-in still stands; it is the mid-plan
   pauses that were the problem.
+
+## 2026-11-22 — Print guidance must not change cuts
+
+- Contextual PDF tips belong **inside uncut, surviving stencil stock**, never in a side gutter.
+- Check the entire note's physical bounding rectangle plus safety clearance against the full
+  sheet's cut mask. If no safe location exists on that tile, omit the note.
+- Never draw a pointer, leader, frame, or marker across a cut. Detect islands on the complete
+  sheet, not separately on each tile, because tile borders are not physical cut lines.
