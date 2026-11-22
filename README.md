@@ -1,4 +1,7 @@
-# HereLiesAz Repository Starter
+# Stencil Artist
+Turn any image into stencil layers to make stencils of ANY size. 
+
+## HereLiesAz Repository Starter
 
 General-purpose starter for new HereLiesAz repositories.
 
