@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 class StencilPrintPdfTest {
     private val ink = Sheet(0xFF000000.toInt())
@@ -86,6 +87,43 @@ class StencilPrintPdfTest {
         assertTrue(Regex("""\(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE\)""")
             .findAll(pdf).count() == 7)
         assertFalse(pdf.substringBefore("(Page 1 / 8)").contains("(ISLAND)"))
+    }
+
+    @Test
+    fun concentricIslandsWithTheSameBoundsCenterBothReceiveCutDetailReferences() {
+        val s = stencil(41, 41) { x, y ->
+            val onOuter = (x in 5..35 && (y == 5 || y == 35)) ||
+                (y in 5..35 && (x == 5 || x == 35))
+            val onInner = (x in 13..27 && (y == 13 || y == 27)) ||
+                (y in 13..27 && (x == 13 || x == 27))
+            !onOuter && !onInner
+        }
+        val pdf = StencilPrintPdf.make(s, StencilPrintOptions(widthMm = 150.0))
+            .decodeToString()
+        assertTrue(pdf.contains("/Count 2"))
+        assertTrue(Regex("""\\(ISLAND\\)""").findAll(pdf).count() == 2)
+        assertTrue(Regex("""\\(SHEET 1 - LOCAL DETAIL\\)""").findAll(pdf).count() == 2)
+    }
+
+    @Test
+    fun highlyFragmentedStencilsFailBeforeGeneratingThousandsOfReferencePages() {
+        val s = stencil(200, 200) { x, y -> (x + y) % 2 == 0 }
+        val error = assertFailsWith<IllegalArgumentException> {
+            StencilPrintPdf.make(s, StencilPrintOptions(widthMm = 190.0))
+        }
+        assertTrue(error.message.orEmpty().contains("Too many stencil details"))
+    }
+
+    @Test
+    fun multipleSheetsStillExportInPageOrderWithoutCrossSheetAnalysisRetention() {
+        val s = Separation(100, 100, List(12) { Sheet(0xFF334455.toInt()) },
+            IntArray(10000) { it / 1000 })
+        val pdf = StencilPrintPdf.make(s, StencilPrintOptions(widthMm = 100.0))
+            .decodeToString()
+        assertTrue(pdf.contains("/Count 12"))
+        for (sheet in 1..12) {
+            assertTrue(pdf.contains("(SHEET " + sheet + " / 12"))
+        }
     }
 
     @Test
