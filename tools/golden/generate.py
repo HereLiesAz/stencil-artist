@@ -41,6 +41,14 @@ def kotlin_hex(name, a):
     return "    const val %s =\n        %s\n" % (name, body)
 
 
+def kotlin_floats(name, a):
+    """Floats as 16-bit fixed point (value * 65535), hex: compact, and exact to 1.6e-5."""
+    q = np.round(np.clip(np.asarray(a, np.float64), 0, 1) * 65535).astype(">u2")
+    s = q.tobytes().hex()
+    chunks = [s[i:i + 100] for i in range(0, len(s), 100)]
+    return "    const val %s =\n        %s\n" % (name, " +\n        ".join('"%s"' % c for c in chunks))
+
+
 # --- StencilTones, transcribed from GraffitiXR -------------------------------------------------
 
 def thresholds(hist):
@@ -193,6 +201,13 @@ def main():
         assert len(set(ranks.ravel().tolist())) == 4, "fixture %s does not use every tone" % name
         out.append(kotlin_hex("SUBJECT_%s_RGBA" % name, rgba))
         out.append(kotlin_hex("SUBJECT_%s_RANKS" % name, ranks))
+    # Resizing, as SubjectIsolator does it around the network: INTER_AREA down, INTER_LINEAR up.
+    big = blobs(rng, 61, 47).astype(np.float32) / 255.0
+    out.append("    const val RESIZE_W = 61\n    const val RESIZE_H = 47\n")
+    out.append(kotlin_hex("RESIZE_SRC", (big * 255).astype(np.uint8)))
+    out.append(kotlin_floats("AREA_20_16", cv2.resize(big, (20, 16), interpolation=cv2.INTER_AREA)))
+    small = cv2.resize(big, (20, 16), interpolation=cv2.INTER_AREA)
+    out.append(kotlin_floats("LINEAR_61_47", cv2.resize(small, (61, 47), interpolation=cv2.INTER_LINEAR)))
     out.append("}\n")
     with open(OUT, "w") as f:
         f.write("".join(out))

@@ -59,7 +59,8 @@ private val WIDE_LAYOUT = 720.dp
 fun App() {
     StencilArtistTheme {
         val scope = rememberCoroutineScope()
-        val state = remember { StencilState(scope) }
+        val models = rememberModelLoader()
+        val state = remember { StencilState(scope, SubjectIsolator(models)) }
         val pick = rememberImagePicker(onPicked = state::open, onError = state::fail)
 
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -120,6 +121,13 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
 
         Section("Show") {
             SheetStrip(state.separation?.sheets.orEmpty(), state.shownSheet, state::show)
+        }
+
+        Section("Background") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice("Remove", selected = state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(true) }
+                Choice("Keep", selected = !state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(false) }
+            }
         }
 
         Section("Sheets") {

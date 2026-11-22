@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
  * image or a parameter changes, off the main thread where the platform has one to spare, and a
  * run that has been overtaken is cancelled, not finished.
  */
-class StencilState(private val scope: CoroutineScope) {
+class StencilState(private val scope: CoroutineScope, private val isolator: SubjectIsolator) {
 
     /** The opened image, or null before one is opened. */
     var source: RgbaImage? by mutableStateOf(null)
@@ -28,6 +28,20 @@ class StencilState(private val scope: CoroutineScope) {
 
     var params: TonalParams by mutableStateOf(TonalParams())
         private set
+
+    /**
+     * Whether the background is removed before the stencil is made, so the base sheet is the
+     * subject's silhouette and not the whole frame. On by default, as in GraffitiXR. An image that
+     * arrives with transparency is taken as already cut out and left alone.
+     */
+    var removeBackground: Boolean by mutableStateOf(true)
+        private set
+
+    /** [source] with its background removed, once that has been done and found a subject. */
+    private var cutOut: RgbaImage? = null
+
+    /** Whether isolation has been tried for [source], whatever came of it: it is tried once. */
+    private var isolationTried = false
 
     /** The stencil made from [source] with [params], or null if there is none (yet, or at all). */
     var separation: Separation? by mutableStateOf(null)
@@ -52,6 +66,8 @@ class StencilState(private val scope: CoroutineScope) {
 
     fun open(image: RgbaImage) {
         source = image
+        cutOut = null
+        isolationTried = false
         shownSheet = null
         message = null
         preview = argbToImageBitmap(image.pixels, image.width, image.height)
@@ -68,6 +84,12 @@ class StencilState(private val scope: CoroutineScope) {
         // A sheet that no longer exists cannot stay selected.
         shownSheet = shownSheet?.takeIf { it < next.sheets }
         remake(settle = true)
+    }
+
+    fun removeBackground(on: Boolean) {
+        if (on == removeBackground) return
+        removeBackground = on
+        remake(settle = false)
     }
 
     fun show(sheet: Int?) {
@@ -89,13 +111,23 @@ class StencilState(private val scope: CoroutineScope) {
             try {
                 // On the web there is one thread, so let the "working" state reach the screen first.
                 delay(1)
-                val result = withContext(Dispatchers.Default) { TonalSeparator.separate(image, wanted) }
+                var note: String? = null
+                if (removeBackground && !isolationTried && !image.hasTransparency()) {
+                    when (val isolation = isolator.isolate(image)) {
+                        is Isolation.Cut -> cutOut = isolation.image
+                        Isolation.NoSubject -> note = "No subject found. Using the whole image."
+                        is Isolation.Unavailable -> note = "Background removal isn't available. Using the whole image."
+                    }
+                    isolationTried = true
+                }
+                val subject = cutOut?.takeIf { removeBackground } ?: image
+                val result = withContext(Dispatchers.Default) { TonalSeparator.separate(subject, wanted) }
                 if (result == null) {
                     separation = null
                     message = "Couldn't make a stencil from this image."
                 } else {
                     separation = result.separation
-                    message = null
+                    message = note
                     preview = result.separation.toImageBitmap(shownSheet)
                 }
             } finally {
@@ -103,6 +135,8 @@ class StencilState(private val scope: CoroutineScope) {
             }
         }
     }
+
+    private fun RgbaImage.hasTransparency(): Boolean = pixels.any { it ushr 24 != 0xFF }
 
     private fun Separation.toImageBitmap(sheet: Int?): ImageBitmap = argbToImageBitmap(render(sheet), width, height)
 

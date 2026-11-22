@@ -18,6 +18,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // The models live once, at the repository root, and are packaged from there. Stored
+    // uncompressed: ONNX weights do not compress, and reading an asset is faster without inflating.
+    sourceSets["main"].assets.directories.add(rootProject.file("models").path)
+    androidResources {
+        noCompress += "onnx"
+    }
 }
 
 dependencies {

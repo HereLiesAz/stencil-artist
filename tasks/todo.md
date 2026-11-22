@@ -3,7 +3,7 @@
 Source: GraffitiXR `StencilTones.kt`, `StencilProcessor.kt`, `SubjectIsolator.kt`, `StencilTonesTest.kt`
 (copied; GraffitiXR is not modified).
 
-Status: **in progress.** Phases 0-3 done; subject isolation next.
+Status: **in progress.** Phases 0-4 done; depth + lighting next.
 
 ## Decisions (answered)
 
@@ -59,7 +59,11 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 - [x] **3. App shell** — pick image, preview, sheet strip (All + one swatch per sheet), sheet
       stepper, base, smoothing, closing, bias. Monochrome dark UI. Web build driven in headless
       Chromium; Android builds (`assembleDebug`) but has not been run on a device.
-- [ ] **4. Subject isolation** — u2netp via `OnnxSession`; lazy load; falls back to whole frame.
+- [x] **4. Subject isolation** — u2netp (`models/`, one copy, packaged into both builds). Pre- and
+      post-processing in `core` (`Saliency`, `Resample`, held to OpenCV fixtures); inference behind
+      `Inference` (ONNX Runtime on Android, ONNX Runtime Web loaded on first use). On by default;
+      no subject or no runtime falls back to the whole frame with a note. Verified in headless
+      Chromium. Android inference compiles and packages but has not been run on a device.
 - [ ] **5. Depth + lighting** — Depth Anything V2 Small (Apache-2.0) ONNX -> depth map -> normals
       -> Lambert + ambient relight. Controls: light azimuth, elevation, intensity, ambient, depth
       strength. Relit luminance feeds the stencil. Model downloaded on first use, not bundled.
@@ -89,6 +93,10 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
   must scale them (phase 6).
 - On the web the pipeline runs on the only thread; the UI holds still while it works. A Web Worker
   is the fix if it proves slow on phones (phase 10).
+- The web ONNX runtime is a 14.8 MB WebAssembly file (plus the 4.6 MB model), fetched only when a
+  background is first removed. The service worker should cache both (phase 10).
+- The debug APK carries ONNX Runtime for four ABIs (~140 MB of native libraries uncompressed).
+  Release builds should split by ABI or ship an App Bundle (phase 11).
 - Kotlin's Wasm tooling pulls Karma from a GitHub tarball; the root build pins the npm release
   instead (unused either way).
 

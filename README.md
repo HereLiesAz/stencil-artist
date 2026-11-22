@@ -10,12 +10,13 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 
 ## What it does today
 
-- Opens an image and separates it into sheets by tone.
+- Opens an image, removes its background on the device (U²-Net), and separates the subject into
+  sheets by tone.
 - Any number of sheets, each with its own colour (a grey ramp by default).
 - Smoothing, edge closing, tonal bias, and a forced dark or light base.
 - Shows the finished piece, or any one sheet alone.
 
-Not yet: background removal, depth and lighting, export. See the roadmap.
+Not yet: depth and lighting, export. See the roadmap.
 
 ## Layout
 
@@ -24,6 +25,7 @@ Not yet: background removal, depth and lighting, export. See the roadmap.
 | `core` | The stencil pipeline. Pure Kotlin (`jvm`, `wasmJs`), no platform dependencies. |
 | `composeApp` | The app: UI and state, shared by Android and the web. Produces the web build. |
 | `androidApp` | The Android wrapper: an Activity and a manifest. |
+| `models` | ONNX models and their licences, packaged into both builds. |
 | `tools/golden` | Generates the OpenCV fixtures the pipeline is tested against. |
 
 ## Build
