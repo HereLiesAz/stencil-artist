@@ -19,20 +19,22 @@ from huggingface_hub import HfApi, hf_hub_download
 
 DEPTH_REVISION = "f7421df0cc30f121782ab050d42f0a423291dcde"
 DEPTH_SHA256 = "fcf51f1b230362b28690bb9d1809bf0431f29cad20534e3f589bd7285547f20d"
+MIDAS_REVISION = "f3a5a5e4c852c7bfac10517767e5b0636cb42b92"
+MIDAS_SHA256 = "b0a5b3f12625137e626805167907fe0410665bec671685d59daaa2daab19f977"
 MODELS = (
     ("Depth Anything V2 Small quantized", "onnx-community/depth-anything-v2-small",
      "onnx/model_quantized.onnx", DEPTH_REVISION, 518),
-    ("MiDaS v2.1 Small float32", "Heliosoph/midas-small-onnx", None, "main", 256),
+    ("MiDaS v2.1 Small float32", "Heliosoph/midas-small-onnx", "midas_v21_small_256.onnx", MIDAS_REVISION, 256),
 )
 
 
-def verify_depth_checksum(path: str) -> None:
+def verify_checksum(path: str, expected: str) -> None:
     digest = hashlib.sha256()
     with open(path, "rb") as source:
         while chunk := source.read(1024 * 1024):
             digest.update(chunk)
-    if digest.hexdigest() != DEPTH_SHA256:
-        raise ValueError("Depth Anything checkpoint checksum differs from its pinned upstream release")
+    if digest.hexdigest() != expected:
+        raise ValueError("ONNX checkpoint checksum differs from its pinned upstream release")
 
 
 def bench_one(name: str, repo: str, filename: str | None, revision: str, side: int) -> None:
@@ -45,8 +47,7 @@ def bench_one(name: str, repo: str, filename: str | None, revision: str, side: i
     started = time.perf_counter()
     path = hf_hub_download(repo_id=repo, filename=filename, revision=revision)
     download_seconds = time.perf_counter() - started
-    if name.startswith("Depth Anything"):
-        verify_depth_checksum(path)
+    verify_checksum(path, DEPTH_SHA256 if name.startswith("Depth Anything") else MIDAS_SHA256)
 
     options = ort.SessionOptions()
     options.intra_op_num_threads = 2
