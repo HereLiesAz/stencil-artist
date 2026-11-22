@@ -19,10 +19,10 @@ data class StencilPrintOptions(
 /**
  * Tiled black-and-white PDF for cutting a stencil at actual size.
  *
- * The stencil itself remains unannotated. Problem-specific advice is drawn in a separate margin
- * aligned with the affected feature's vertical position on the physical tile. Islands and fine
- * cuts are diagnosed once on the complete sheet, not on clipped tiles; a tile seam must never
- * create a spurious island. Each sheet's one-bit image is reused across its PDF pages.
+ * The original cut mask is never changed. Problem-specific advice is printed only on surviving
+ * uncut stock, and omitted if it cannot fit with clearance from all cuts. Islands and fine cuts
+ * are diagnosed once on the complete sheet, not on cropped tiles; a tile seam must not create
+ * a spurious island. Each sheet's one-bit image is reused across its PDF pages.
  *
  * Print at 100% / actual size. PDF viewers' "fit to page" option changes the cutting scale.
  */
@@ -276,18 +276,23 @@ object StencilPrintPdf {
                 PrintTipKind.ISLAND -> listOf("ISLAND " + position,
                     "Leave small bridges", "joining this piece", "to the outer sheet.")
                 PrintTipKind.FINE_CUT -> listOf("FINE CUT " + position,
-                    "Use a sharp blade.", "Cut this opening last.", "Lift waste slowly.")
+                    "Use a sharp blade.", "Cut this part last.", "Lift waste slowly.")
             }
             notes += Note(lines, x, y)
         }
         if (tile.columns > 1 || tile.rows > 1) {
-            notes += Note(listOf("TILE JOIN", "Align the crop ticks.",
+            notes += Note(listOf("TILE JOIN", "Align crop ticks.",
                 "Overlap " + p(options.overlapMm) + " mm.", "Tape from behind."),
                 tile.x + tile.width / 2, tile.y + tile.height / 2)
         }
 
         val used = ArrayList<Rect>()
         for (note in notes) {
+            // Helvetica glyph widths never exceed one em. Using that upper bound prevents
+            // even an unusually long heading from escaping its pixel-verified clear rectangle.
+            if (note.lines.withIndex().any { (index, line) ->
+                line.length * (if (index == 0) 7.4 else 7.0) > TIP_WIDTH - 4.0
+            }) continue
             // A sparse search favors the closest safe material while avoiding previous labels.
             var best: Rect? = null
             var bestDist = Double.POSITIVE_INFINITY
