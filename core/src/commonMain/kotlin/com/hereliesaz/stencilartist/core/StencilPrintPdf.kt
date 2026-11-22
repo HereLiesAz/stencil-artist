@@ -36,6 +36,8 @@ object StencilPrintPdf {
     private const val TIP_WIDTH = 146.0
     private const val TIP_HEIGHT = 49.0
     private const val TIP_CLEARANCE = 5.0
+    private const val MAX_PAGES = 4096
+    private const val MAX_TIPS = 16384
 
     private data class Tile(
         val sheet: Int,
@@ -92,6 +94,7 @@ object StencilPrintPdf {
         }
     }
 
+    /** Builds sheets sequentially so only one cut mask and one clearance table are live. */
     fun make(separation: Separation, options: StencilPrintOptions = StencilPrintOptions()): ByteArray {
         require(separation.width > 0 && separation.height > 0 && separation.sheets.isNotEmpty())
         require(options.widthMm > 0.0 && options.widthMm.isFinite())
@@ -114,39 +117,45 @@ object StencilPrintPdf {
         val columns = tilesFor(totalW, printableW, stepX)
         val rows = tilesFor(totalH, printableH, stepY)
         val templatePages = columns.toLong() * rows * separation.sheets.size
-        require(templatePages in 1..4096) { "Printout needs too many pages" }
+        require(templatePages in 1..MAX_PAGES.toLong()) { "Printout needs too many pages" }
 
-        val tiles = ArrayList<Tile>(templatePages.toInt())
-        val tips = ArrayList<List<PrintTip>>(separation.sheets.size)
-        val masks = ArrayList<BooleanArray>(separation.sheets.size)
-        val clearSpaces = ArrayList<UncutSpace>(separation.sheets.size)
-        for (s in separation.sheets.indices) {
-            val mask = separation.mask(s)
-            masks += mask
-            clearSpaces += UncutSpace(mask, separation.width, separation.height)
-            tips += StencilPrintTips.detect(mask, separation.width, separation.height, options.widthMm)
+        // Only encoded images and finished page streams survive each sheet. Boolean masks and
+        // prefix-sum tables are discarded before the next sheet is processed.
+        val images = ArrayList<String>(separation.sheets.size)
+        val pages = ArrayList<Pair<Int, String>>(templatePages.toInt())
+        var totalTips = 0
+        for (sheet in separation.sheets.indices) {
+            val mask = separation.mask(sheet)
+            val tips = StencilPrintTips.detect(
+                mask, separation.width, separation.height, options.widthMm,
+                maxTips = MAX_TIPS - totalTips,
+            )
+            totalTips += tips.size
+            val uncut = UncutSpace(mask, separation.width, separation.height)
+            val required = linkedMapOf<String, Note>()
+            val placed = mutableSetOf<String>()
             for (row in 0 until rows) {
                 for (col in 0 until columns) {
                     val x = col * stepX
                     val y = row * stepY
-                    tiles += Tile(s, col, row, columns, rows, x, y,
+                    val tile = Tile(sheet, col, row, columns, rows, x, y,
                         minOf(printableW, totalW - x), minOf(printableH, totalH - y))
+                    pages += sheet to pageContent(
+                        tile, tips, uncut, options, pageW, pageH,
+                        totalW, totalH, separation.width, separation.height,
+                        separation.sheets.size, 0, 0, required, placed,
+                    )
                 }
             }
+            for (notes in required.values.filter { it.key !in placed }.chunked(4)) {
+                require(pages.size < MAX_PAGES) { "Printout needs too many reference pages" }
+                pages += sheet to referenceContent(notes, pageW, pageH, totalW, totalH, 0, 0)
+            }
+            images += maskAsHex(mask, separation.width, separation.height) + ">"
         }
 
-        // First place every tip on cut-free stock, including overlapping neighbor tiles. The
-        // remaining tips are shown beside their original geometry on additional reference pages.
-        val required = linkedMapOf<String, Note>()
-        val placed = mutableSetOf<String>()
-        val templateContents = tiles.mapIndexed { index, tile ->
-            pageContent(tile, tips[tile.sheet], clearSpaces[tile.sheet], options, pageW, pageH,
-                totalW, totalH, separation.width, separation.height, separation.sheets.size,
-                index + 1, tiles.size, required, placed)
-        }
-        val referenceGroups = required.values.filter { it.key !in placed }.chunked(4)
-        val pageCount = tiles.size + referenceGroups.size
-        require(pageCount <= 4096) { "Printout needs too many reference pages" }
+        val pageCount = pages.size
+        require(pageCount in 1..MAX_PAGES) { "Printout needs too many pages" }
 
         // 1: catalog; 2: page tree; 3,4: fonts; then images; then page and content pairs.
         val imageStart = 5
@@ -157,43 +166,26 @@ object StencilPrintPdf {
         objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
         objects[4] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"
 
-        for (s in masks.indices) {
-            val hex = maskAsHex(masks[s], separation.width, separation.height)
-            val stream = hex + ">"
-            objects[imageStart + s] = "<< /Type /XObject /Subtype /Image /Width " +
+        for ((sheet, stream) in images.withIndex()) {
+            objects[imageStart + sheet] = "<< /Type /XObject /Subtype /Image /Width " +
                 separation.width + " /Height " + separation.height +
                 " /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /ASCIIHexDecode /Length " +
                 stream.length + " >>\nstream\n" + stream + "\nendstream"
         }
 
         val children = StringBuilder()
-        for ((i, tile) in tiles.withIndex()) {
-            val pageId = pageStart + i * 2
-            val streamId = pageId + 1
-            children.append(pageId).append(" 0 R ")
-            val name = "/Im" + (tile.sheet + 1)
-            objects[pageId] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " +
-                p(pageW) + " " + p(pageH) + "] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>" +
-                " /XObject << " + name + " " + (imageStart + tile.sheet) +
-                " 0 R >> >> /Contents " + streamId + " 0 R >>"
-            val content = templateContents[i].replace(
-                "Page " + (i + 1) + " / " + tiles.size,
-                "Page " + (i + 1) + " / " + pageCount,
-            )
-            objects[streamId] = "<< /Length " + content.length + " >>\nstream\n" + content + "endstream"
-        }
-        for ((groupIndex, notes) in referenceGroups.withIndex()) {
-            val index = tiles.size + groupIndex
+        for ((index, entry) in pages.withIndex()) {
+            val (sheet, pageContent) = entry
             val pageId = pageStart + index * 2
             val streamId = pageId + 1
             children.append(pageId).append(" 0 R ")
-            val images = notes.map { it.sheet }.distinct().joinToString(" ") {
-                "/Im" + (it + 1) + " " + (imageStart + it) + " 0 R"
-            }
+            val name = "/Im" + (sheet + 1)
             objects[pageId] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " +
                 p(pageW) + " " + p(pageH) + "] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>" +
-                " /XObject << " + images + " >> >> /Contents " + streamId + " 0 R >>"
-            val content = referenceContent(notes, pageW, pageH, totalW, totalH, index + 1, pageCount)
+                " /XObject << " + name + " " + (imageStart + sheet) +
+                " 0 R >> >> /Contents " + streamId + " 0 R >>"
+            val content = pageContent.replace("(Page 0 / 0)", "(Page " + (index + 1) +
+                " / " + pageCount + ")")
             objects[streamId] = "<< /Length " + content.length + " >>\nstream\n" + content + "endstream"
         }
         objects[2] = "<< /Type /Pages /Kids [" + children + "] /Count " + pageCount + " >>"
