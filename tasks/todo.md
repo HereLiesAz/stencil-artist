@@ -3,7 +3,7 @@
 Source: GraffitiXR `StencilTones.kt`, `StencilProcessor.kt`, `SubjectIsolator.kt`, `StencilTonesTest.kt`
 (copied; GraffitiXR is not modified).
 
-Status: **in progress.** Phases 0-4 done; depth + lighting next.
+Status: **in progress.** Phases 0-5 implemented; device-level runtime verification remains in phase 12.
 
 ## Decisions (answered)
 
@@ -64,9 +64,14 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       `Inference` (ONNX Runtime on Android, ONNX Runtime Web loaded on first use). On by default;
       no subject or no runtime falls back to the whole frame with a note. Verified in headless
       Chromium. Android inference compiles and packages but has not been run on a device.
-- [ ] **5. Depth + lighting** — Depth Anything V2 Small (Apache-2.0) ONNX -> depth map -> normals
-      -> Lambert + ambient relight. Controls: light azimuth, elevation, intensity, ambient, depth
-      strength. Relit luminance feeds the stencil. Model downloaded on first use, not bundled.
+- [x] **5. Depth + lighting** — Depth Anything V2 Small (Apache-2.0, quantised ONNX) is
+      downloaded and cached on first use. U²-Net's ambiguous background-removal boundaries are
+      refined with depth; normals drive Lambert + ambient lighting on the **base image before**
+      stencil separation. Controls: azimuth, elevation, intensity, ambient, depth strength,
+      depth-assisted mask toggle, and processed-base preview. Shared tests verify preprocessing,
+      alpha preservation, silhouette refinement and light direction. A CI CPU benchmark confirmed
+      both Depth Anything V2 Small and MiDaS Small ONNX models and non-square depth inputs.
+      **Not device-verified:** Android/model loading and PWA browser inference; tracked under review.
 - [ ] **6. Raster export** — per-sheet and stacked transparent PNG.
 - [ ] **7. Vectorise** — contour tracing with holes, Douglas-Peucker simplify, min-feature filter.
 - [ ] **8. Cutter export** — SVG, DXF (R12 polylines), HPGL/PLT, vector PDF, G-code. Physical size
@@ -88,6 +93,9 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 ## Verification
 
+- Phase 5: model CPU inference comparison is reproducible in
+  `tools/depth/benchmark.py` and `.github/workflows/depth-model-comparison.yml`. On-device
+  model loading and visual quality still require hands-on Android and PWA checks.
 - `commonTest` on JVM and Wasm for everything in `core`.
 - Exporters: parse-back tests (SVG/DXF/HPGL/G-code round-trip to the same polylines; PDF page
   count and media boxes).
@@ -112,9 +120,10 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 1. **Islands.** Open — waiting on Az's approach. (GraffitiXR assumes overpaint and never bridges;
    a *cut* sheet still drops any region fully enclosed by a cut.)
-2. **Depth model.** Depth Anything V2 Small (quantised, on demand) approved. MiDaS small under
-   consideration as a comparison; `OnnxSession` keeps the model swappable. Benchmark both in
-   phase 5 before committing.
+2. **Depth model.** Depth Anything V2 Small (quantised, on demand) selected and benchmarked
+   against MiDaS v2.1 Small on the same CI CPU runner; see `models/depth-anything-v2-small.md`.
+   Device-specific latency and segmentation-quality evaluation remain for phase 12. The shared
+   `Inference` interface permits a future replacement.
 
 ## Resolved
 

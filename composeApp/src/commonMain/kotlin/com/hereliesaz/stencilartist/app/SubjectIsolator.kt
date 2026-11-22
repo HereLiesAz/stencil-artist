@@ -1,5 +1,6 @@
 package com.hereliesaz.stencilartist.app
 
+import com.hereliesaz.stencilartist.core.DepthLighting
 import com.hereliesaz.stencilartist.core.RgbaImage
 import com.hereliesaz.stencilartist.core.Saliency
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,8 @@ class SubjectIsolator(private val loader: ModelLoader) {
     private val lock = Mutex()
     private var model: Inference? = null
 
-    suspend fun isolate(image: RgbaImage): Isolation {
+    /** [depth] may refine uncertain saliency edges. Null retains the original U²-Net behavior. */
+    suspend fun isolate(image: RgbaImage, depth: FloatArray? = null): Isolation {
         val map = try {
             lock.withLock {
                 val net = model ?: loader.load(MODEL).also { model = it }
@@ -43,7 +45,8 @@ class SubjectIsolator(private val loader: ModelLoader) {
         }
         return withContext(Dispatchers.Default) {
             val confidence = Saliency.confidence(map, image.width, image.height)
-            Saliency.cutOut(image, confidence)?.let { Isolation.Cut(it) } ?: Isolation.NoSubject
+            val refined = if (depth != null) DepthLighting.refineMask(confidence, depth) else confidence
+            Saliency.cutOut(image, refined)?.let { Isolation.Cut(it) } ?: Isolation.NoSubject
         }
     }
 

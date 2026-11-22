@@ -12,7 +12,7 @@
 //
 // Bump VERSION when a heavy file changes under the same name (a model is replaced, the ONNX
 // runtime is upgraded). The app's own .wasm files are content-hashed and need no bump.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = `stencil-artist-shell-${VERSION}`;
 const HEAVY = `stencil-artist-heavy-${VERSION}`;
 
@@ -46,7 +46,15 @@ async function cacheFirst(request) {
   if (hit) return hit;
   const response = await fetch(request);
   // Only complete, successful responses are kept (not a 206 range or an opaque error).
-  if (response.status === 200) cache.put(request, response.clone());
+  if (response.status === 200) {
+    // Cache Storage can reject when the browser is out of space. Download success must not
+    // depend on optional persistence: keep the app usable online even with no cache capacity.
+    try {
+      await cache.put(request, response.clone());
+    } catch (_) {
+      // The fetched response still belongs to the caller.
+    }
+  }
   return response;
 }
 
@@ -71,7 +79,14 @@ async function networkFirst(request) {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
-  // Only this app's own GET requests are handled; everything else goes straight to the network.
-  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
-  event.respondWith(isHeavy(url) ? cacheFirst(request) : networkFirst(request));
+  // Cache just the approved on-demand depth model across sessions. Other cross-origin requests
+  // are never intercepted; background isolation and normal web traffic are unchanged.
+  const depthModel = url.hostname === 'huggingface.co' &&
+    url.pathname === '/onnx-community/depth-anything-v2-small/resolve/f7421df0cc30f121782ab050d42f0a423291dcde/onnx/model_quantized.onnx';
+  if (request.method !== 'GET') return;
+  if (depthModel) {
+    event.respondWith(cacheFirst(request));
+  } else if (url.origin === self.location.origin) {
+    event.respondWith(isHeavy(url) ? cacheFirst(request) : networkFirst(request));
+  }
 });

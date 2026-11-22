@@ -4,6 +4,7 @@ package com.hereliesaz.stencilartist.app
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import com.hereliesaz.stencilartist.core.DepthLighting
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
@@ -53,9 +54,15 @@ private fun push(array: JsAny, value: Int): Unit = js("{ array.push(value); }")
 @Composable
 actual fun rememberModelLoader(): ModelLoader = remember { WebModelLoader }
 
-/** Loads models from the `models/` directory served beside the app. */
+/** U²-Net is bundled, while quantised depth is requested and HTTP-cached on first use. */
 private object WebModelLoader : ModelLoader {
-    override suspend fun load(fileName: String): Inference = WebInference(openSession("models/$fileName").await())
+    private const val DEPTH_URL =
+        "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/f7421df0cc30f121782ab050d42f0a423291dcde/onnx/model_quantized.onnx"
+
+    override suspend fun load(fileName: String): Inference {
+        val url = if (fileName == DepthLighting.MODEL_FILE) DEPTH_URL else "models/$fileName"
+        return WebInference(openSession(url).await())
+    }
 }
 
 private class WebInference(private val session: JsAny) : Inference {
