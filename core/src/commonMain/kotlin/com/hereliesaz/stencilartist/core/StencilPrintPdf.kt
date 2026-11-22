@@ -32,9 +32,10 @@ object StencilPrintPdf {
     private const val RIGHT = 24.0
     private const val TOP = 55.0
     private const val BOTTOM = 46.0
-    private const val GAP = 12.0
-    private const val NOTES_WIDTH = 138.0
-    private const val NOTE_HEIGHT = 64.0
+    // Text is never printed over a cut. Every label reserves an extra no-cut buffer.
+    private const val TIP_WIDTH = 146.0
+    private const val TIP_HEIGHT = 49.0
+    private const val TIP_CLEARANCE = 5.0
 
     private data class Tile(
         val sheet: Int,
@@ -48,7 +49,42 @@ object StencilPrintPdf {
         val height: Double,
     )
 
-    private data class Note(val kind: String, val advice: String, val anchor: Double?)
+    private data class Note(val lines: List<String>, val x: Double, val y: Double)
+    private data class Rect(val x: Double, val y: Double, val width: Double, val height: Double) {
+        fun overlaps(other: Rect): Boolean = x < other.x + other.width + 4 &&
+            x + width + 4 > other.x && y < other.y + other.height + 4 &&
+            y + height + 4 > other.y
+    }
+
+    /**
+     * Summed-area table of cut openings. A note may occupy a rectangle only when the entire
+     * rectangle and its safety clearance contain zero cut pixels. No line or pointer is drawn.
+     */
+    private class UncutSpace(mask: BooleanArray, val width: Int, val height: Int) {
+        private val stride = width + 1
+        private val sums = IntArray((width + 1) * (height + 1))
+
+        init {
+            for (y in 0 until height) {
+                var row = 0
+                for (x in 0 until width) {
+                    if (mask[y * width + x]) row++
+                    sums[(y + 1) * stride + x + 1] = sums[y * stride + x + 1] + row
+                }
+            }
+        }
+
+        fun clear(x: Double, y: Double, w: Double, h: Double, totalW: Double, totalH: Double): Boolean {
+            val x0 = kotlin.math.floor((x - TIP_CLEARANCE) * width / totalW).toInt()
+            val x1 = kotlin.math.ceil((x + w + TIP_CLEARANCE) * width / totalW).toInt()
+            val y0 = kotlin.math.floor((y - TIP_CLEARANCE) * height / totalH).toInt()
+            val y1 = kotlin.math.ceil((y + h + TIP_CLEARANCE) * height / totalH).toInt()
+            if (x0 < 0 || y0 < 0 || x1 > width || y1 > height) return false
+            val cutCount = sums[y1 * stride + x1] - sums[y0 * stride + x1] -
+                sums[y1 * stride + x0] + sums[y0 * stride + x0]
+            return cutCount == 0
+        }
+    }
 
     fun make(separation: Separation, options: StencilPrintOptions = StencilPrintOptions()): ByteArray {
         require(separation.width > 0 && separation.height > 0 && separation.sheets.isNotEmpty())
@@ -57,7 +93,7 @@ object StencilPrintPdf {
 
         val pageW = options.paper.widthPt
         val pageH = options.paper.heightPt
-        val printableW = pageW - LEFT - RIGHT - GAP - NOTES_WIDTH
+        val printableW = pageW - LEFT - RIGHT
         val printableH = pageH - TOP - BOTTOM
         val overlap = options.overlapMm * PT_PER_MM
         require(overlap < minOf(printableW, printableH)) { "Page overlap exceeds printable area" }
@@ -77,9 +113,11 @@ object StencilPrintPdf {
         val tiles = ArrayList<Tile>(pagesCount.toInt())
         val tips = ArrayList<List<PrintTip>>(separation.sheets.size)
         val masks = ArrayList<BooleanArray>(separation.sheets.size)
+        val clearSpaces = ArrayList<UncutSpace>(separation.sheets.size)
         for (s in separation.sheets.indices) {
             val mask = separation.mask(s)
             masks += mask
+            clearSpaces += UncutSpace(mask, separation.width, separation.height)
             tips += StencilPrintTips.detect(mask, separation.width, separation.height, options.widthMm)
             for (row in 0 until rows) {
                 for (col in 0 until columns) {
@@ -119,8 +157,9 @@ object StencilPrintPdf {
                 p(pageW) + " " + p(pageH) + "] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>" +
                 " /XObject << " + name + " " + (imageStart + tile.sheet) +
                 " 0 R >> >> /Contents " + streamId + " 0 R >>"
-            val content = pageContent(tile, tips[tile.sheet], options, pageW, pageH, totalW,
-                totalH, printableW, printableH, separation.width, separation.height, separation.sheets.size, i + 1, tiles.size)
+            val content = pageContent(tile, tips[tile.sheet], clearSpaces[tile.sheet], options, pageW, pageH,
+                totalW, totalH, separation.width, separation.height, separation.sheets.size,
+                i + 1, tiles.size)
             objects[streamId] = "<< /Length " + content.length + " >>\nstream\n" + content + "endstream"
         }
         objects[2] = "<< /Type /Pages /Kids [" + children + "] /Count " + tiles.size + " >>"
@@ -164,26 +203,27 @@ object StencilPrintPdf {
         }
     }
 
+    /**
+     * Place contextual notes INSIDE the uncut white regions of the physical stencil, not in
+     * margins or in cut openings. A note is omitted rather than touching a cut edge.
+     */
     private fun pageContent(
         tile: Tile,
         tips: List<PrintTip>,
+        uncut: UncutSpace,
         options: StencilPrintOptions,
         pageW: Double,
         pageH: Double,
         totalW: Double,
         totalH: Double,
-        printableW: Double,
-        printableH: Double,
+        sourceWidth: Int,
+        sourceHeight: Int,
+        sheetCount: Int,
         number: Int,
         totalPages: Int,
     ): String {
         val topY = pageH - TOP
-        val noteX = LEFT + printableW + GAP
-        val imageName = "/Im" + (tile.sheet + 1)
-        val sheetWidth = totalW
-        val topImageY = topY + tile.y
         val builder = StringBuilder()
-
         fun line(x1: Double, y1: Double, x2: Double, y2: Double) {
             builder.append(p(x1)).append(' ').append(p(y1)).append(" m ")
                 .append(p(x2)).append(' ').append(p(y2)).append(" l S\n")
@@ -194,20 +234,22 @@ object StencilPrintPdf {
                 .append(" Td (").append(escape(label)).append(") Tj ET\n")
         }
 
-        val title = "SHEET " + (tile.sheet + 1) + " / " + sheetCount +
-            "     TILE R" + (tile.row + 1) + "C" + (tile.col + 1) +
-            " OF " + tile.rows + "x" + tile.columns
-        text(title, LEFT, pageH - 29, 10.0, bold = true)
+        text(
+            "SHEET " + (tile.sheet + 1) + " / " + sheetCount +
+                "     TILE R" + (tile.row + 1) + "C" + (tile.col + 1) +
+                " OF " + tile.rows + "x" + tile.columns,
+            LEFT, pageH - 29, 10.0, bold = true,
+        )
         text("PRINT AT 100% - ACTUAL SIZE", pageW - 218.0, pageH - 29, 8.0)
 
-        // Clip the complete sheet's single-bit image to the tile. No text is ever drawn here.
+        // Draw the original cut geometry at true size; notes are not part of this image.
         builder.append("q ").append(p(LEFT)).append(' ').append(p(topY - tile.height))
             .append(' ').append(p(tile.width)).append(' ').append(p(tile.height))
-            .append(" re W n ").append(p(sheetWidth)).append(" 0 0 ").append(p(totalH))
-            .append(' ').append(p(LEFT - tile.x)).append(' ').append(p(topImageY - totalH))
-            .append(" cm ").append(imageName).append(" Do Q\n")
+            .append(" re W n ").append(p(totalW)).append(" 0 0 ").append(p(totalH))
+            .append(' ').append(p(LEFT - tile.x)).append(' ').append(p(topY + tile.y - totalH))
+            .append(" cm /Im").append(tile.sheet + 1).append(" Do Q\n")
 
-        // Corner crop ticks stop outside the stencil, not through its cut geometry.
+        // Crop ticks live OUTSIDE the actual stencil; they cannot be confused with cut lines.
         val right = LEFT + tile.width
         val bottom = topY - tile.height
         for (x in listOf(LEFT, right)) {
@@ -218,68 +260,78 @@ object StencilPrintPdf {
             line(LEFT - 3, y, LEFT - 9, y)
             line(right + 3, y, right + 9, y)
         }
-        text("FIELD NOTES", noteX, topY + 1, 9.0, bold = true)
 
-        val onTile = tips.filter {
+        val relevant = tips.filter {
             val x = (it.x + 0.5) * totalW / sourceWidth
             val y = (it.y + 0.5) * totalH / sourceHeight
             x >= tile.x && x < tile.x + tile.width && y >= tile.y && y < tile.y + tile.height
-        }.distinctBy { it.kind }
-        val notes = ArrayList<Note>(3)
-        for (tip in onTile) {
-            val y = topY + tile.y - (tip.y + 0.5) * totalH / sourceHeight
-            when (tip.kind) {
-                PrintTipKind.ISLAND -> notes += Note("ISLAND",
-                    "This enclosed piece will fall out. Add a bridge to the outer material before cutting.", y)
-                PrintTipKind.FINE_CUT -> notes += Note("FINE DETAIL",
-                    "Cut this small opening last with a sharp blade. Lift it carefully.", y)
+        }.take(8)
+        val notes = ArrayList<Note>()
+        for (tip in relevant) {
+            val x = (tip.x + 0.5) * totalW / sourceWidth
+            val y = (tip.y + 0.5) * totalH / sourceHeight
+            val position = ((x / PT_PER_MM).roundToInt()).toString() + "," +
+                ((y / PT_PER_MM).roundToInt()).toString() + "mm"
+            val lines = when (tip.kind) {
+                PrintTipKind.ISLAND -> listOf("ISLAND " + position,
+                    "Leave small bridges", "joining this piece", "to the outer sheet.")
+                PrintTipKind.FINE_CUT -> listOf("FINE CUT " + position,
+                    "Use a sharp blade.", "Cut this opening last.", "Lift waste slowly.")
             }
+            notes += Note(lines, x, y)
         }
         if (tile.columns > 1 || tile.rows > 1) {
-            notes += Note("TILE JOIN",
-                "Align neighboring crop ticks. Overlap by " + options.overlapMm.roundToInt() +
-                    " mm, trim one side and tape behind.", null)
+            notes += Note(listOf("TILE JOIN", "Align the crop ticks.",
+                "Overlap " + p(options.overlapMm) + " mm.", "Tape from behind."),
+                tile.x + tile.width / 2, tile.y + tile.height / 2)
         }
 
-        // Prefer feature-aligned labels, but keep every label within the notes gutter.
-        val sorted = notes.sortedByDescending { it.anchor ?: BOTTOM + NOTE_HEIGHT }
-        var nextTop = topY - 15.0
-        for (note in sorted) {
-            val targetTop = if (note.anchor == null) BOTTOM + NOTE_HEIGHT + 6.0
-                else (note.anchor + 14).coerceIn(BOTTOM + NOTE_HEIGHT, topY - 15.0)
-            val top = minOf(nextTop, targetTop)
-            if (top - NOTE_HEIGHT < BOTTOM) continue
-            builder.append("0.7 w\n")
-            line(noteX, top - 2, noteX + NOTES_WIDTH - 5, top - 2)
-            text(note.kind, noteX, top - 15, 8.0, bold = true)
-            for ((i, item) in wrap(note.advice, 30).take(4).withIndex()) {
-                text(item, noteX, top - 28 - 10.0 * i, 7.4)
+        val used = ArrayList<Rect>()
+        for (note in notes) {
+            // A sparse search favors the closest safe material while avoiding previous labels.
+            var best: Rect? = null
+            var bestDist = Double.POSITIVE_INFINITY
+            var y = 0.0
+            while (y + TIP_HEIGHT <= tile.height) {
+                var x = 0.0
+                while (x + TIP_WIDTH <= tile.width) {
+                    val globalX = tile.x + x
+                    val globalY = tile.y + y
+                    val rect = Rect(x, y, TIP_WIDTH, TIP_HEIGHT)
+                    if (used.none { it.overlaps(rect) } &&
+                        uncut.clear(globalX, globalY, TIP_WIDTH, TIP_HEIGHT, totalW, totalH)
+                    ) {
+                        val cx = globalX + TIP_WIDTH / 2
+                        val cy = globalY + TIP_HEIGHT / 2
+                        val dx = cx - note.x
+                        val dy = cy - note.y
+                        val dist = dx * dx + dy * dy
+                        if (dist < bestDist) {
+                            bestDist = dist
+                            best = rect
+                        }
+                    }
+                    x += 12.0
+                }
+                y += 12.0
             }
-            if (note.anchor != null) {
-                val tickY = note.anchor.coerceIn(BOTTOM + 5, topY - 5)
-                line(LEFT + printableW + 1, tickY, LEFT + printableW + 7, tickY)
+            val rect = best ?: continue
+            used += rect
+            // Muted text, no boxes, leaders or arrows: the only marks in the stencil are words
+            // entirely enclosed by surviving stock. Every glyph lies inside the checked rectangle.
+            builder.append("q 0.42 g\n")
+            for ((index, label) in note.lines.withIndex()) {
+                val fontSize = if (index == 0) 7.4 else 7.0
+                text(label, LEFT + rect.x + 2.0, topY - rect.y - 11.0 - index * 11.0,
+                    fontSize, bold = index == 0)
             }
-            nextTop = top - NOTE_HEIGHT - 8.0
+            builder.append("Q\n")
         }
+
         text("Page " + number + " / " + totalPages, LEFT, 23.0, 8.0)
         text("Width: " + p(options.widthMm) + " mm | " + options.paper.name +
-            " | Keep scaling OFF", noteX, 23.0, 7.0)
+            " | Keep scaling OFF", pageW - 247.0, 23.0, 7.0)
         return builder.toString()
-    }
-
-    private fun wrap(value: String, limit: Int): List<String> {
-        val lines = ArrayList<String>()
-        var current = ""
-        for (word in value.split(' ')) {
-            if (current.isNotEmpty() && current.length + word.length + 1 > limit) {
-                lines += current
-                current = word
-            } else {
-                current = if (current.isEmpty()) word else current + " " + word
-            }
-        }
-        if (current.isNotEmpty()) lines += current
-        return lines
     }
 
     private fun escape(value: String) = value.replace("\\", "\\\\")
