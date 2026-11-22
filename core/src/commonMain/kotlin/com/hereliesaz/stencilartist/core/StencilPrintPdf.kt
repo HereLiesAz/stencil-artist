@@ -320,41 +320,42 @@ object StencilPrintPdf {
             )
         }
 
-        val used = ArrayList<Rect>()
-        for (note in notes) {
-            required[note.key] = note
-            if (note.key in placed) continue
-            // Helvetica glyph widths never exceed one em. Using that upper bound prevents
-            // even an unusually long heading from escaping its pixel-verified clear rectangle.
-            if (note.lines.withIndex().any { (index, line) ->
-                line.length * (if (index == 0) 7.4 else 7.0) > TIP_WIDTH - 4.0
-            }) continue
-            // A sparse search favors the closest safe material while avoiding previous labels.
-            var best: Rect? = null
-            var bestDist = Double.POSITIVE_INFINITY
+        // Compute cut-safe candidate positions once per tile, not once per detected problem.
+        // A highly fragmented sheet with no safe stock now does O(tile area) clearance checks,
+        // rather than O(tips × tile area), before moving tips to reference pages.
+        val candidates = ArrayList<Rect>()
+        if (notes.isNotEmpty()) {
             var y = 0.0
             while (y + TIP_HEIGHT <= tile.height) {
                 var x = 0.0
                 while (x + TIP_WIDTH <= tile.width) {
-                    val globalX = tile.x + x
-                    val globalY = tile.y + y
-                    val rect = Rect(x, y, TIP_WIDTH, TIP_HEIGHT)
-                    if (used.none { it.overlaps(rect) } &&
-                        uncut.clear(globalX, globalY, TIP_WIDTH, TIP_HEIGHT, totalW, totalH)
-                    ) {
-                        val cx = globalX + TIP_WIDTH / 2
-                        val cy = globalY + TIP_HEIGHT / 2
-                        val dx = cx - note.x
-                        val dy = cy - note.y
-                        val dist = dx * dx + dy * dy
-                        if (dist < bestDist) {
-                            bestDist = dist
-                            best = rect
-                        }
+                    if (uncut.clear(tile.x + x, tile.y + y, TIP_WIDTH, TIP_HEIGHT, totalW, totalH)) {
+                        candidates += Rect(x, y, TIP_WIDTH, TIP_HEIGHT)
                     }
                     x += 12.0
                 }
                 y += 12.0
+            }
+        }
+        val used = ArrayList<Rect>()
+        for (note in notes) {
+            required[note.key] = note
+            if (note.key in placed) continue
+            // Whole-glyph text footprint must stay inside the checked rectangle.
+            if (note.lines.withIndex().any { (index, line) ->
+                line.length * (if (index == 0) 7.4 else 7.0) > TIP_WIDTH - 4.0
+            }) continue
+            var best: Rect? = null
+            var bestDist = Double.POSITIVE_INFINITY
+            for (rect in candidates) {
+                if (used.any { it.overlaps(rect) }) continue
+                val dx = tile.x + rect.x + TIP_WIDTH / 2 - note.x
+                val dy = tile.y + rect.y + TIP_HEIGHT / 2 - note.y
+                val distance = dx * dx + dy * dy
+                if (distance < bestDist) {
+                    bestDist = distance
+                    best = rect
+                }
             }
             val rect = best ?: continue
             used += rect
