@@ -19,13 +19,29 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   relights the **base image before any stencil sheets are generated**, with a base-image preview.
 - Smoothing, edge closing, tonal bias, and a forced dark or light base.
 - Shows the improved base image, the finished piece, or any one sheet alone.
+- Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
+  transparent PNG; or every sheet plus the composite in one ZIP. Every PNG uses the same paint
+  order, sheet colours and alpha as the preview, at the current working-image pixel dimensions.
 - Downloads actual-size tiled print PDFs for every stencil sheet. Printouts label trapped islands,
   delicate openings, and tile joins inside uncut material. When a note cannot safely fit,
   a non-cutting reference page shows the affected detail immediately beside its tip.
 - PDF export bounds pathological detail counts, diagnoses actual surviving components, and handles
   one stencil sheet at a time to keep memory use predictable.
 
-Not yet: PNG/vector/cutter export. See the roadmap.
+Not yet: vector/cutter export. See the roadmap.
+
+## PNG exports
+
+In **Raster PNG**, download the composite, select a swatch to download one sheet, or download
+all sheet PNGs and the composite together as `stencil-pngs.zip`. The first sheet is the base
+and subsequent sheets follow the paint order. Unpainted pixels are transparent, not white.
+Export reuses the final separation, including any depth-assisted background removal or relighting
+performed **before** stencil generation; neither export mode reprocesses the image.
+
+PNGs use the current working-image dimensions (up to 1600 pixels on the longest edge), without
+upscaling or changing cut geometry. Since the ZIP writer holds files in memory, bundle payloads
+over 32 MiB are rejected with a message; the individually selected sheet and composite exports
+remain available. The Android Save As chooser is held to one outstanding save at a time.
 
 ## Depth model
 
