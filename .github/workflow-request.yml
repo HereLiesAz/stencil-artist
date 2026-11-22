@@ -37,7 +37,21 @@
 #   website-sftp-deploy       build/deploy website over SFTP
 #
 # List catalog workflows this repository should use.
-requested: []
+#
+#   github-pages-deploy   .github/workflows/github-pages-deploy.yml is byte-identical to
+#                         HereLiesAz/photo-unroll's (another Compose Multiplatform wasm PWA), so it
+#                         binds to the same registered source hash and purpose profile:
+#                         ./gradlew :composeApp:wasmJsBrowserDistribution ->
+#                         composeApp/build/dist/wasmJs/productionExecutable. Do not edit that file
+#                         without registering the new hash in the catalog.
+#   ci                    .github/workflows/ci.yml is target CI: it runs here, by policy, and
+#                         reports through the ci-report action.
+#
+# NOT YET REQUESTED: android-github-release / android-play-release. They need a purpose profile
+# for this repository (module :androidApp, package com.hereliesaz.stencilartist) and a decision on
+# which signing material to use; see tasks/todo.md.
+requested:
+  - github-pages-deploy
 
 # If the needed capability is absent from the menu, describe the GENERAL workflow
 # to add to HereLiesAz/workflows. This is a request, not executable automation.
