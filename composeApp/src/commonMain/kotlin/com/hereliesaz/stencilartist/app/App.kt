@@ -69,7 +69,7 @@ fun App() {
     StencilArtistTheme {
         val scope = rememberCoroutineScope()
         val models = rememberModelLoader()
-        val state = remember { StencilState(scope, SubjectIsolator(models)) }
+        val state = remember { StencilState(scope, SubjectIsolator(models), DepthEstimator(models)) }
         val pick = rememberImagePicker(onPicked = state::open, onError = state::fail)
 
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -104,7 +104,8 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
         } else {
             Image(
                 bitmap = preview,
-                contentDescription = when (val sheet = state.shownSheet) {
+                contentDescription = if (state.viewProcessedImage) "Processed base image before stencil separation"
+                else when (val sheet = state.shownSheet) {
                     null -> "Stencil preview, all sheets"
                     else -> "Stencil preview, sheet ${sheet + 1}"
                 },
@@ -133,6 +134,14 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium) }
 
         Section("Show") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice("Stencil", selected = !state.viewProcessedImage, modifier = Modifier.weight(1f)) {
+                    state.show(state.shownSheet)
+                }
+                Choice("Base image", selected = state.viewProcessedImage, modifier = Modifier.weight(1f)) {
+                    state.showProcessed(true)
+                }
+            }
             SheetStrip(state.separation?.sheets.orEmpty(), state.shownSheet, state::show)
         }
 
@@ -140,6 +149,38 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Choice("Remove", selected = state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(true) }
                 Choice("Keep", selected = !state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(false) }
+            }
+            if (state.removeBackground) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Choice("Depth-assisted edges", selected = state.depthAssistedBackground,
+                        modifier = Modifier.weight(1f)) { state.depthAssistedBackground(true) }
+                    Choice("Saliency only", selected = !state.depthAssistedBackground,
+                        modifier = Modifier.weight(1f)) { state.depthAssistedBackground(false) }
+                }
+            }
+        }
+
+        Section("Depth + lighting") {
+            val light = state.lighting
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice("On", selected = light.enabled, modifier = Modifier.weight(1f)) {
+                    state.updateLighting(light.copy(enabled = true))
+                }
+                Choice("Off", selected = !light.enabled, modifier = Modifier.weight(1f)) {
+                    state.updateLighting(light.copy(enabled = false))
+                }
+            }
+            if (light.enabled) {
+                LabelledSlider("Light azimuth", light.azimuth.roundToInt().toString() + "°",
+                    light.azimuth, -180f..180f) { state.updateLighting(light.copy(azimuth = it)) }
+                LabelledSlider("Light elevation", light.elevation.roundToInt().toString() + "°",
+                    light.elevation, 0f..90f) { state.updateLighting(light.copy(elevation = it)) }
+                LabelledSlider("Light intensity", String.formatLight(light.intensity),
+                    light.intensity, 0f..2f) { state.updateLighting(light.copy(intensity = it)) }
+                LabelledSlider("Ambient light", String.formatLight(light.ambient),
+                    light.ambient, 0f..2f) { state.updateLighting(light.copy(ambient = it)) }
+                LabelledSlider("Depth strength", String.formatLight(light.depthStrength),
+                    light.depthStrength, 0f..10f) { state.updateLighting(light.copy(depthStrength = it)) }
             }
         }
 
@@ -320,3 +361,7 @@ private fun Modifier.checkerboard(): Modifier = drawBehind {
         row++
     }
 }
+
+/** Fixed one decimal place without locale or platform formatting dependencies. */
+private fun String.Companion.formatLight(value: Float): String =
+    (value * 10f).roundToInt().let { (it / 10).toString() + "." + kotlin.math.abs(it % 10) }
