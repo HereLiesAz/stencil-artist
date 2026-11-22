@@ -3,7 +3,7 @@
 Source: GraffitiXR `StencilTones.kt`, `StencilProcessor.kt`, `SubjectIsolator.kt`, `StencilTonesTest.kt`
 (copied; GraffitiXR is not modified).
 
-Status: **in progress.** Phases 0-4 done; depth + lighting next.
+Status: **in progress.** Depth-assisted preprocessing and lighting implemented for review.
 
 ## Decisions (answered)
 
@@ -64,9 +64,13 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       `Inference` (ONNX Runtime on Android, ONNX Runtime Web loaded on first use). On by default;
       no subject or no runtime falls back to the whole frame with a note. Verified in headless
       Chromium. Android inference compiles and packages but has not been run on a device.
-- [ ] **5. Depth + lighting** — Depth Anything V2 Small (Apache-2.0) ONNX -> depth map -> normals
-      -> Lambert + ambient relight. Controls: light azimuth, elevation, intensity, ambient, depth
-      strength. Relit luminance feeds the stencil. Model downloaded on first use, not bundled.
+- [ ] **5. Depth + lighting** — Implementation pending full runtime verification: Depth
+      Anything V2 Small (Apache-2.0, quantised ONNX) downloaded on first use, SHA-256 pinned on
+      Android and browser-cached; the depth map refines uncertain U²-Net background-removal edges,
+      and Lambert + ambient lighting changes the **base image before** the existing separator.
+      UI controls: azimuth, elevation, intensity, ambient, depth strength, depth-assisted mask
+      toggle, and processed source preview. Shared tensor/mask/relight unit tests are included.
+      Benchmark and on-device runtime checks against MiDaS Small remain unverified.
 - [ ] **6. Raster export** — per-sheet and stacked transparent PNG.
 - [ ] **7. Vectorise** — contour tracing with holes, Douglas-Peucker simplify, min-feature filter.
 - [ ] **8. Cutter export** — SVG, DXF (R12 polylines), HPGL/PLT, vector PDF, G-code. Physical size
@@ -112,9 +116,9 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 1. **Islands.** Open — waiting on Az's approach. (GraffitiXR assumes overpaint and never bridges;
    a *cut* sheet still drops any region fully enclosed by a cut.)
-2. **Depth model.** Depth Anything V2 Small (quantised, on demand) approved. MiDaS small under
-   consideration as a comparison; `OnnxSession` keeps the model swappable. Benchmark both in
-   phase 5 before committing.
+2. **Depth model.** Depth Anything V2 Small (quantised, on demand) implemented; MiDaS Small
+   remains a comparison candidate. Benchmark on actual Android and PWA devices before declaring
+   the phase fully verified. The shared `Inference` model interface permits replacement.
 
 ## Resolved
 
