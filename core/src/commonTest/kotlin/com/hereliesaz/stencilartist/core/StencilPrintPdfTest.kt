@@ -101,8 +101,8 @@ class StencilPrintPdfTest {
         val pdf = StencilPrintPdf.make(s, StencilPrintOptions(widthMm = 150.0))
             .decodeToString()
         assertTrue(pdf.contains("/Count 2"))
-        assertTrue(Regex("""\\(ISLAND\\)""").findAll(pdf).count() == 2)
-        assertTrue(Regex("""\\(SHEET 1 - LOCAL DETAIL\\)""").findAll(pdf).count() == 2)
+        assertTrue(Regex("""\(ISLAND\)""").findAll(pdf).count() == 2)
+        assertTrue(Regex("""\(SHEET 1 - LOCAL DETAIL\)""").findAll(pdf).count() == 2)
     }
 
     @Test
