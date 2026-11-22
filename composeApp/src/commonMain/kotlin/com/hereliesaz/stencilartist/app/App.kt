@@ -55,6 +55,7 @@ import com.hereliesaz.stencilartist.core.Sheet
 import com.hereliesaz.stencilartist.core.StencilPrintPdf
 import com.hereliesaz.stencilartist.core.StencilPrintOptions
 import com.hereliesaz.stencilartist.core.TonalParams
+import com.hereliesaz.stencilartist.core.Separation
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -123,7 +124,34 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     val saver = rememberFileSaver()
     val exportScope = rememberCoroutineScope()
     var printWidthMm by remember { mutableFloatStateOf(203.2f) }
-    var exporting by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf<String?>(null) }
+
+    // The Android picker completes asynchronously. Keep every export control locked until the
+    // result callback, not merely until the file bytes have been passed to the picker.
+    fun startExport(label: String, build: (Separation) -> ExportFile) {
+        if (exporting != null || state.busy) return
+        val snapshot = state.separation ?: return
+        exporting = label
+        exportScope.launch {
+            try {
+                val file = withContext(Dispatchers.Default) { build(snapshot) }
+                if (state.separation !== snapshot) {
+                    state.fail("Stencil changed during export. Export the updated stencil instead.")
+                    exporting = null
+                    return@launch
+                }
+                saver.save(file) { saved ->
+                    if (!saved) state.fail("$label wasn't saved.")
+                    exporting = null
+                }
+            } catch (error: Exception) {
+                state.fail("$label export failed: " + (error.message ?: "unknown error"))
+                exporting = null
+            }
+        }
+    }
+
+    val canExport = state.separation != null && !state.busy && exporting == null
     Column(
         modifier.background(MaterialTheme.colorScheme.surface).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -214,33 +242,55 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             state.update(params.copy(bias = it.roundToInt()))
         }
 
+        Section("Raster PNG") {
+            state.separation?.let { stencil ->
+                Text(
+                    "Transparent PNGs · ${stencil.width} × ${stencil.height} pixels",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            OutlinedButton(
+                onClick = { startExport("Composite PNG") { RasterExports.png(it) } },
+                enabled = canExport,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Download composite PNG") }
+            state.shownSheet?.let { sheet ->
+                OutlinedButton(
+                    onClick = { startExport("Sheet ${sheet + 1} PNG") { RasterExports.png(it, sheet) } },
+                    enabled = canExport,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Download sheet ${sheet + 1} PNG") }
+            }
+            OutlinedButton(
+                onClick = { startExport("PNG archive") { RasterExports.allPngsZip(it) } },
+                enabled = canExport,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Download all sheets + composite ZIP") }
+            if (exporting != null) Text(
+                "Exporting ${exporting}...",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
         Section("Print") {
             LabelledSlider("Physical width", printWidthMm.roundToInt().toString() + " mm",
                 printWidthMm, 50f..1000f) { printWidthMm = it }
             OutlinedButton(
                 onClick = {
-                    val separation = state.separation ?: return@OutlinedButton
                     val width = printWidthMm.toDouble()
-                    exportScope.launch {
-                        exporting = true
-                        try {
-                            val pdf = withContext(Dispatchers.Default) {
-                                StencilPrintPdf.make(separation, StencilPrintOptions(widthMm = width))
-                            }
-                            saver.save(ExportFile("stencil-print.pdf", "application/pdf", pdf)) {
-                                if (!it) state.fail("PDF wasn't saved.")
-                            }
-                        } catch (error: Exception) {
-                            state.fail("PDF export failed: " + (error.message ?: "unknown error"))
-                        } finally {
-                            exporting = false
-                        }
+                    startExport("PDF") { stencil ->
+                        ExportFile(
+                            "stencil-print.pdf", "application/pdf",
+                            StencilPrintPdf.make(stencil, StencilPrintOptions(widthMm = width)),
+                        )
                     }
                 },
-                enabled = state.separation != null && !state.busy && !exporting,
+                enabled = canExport,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (exporting) "Preparing PDF..." else "Download stencil PDF")
+                Text(if (exporting == "PDF") "Preparing PDF..." else "Download stencil PDF")
             }
         }
     }
