@@ -11,7 +11,7 @@ interface Inference {
     suspend fun run(input: FloatArray, shape: IntArray): FloatArray
 }
 
-/** Loads models shipped with the app (the repository's `models/` directory), by file name. */
+/** Loads bundled U²-Net or the independently downloaded Depth Anything model by logical file name. */
 interface ModelLoader {
     /** Loads [fileName]. Throws if the model or the runtime cannot be loaded. */
     suspend fun load(fileName: String): Inference
