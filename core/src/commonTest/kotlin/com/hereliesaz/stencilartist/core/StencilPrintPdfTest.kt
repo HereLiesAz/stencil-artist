@@ -91,7 +91,7 @@ class StencilPrintPdfTest {
     @Test
     fun separateSheetsGetSeparatePagesWithoutAssumingThreeOrGreyLayers() {
         val s = Separation(10, 10, List(4) { Sheet(0xFF113399.toInt()) },
-            IntArray(100) { it % 4 })
+            IntArray(100) { (it % 10) / 3 })
         val pdf = StencilPrintPdf.make(s, StencilPrintOptions(widthMm = 100.0))
             .decodeToString()
         assertTrue(pdf.contains("/Count 4"))
