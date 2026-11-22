@@ -52,12 +52,13 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       strength. Relit luminance feeds the stencil. Model downloaded on first use, not bundled.
 - [ ] **6. Raster export** — per-sheet and stacked transparent PNG.
 - [ ] **7. Vectorise** — contour tracing with holes, Douglas-Peucker simplify, min-feature filter.
-- [ ] **8. CNC export** — SVG, DXF (R12 polylines), HPGL/PLT, G-code (outline; feed/power/passes
-      configurable). Physical size in mm/in drives all of them.
+- [ ] **8. Cutter export** — SVG, DXF (R12 polylines), HPGL/PLT, vector PDF, G-code. Physical size
+      in mm/in drives all of them; tiled per mat/roll. See Resolved > Cutting machines.
 - [ ] **9. Tiled PDF** — physical size -> Letter/A4/custom pages, overlap, registration marks,
       row/column labels, assembly map page. Vector, from phase 7 paths.
 - [ ] **10. PWA** — manifest, icons, service worker (app shell + model cache), offline, installable.
-- [ ] **11. Release wiring** — Pages deploy + Android release via `HereLiesAz/workflows` catalog.
+- [ ] **11. Release wiring** — bind existing catalog workflows: `github-pages-deploy`,
+      `android-github-release`; local CI with `ci-report`.
 - [ ] **12. Review** — results section below, docs pass.
 
 ## Verification
@@ -71,14 +72,30 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 ## Open questions
 
-1. **Islands.** GraffitiXR assumes overpaint, so it never bridges. A *cut* sheet still drops any
-   region fully enclosed by a cut. Proposal: v1 detects and highlights islands and offers
-   auto-bridges (width in mm) as an opt-in; off by default.
-2. **CNC formats.** Proposed set is SVG, DXF, HPGL, G-code. Add or drop?
-3. **Depth model size.** DA-V2 Small is ~25 MB quantised / ~99 MB fp32. Proposal: quantised,
-   downloaded on demand, cached.
-4. **Pages workflow.** The catalog has no Pages deploy. Proposal: submit a generalised
-   `static-pages-deploy` to `HereLiesAz/workflows` (separate PR there) in phase 11.
+1. **Islands.** Open — waiting on Az's approach. (GraffitiXR assumes overpaint and never bridges;
+   a *cut* sheet still drops any region fully enclosed by a cut.)
+2. **Depth model.** Depth Anything V2 Small (quantised, on demand) approved. MiDaS small under
+   consideration as a comparison; `OnnxSession` keeps the model swappable. Benchmark both in
+   phase 5 before committing.
+
+## Resolved
+
+- **Cutting machines.** Phase 8 targets knife cutters first, lasers/routers second:
+  - SVG — Cricut Design Space, Brother CanvasWorkspace (ScanNCut), Silhouette Studio (paid
+    tiers), Sure Cuts A Lot, LightBurn, Inkscape.
+  - DXF (R12 polylines) — Silhouette Studio Basic (free tier takes DXF, not SVG), CAD/CAM.
+  - HPGL / PLT — Graphtec, Roland, USCutter, Vevor and other roll plotters.
+  - PDF (vector) — Graphtec/Roland plugins, print shops.
+  - G-code — GRBL lasers and routers (feed/power/passes configurable).
+  - Proprietary containers (.studio3, .fcm, Cricut projects) are not written; their apps import
+    the above.
+  - Cutter-aware output: closed paths only, min feature size and min bridge width in mm,
+    knife-offset-safe corner handling, **mat/roll tiling** (12x12, 12x24, A4, A3, custom, roll
+    width) with registration marks — the vector twin of the tiled PDF in phase 9.
+- **Pages deploy.** `github-pages-deploy.yml` already exists in `HereLiesAz/workflows` (profile:
+  `build_command`, `site_dir`, `java_version`, `node_version`, `pages_branch`). No new workflow
+  needed. Also reused: `android-github-release`, `multi-platform-app-release`. CI runs in this
+  repository (catalog policy), reporting via the `ci-report` action.
 
 ## Review
 
