@@ -1,6 +1,10 @@
 package com.hereliesaz.stencilartist.app
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -13,13 +17,17 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import com.hereliesaz.stencilartist.core.paint.CanColours
+import com.hereliesaz.stencilartist.app.generated.resources.Res
+import com.hereliesaz.stencilartist.app.generated.resources.mtn94_original_packshot
+import org.jetbrains.compose.resources.painterResource
 
 /*
- * Spray cans drawn from nothing but their colour value. There are no photographs of cans and no
- * licence for the makers' pictures, so a can is a few shapes: deterministic, cheap, and the same on
- * every target. The colour is the can's cap, which is how most art cans are colour-coded.
+ * Generic cans are drawn as deterministic vector shapes. The MTN 94 carousel is the exception:
+ * it uses the user's original unmodified transparent PNG, with an independent colour fill below
+ * the existing translucent shoulder. No pixel of that photograph is masked, cut or regenerated.
  */
 
 private fun tone(rgb: Int) = Color(rgb)
@@ -86,6 +94,44 @@ internal fun CanTop(colour: Int?, selected: Boolean, sampled: Boolean, size: Dp,
             drawCircle(Color(0xFFE6E6E6), d, Offset(this.size.width - d * 2.2f, d * 2.2f))
             drawCircle(Color(0xFF0E0E0E), d * 0.45f, Offset(this.size.width - d * 2.2f, d * 2.2f))
         }
+    }
+}
+
+/**
+ * The exact user-supplied MTN 94 photograph, unmodified and placed above a separate paint layer.
+ *
+ * The original 1122×1402 RGBA PNG has a semitransparent white shoulder. Its RGB/alpha remain
+ * unchanged; paint is drawn only BEHIND that region, with opaque white behind both layers.
+ * ContentScale.Crop removes empty lateral viewport space, never any part of the photographed can.
+ * This is deliberately not used for Montana Cans, MTN Hardcore or MTN fluorescent/transparent lines.
+ */
+@Composable
+internal fun Mtn94Packshot(colour: Int?, width: Dp, height: Dp, modifier: Modifier = Modifier) {
+    Box(modifier.size(width, height).background(Color.White)) {
+        if (colour != null) {
+            Canvas(Modifier.fillMaxSize()) {
+                // ContentScale.Crop scales the 1122×1402 original by its full source height.
+                // Map the independent shoulder underlay from the original source coordinates.
+                val scale = size.height / 1402f
+                val offsetX = (size.width - 1122f * scale) / 2f
+                val x: (Float) -> Float = { offsetX + it * scale }
+                val y: (Float) -> Float = { it * scale }
+                val shoulder = Path().apply {
+                    moveTo(x(423f), y(223f))
+                    cubicTo(x(394f), y(230f), x(362f), y(254f), x(354f), y(285f))
+                    lineTo(x(751f), y(285f))
+                    cubicTo(x(737f), y(255f), x(703f), y(226f), x(677f), y(220f))
+                    close()
+                }
+                drawPath(shoulder, Color(colour))
+            }
+        }
+        Image(
+            painter = painterResource(Res.drawable.mtn94_original_packshot),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 
