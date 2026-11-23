@@ -76,14 +76,17 @@ object RasterExports {
     fun stencilPack(separation: Separation): ExportFile {
         require(separation.width in 1..8192 && separation.height in 1..8192)
         require(separation.sheets.size in 1..1024)
-        val pngs = separation.sheets.indices.map { png(separation, it) } + png(separation)
+        val pngs = ArrayList<ExportFile>(separation.sheets.size + 1)
         var payload = 0L
-        for (file in pngs) {
+        fun add(file: ExportFile) {
             payload += file.bytes.size.toLong()
             require(payload <= MAX_ZIP_PAYLOAD_BYTES) {
                 "Stencil package exceeds 32 MiB. Export individual PNGs instead."
             }
+            pngs += file
         }
+        for (i in separation.sheets.indices) add(png(separation, i))
+        add(png(separation))
         val manifest = StencilPackManifest.encode(separation)
         val files = listOf(ExportFile("manifest.json", "application/json", manifest.encodeToByteArray())) + pngs
         return ExportFile(
