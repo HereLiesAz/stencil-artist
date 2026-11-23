@@ -382,8 +382,9 @@ object PrintPdf {
                 val tiles = layout.grid.tiles
                 BoardPages(
                     region.board ?: BoardCell(1, 0, 0, region.art), blank,
-                    if (blank) emptyList() else tiles.filterIndexed { t, _ -> layout.needed(used, r, t) },
-                    if (blank) emptyList() else tiles.filterIndexed { t, _ -> !layout.needed(used, r, t) },
+                    tiles.filterIndexed { t, _ -> layout.needed(used, r, t) },
+                    // A blank board is skipped whole and counted as a board; a blank piece's tiles are blank pages.
+                    if (blank && region.board != null) emptyList() else tiles.filterIndexed { t, _ -> !layout.needed(used, r, t) },
                 )
             }
             SheetPages(sheet, boards.flatMap { it.printed }, boards.flatMap { it.skipped }, if (layout.boardGrid == null) emptyList() else boards)
@@ -532,13 +533,21 @@ object PrintPdf {
         sb.append("q\n$INK RG\n${Decimal.format(lineWidth, 4)} w\n1 j\n").append(p.data).append("S\nQ\n")
     }
 
-    /** Everything about the page and the piece that the page builders share. */
-    internal class Lay(val grid: TilePlan, private val sheetTotal: Int) {
+    /**
+     * Everything about the page and the piece that the page builders share. The tiles of [grid] are local to a
+     * region whose top-left is ([ox], [oy]) in finished-piece mm; [piece] is the whole piece. When mounting, [art]
+     * is the part of the piece this board prints (the cut area) and [targets] are the board's corner points.
+     */
+    internal class Lay(
+        val grid: TilePlan, private val sheetTotal: Int, val piece: RectMm = RectMm(0.0, 0.0, grid.widthMm, grid.heightMm),
+        val ox: Double = 0.0, val oy: Double = 0.0, val art: RectMm? = null, val board: BoardCell? = null,
+        private val boardTotal: Int = 0, val targets: List<Point> = emptyList(),
+    ) {
         val spec = grid.spec
         val pageW = spec.pageWidthMm * K
         val pageH = spec.pageHeightMm * K
-        val widthMm = grid.widthMm
-        val heightMm = grid.heightMm
+        val widthMm = piece.x1
+        val heightMm = piece.y1
         val left = MARGIN_MM * K
         val right = pageW - left
         val top = pageH - left
@@ -549,54 +558,56 @@ object PrintPdf {
         /** Rows of notes a reference page holds. */
         val referenceRows: Int get() = max(1, ((winH - 42.0) / 153.0).toInt())
 
-        fun note(sheet: Int, tip: PrintTip, mmPerPx: Double): Note {
-            val x = (tip.x + 0.5) * mmPerPx
-            val y = (tip.y + 0.5) * mmPerPx
-            val col = min(grid.cols - 1, floor(x / spec.stepWidthMm).toInt())
-            val row = min(grid.rows - 1, floor(y / spec.stepHeightMm).toInt())
-            val position = "At ${x.roundToInt()},${y.roundToInt()}mm"
-            val lines = when (tip.kind) {
-                PrintTipKind.ISLAND -> listOf("ISLAND", position, "Add small bridges", "before cutting.")
-                PrintTipKind.FINE_CUT -> listOf("FINE DETAIL", position, "Cut this part last.", "Lift waste slowly.")
-            }
-            return Note("S$sheet:${tip.kind}:${tip.x}:${tip.y}", sheet, lines, x, y, row * grid.cols + col, columnName(col) + (row + 1))
-        }
-
         private fun label(sheet: Int, tile: Tile) =
-            "Sheet ${sheet + 1} of $sheetTotal - Row ${tile.row + 1} Col ${tile.col + 1} (${tileCode(tile)})"
+            if (board == null) "Sheet ${sheet + 1} of $sheetTotal - Row ${tile.row + 1} Col ${tile.col + 1} (${tileCode(tile)})"
+            else "Sheet ${sheet + 1} of $sheetTotal - Board ${board.number} of $boardTotal - ${tileCode(tile)}"
 
-        /** A box in finished mm to a page-point x. */
-        private fun px(tile: Tile, mm: Double) = (MARGIN_MM + mm - tile.clip.x0) * K
-        private fun py(tile: Tile, mm: Double) = pageH - (MARGIN_MM + mm - tile.clip.y0) * K
+        private fun fx(tile: Tile) = ox + tile.clip.x0
+        private fun fy(tile: Tile) = oy + tile.clip.y0
+
+        /** A point in finished mm to page points. */
+        private fun px(tile: Tile, mm: Double) = (MARGIN_MM + mm - fx(tile)) * K
+        private fun py(tile: Tile, mm: Double) = pageH - (MARGIN_MM + mm - fy(tile)) * K
 
         fun tilePage(
             sheet: Int, tile: Tile, shapes: List<Placed>, color: Int, doc: PdfDoc,
             uncut: UncutSpace, notes: List<Note>, placed: MutableSet<String>,
         ): String {
             val sb = StringBuilder()
-            val x0 = tile.clip.x0
-            val y0 = tile.clip.y0
+            val x0 = fx(tile)
+            val y0 = fy(tile)
             val x1 = x0 + spec.printableWidthMm
             val y1 = y0 + spec.printableHeightMm
-            sb.append("q\n").append(num(left)).append(' ').append(num(bottom)).append(' ').append(num(winW)).append(' ')
-                .append(num(winH)).append(" re W n\n")
-            sb.append("1 0 0 1 ").append(num((MARGIN_MM - x0) * K)).append(' ')
-                .append(num(pageH - (MARGIN_MM - y0 + heightMm) * K)).append(" cm\n")
-            for (s in shapes) {
-                if (s.maxX < x0 || s.minX > x1 || s.maxY < y0 || s.minY > y1) continue
-                fillAndOutline(sb, s, color, doc, 0.7)
+            // The art is clipped to the printable area and, on a board, to the board's cut area.
+            val cx0 = max(x0, art?.x0 ?: x0)
+            val cy0 = max(y0, art?.y0 ?: y0)
+            val cx1 = min(x1, art?.x1 ?: x1)
+            val cy1 = min(y1, art?.y1 ?: y1)
+            sb.append("q\n")
+            if (cx1 > cx0 && cy1 > cy0) {
+                sb.append(num(px(tile, cx0))).append(' ').append(num(py(tile, cy1))).append(' ').append(num((cx1 - cx0) * K)).append(' ')
+                    .append(num((cy1 - cy0) * K)).append(" re W n\n")
+                sb.append("1 0 0 1 ").append(num((MARGIN_MM - x0) * K)).append(' ')
+                    .append(num(pageH - (MARGIN_MM - y0 + heightMm) * K)).append(" cm\n")
+                for (s in shapes) {
+                    if (s.maxX < cx0 || s.minX > cx1 || s.maxY < cy0 || s.minY > cy1) continue
+                    fillAndOutline(sb, s, color, doc, 0.7)
+                }
             }
             sb.append("Q\n")
 
-            // The L marks: finished-piece geometry, so neighbours print the same ones.
+            // The marks: finished-piece geometry, so neighbours print the same ones.
             sb.append("q\n0 G\n").append(num(MARK_WIDTH_MM * K)).append(" w\n0 J\n0 j\n")
             for (m in marks(grid, tile)) {
                 for ((i, pt) in m.withIndex()) {
-                    sb.append(num(px(tile, pt.x))).append(' ').append(num(py(tile, pt.y))).append(if (i == 0) " m " else " l ")
+                    sb.append(num(px(tile, pt.x + ox))).append(' ').append(num(py(tile, pt.y + oy))).append(if (i == 0) " m " else " l ")
                 }
                 sb.append("S\n")
             }
             sb.append("Q\n")
+
+            val used = ArrayList<Rect>()
+            for (t in targets) drawTarget(sb, tile, t)
 
             // The label first, then the tips around it.
             val labelText = label(sheet, tile)
@@ -608,7 +619,7 @@ object PrintPdf {
             sb.append("0 g\n")
             text(sb, LABEL_PT, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K, labelText)
 
-            val used = arrayListOf(labelBox)
+            used += labelBox
             if (notes.isNotEmpty()) {
                 val candidates = candidates(tile, TIP_W, TIP_H, 12.0 / K, TIP_CLEARANCE, uncut, false)
                 for (note in notes) {
@@ -636,13 +647,59 @@ object PrintPdf {
             return sb.toString()
         }
 
-        /** Boxes of [w] x [h] mm inside [tile]'s printable area, inset, that are on the piece and clear (or, if [beyondOk], wholly beyond it). */
+        /**
+         * A board corner target at [t]: a circle with a cross, a white halo under a thin black line so it shows over a
+         * cut, clipped to this page's printable area (a target near a page seam is drawn, in part, on both pages).
+         * Its caption sits in the strip beyond the cut area, where there is no artwork, along the board's edge.
+         */
+        private fun drawTarget(sb: StringBuilder, tile: Tile, t: Point) {
+            val x0 = fx(tile)
+            val y0 = fy(tile)
+            val reach = TARGET_ARM_MM + 0.5
+            if (t.x + reach < x0 || t.x - reach > x0 + spec.printableWidthMm || t.y + reach < y0 || t.y - reach > y0 + spec.printableHeightMm) return
+            val cx = px(tile, t.x)
+            val cy = py(tile, t.y)
+            val r = TARGET_RADIUS_MM * K
+            val arm = TARGET_ARM_MM * K
+            val c = 0.5523 * r
+            sb.append("q\n").append(num(left)).append(' ').append(num(bottom)).append(' ').append(num(winW)).append(' ').append(num(winH)).append(" re W n\n")
+            for ((color, width) in listOf("1 G" to 1.6, "0 G" to 0.35)) {
+                sb.append(color).append(' ').append(Decimal.format(width, 2)).append(" w\n")
+                sb.append(num(cx + r)).append(' ').append(num(cy)).append(" m ")
+                sb.append(num(cx + r)).append(' ').append(num(cy + c)).append(' ').append(num(cx + c)).append(' ').append(num(cy + r)).append(' ').append(num(cx)).append(' ').append(num(cy + r)).append(" c ")
+                sb.append(num(cx - c)).append(' ').append(num(cy + r)).append(' ').append(num(cx - r)).append(' ').append(num(cy + c)).append(' ').append(num(cx - r)).append(' ').append(num(cy)).append(" c ")
+                sb.append(num(cx - r)).append(' ').append(num(cy - c)).append(' ').append(num(cx - c)).append(' ').append(num(cy - r)).append(' ').append(num(cx)).append(' ').append(num(cy - r)).append(" c ")
+                sb.append(num(cx + c)).append(' ').append(num(cy - r)).append(' ').append(num(cx + r)).append(' ').append(num(cy - c)).append(' ').append(num(cx + r)).append(' ').append(num(cy)).append(" c S\n")
+                sb.append(num(cx - arm)).append(' ').append(num(cy)).append(" m ").append(num(cx + arm)).append(' ').append(num(cy)).append(" l S\n")
+                sb.append(num(cx)).append(' ').append(num(cy - arm)).append(" m ").append(num(cx)).append(' ').append(num(cy + arm)).append(" l S\n")
+            }
+            sb.append("Q\n")
+            // Caption: along the strip outside the cut area, toward the board's middle.
+            val cut = board?.cut ?: return
+            val caption = "TARGET - NOT A CUT"
+            val size = 5.0
+            val w = PdfText.width(caption, size) / K
+            val h = size / K
+            val inwardX = if (t.x < (cut.x0 + cut.x1) / 2) 1 else -1
+            val outsideY = if (t.y < (cut.y0 + cut.y1) / 2) -1 else 1
+            val bx = if (inwardX > 0) t.x + TARGET_ARM_MM + 0.5 else t.x - TARGET_ARM_MM - 0.5 - w
+            val by = if (outsideY < 0) t.y - 1.0 - h else t.y + 1.0
+            if (bx >= x0 + 0.5 && bx + w <= x0 + spec.printableWidthMm - 0.5 && by >= y0 + 0.5 && by + h <= y0 + spec.printableHeightMm - 0.5) {
+                sb.append("0 g\n")
+                text(sb, size, px(tile, bx), py(tile, by + h) + 0.4 * K, caption)
+            }
+        }
+
+        /**
+         * Boxes of [w] x [h] mm inside [tile]'s printable area, inset, that are on the piece and clear (or, if [beyondOk],
+         * wholly beyond it). On a board a box on the piece must also lie within the board's cut area.
+         */
         private fun candidates(tile: Tile, w: Double, h: Double, step: Double, buffer: Double, uncut: UncutSpace, beyondOk: Boolean): List<Rect> {
             val out = ArrayList<Rect>()
-            val x0 = tile.clip.x0 + INSET
-            val y0 = tile.clip.y0 + INSET
-            val xMax = tile.clip.x0 + spec.printableWidthMm - INSET - w
-            val yMax = tile.clip.y0 + spec.printableHeightMm - INSET - h
+            val x0 = fx(tile) + INSET
+            val y0 = fy(tile) + INSET
+            val xMax = fx(tile) + spec.printableWidthMm - INSET - w
+            val yMax = fy(tile) + spec.printableHeightMm - INSET - h
             var y = y0
             while (y <= yMax) {
                 var x = x0
@@ -656,15 +713,16 @@ object PrintPdf {
         }
 
         private fun ok(x: Double, y: Double, w: Double, h: Double, buffer: Double, uncut: UncutSpace, beyondOk: Boolean): Boolean {
-            if (x + w <= widthMm && y + h <= heightMm) return uncut.clear(x, y, w, h, buffer)
+            val a = art ?: piece
+            if (x >= a.x0 && y >= a.y0 && x + w <= a.x1 && y + h <= a.y1) return uncut.clear(x, y, w, h, buffer)
             return beyondOk && (x >= widthMm || y >= heightMm)
         }
 
         private fun place(tile: Tile, w: Double, h: Double, step: Double, buffer: Double, uncut: UncutSpace, avoid: List<Rect>): Rect? {
-            val x0 = tile.clip.x0 + INSET
-            val y0 = tile.clip.y0 + INSET
-            val xMax = tile.clip.x0 + spec.printableWidthMm - INSET - w
-            val yMax = tile.clip.y0 + spec.printableHeightMm - INSET - h
+            val x0 = fx(tile) + INSET
+            val y0 = fy(tile) + INSET
+            val xMax = fx(tile) + spec.printableWidthMm - INSET - w
+            val yMax = fy(tile) + spec.printableHeightMm - INSET - h
             var y = y0
             while (y <= yMax) {
                 var x = x0
@@ -745,6 +803,98 @@ object PrintPdf {
             return sb.toString()
         }
 
+        /** The assembly map when mounting: every board (border and cut area), blank ones hatched, and the pages on each. */
+        fun boardMapPage(sheet: Int, layout: Layout, used: Array<BooleanArray>, shapes: List<Placed>, color: Int, doc: PdfDoc): String {
+            val bg = checkNotNull(layout.boardGrid)
+            val border = checkNotNull(layout.options.mount).borderMm
+            val sb = StringBuilder("0 g\n")
+            var y = top - 14.0
+            text(sb, 13.0, left, y, "Sheet ${sheet + 1} of $sheetTotal - assembly map", bold = true)
+            val blankBoards = layout.regions.indices.count { layout.blank(used, it) }
+            val pagesPrinted = layout.regions.indices.sumOf { r -> layout.grid.tiles.indices.count { layout.needed(used, r, it) } }
+            val b = checkNotNull(layout.options.mount).board
+            val lines = listOf(
+                "Finished size: ${Decimal.format(widthMm, 1)} x ${Decimal.format(heightMm, 1)} mm (${Decimal.format(widthMm / 25.4, 2)} x ${Decimal.format(heightMm / 25.4, 2)} in)",
+                "Boards: ${bg.count} (${bg.cols} across x ${bg.rows} down, ${if (bg.landscape) "landscape" else "portrait"}) of ${b.name}, " +
+                    "${Decimal.format(border / 25.4, 2)} in (${Decimal.format(border, 1)} mm) uncut border on every side; ${bg.count - blankBoards} printed, $blankBoards skipped as blank",
+                "Pages: $pagesPrinted on this sheet, ${spec.name} ${Decimal.format(spec.pageWidthMm, 1)} x ${Decimal.format(spec.pageHeightMm, 1)} mm. Each board's pages never cross a board edge.",
+                "Print at 100%. Assemble each board's pages, glue them to the board with the corner targets ${Decimal.format(border, 1)} mm in from its edges.",
+            )
+            for ((i, l) in lines.withIndex()) {
+                for (w in PdfText.wrap(l, winW, if (i == 0) 10.0 else 8.5)) {
+                    y -= 13.0
+                    text(sb, if (i == 0) 10.0 else 8.5, left, y, w)
+                }
+            }
+            val boxTop = y - 14.0
+            val boxH = boxTop - bottom
+            val extW = bg.cols * bg.cutWidthMm + 2 * border
+            val extH = bg.rows * bg.cutHeightMm + 2 * border
+            val k = min(winW / extW, boxH / extH)
+            val c = k / K
+            val ox0 = left + border * k // map position of finished x = 0
+            val oyTop = boxTop - border * k // map position of finished y = 0
+            sb.append("q\n1 0 0 1 ").append(num(ox0)).append(' ').append(num(oyTop - heightMm * k)).append(" cm\n")
+            sb.append(Decimal.format(c, 6)).append(" 0 0 ").append(Decimal.format(c, 6)).append(" 0 0 cm\n")
+            for (s in shapes) fillAndOutline(sb, s, color, doc, 0.5 / c)
+            sb.append("Q\n")
+            for ((r, region) in layout.regions.withIndex()) {
+                val cell = checkNotNull(region.board)
+                val cut = cell.cut
+                val blank = layout.blank(used, r)
+                // Whole board, border included, light and dashed; its cut area solid.
+                sb.append("q\n0.4 w\n0.7 G\n[3 3] 0 d\n").append(num(ox0 + (cut.x0 - border) * k)).append(' ')
+                    .append(num(oyTop - (cut.y1 + border) * k)).append(' ').append(num((cut.width + 2 * border) * k)).append(' ')
+                    .append(num((cut.height + 2 * border) * k)).append(" re S\nQ\n")
+                sb.append("q\n0.8 w\n0.3 G\n").append(num(ox0 + cut.x0 * k)).append(' ').append(num(oyTop - cut.y1 * k)).append(' ')
+                    .append(num(cut.width * k)).append(' ').append(num(cut.height * k)).append(" re S\nQ\n")
+                if (blank) {
+                    val cw = cut.width * k
+                    val ch = cut.height * k
+                    sb.append("q\n").append(num(ox0 + cut.x0 * k)).append(' ').append(num(oyTop - cut.y1 * k)).append(' ')
+                        .append(num(cw)).append(' ').append(num(ch)).append(" re W n\n0.6 G\n0.3 w\n")
+                    val gap = max(4.0, (cw + ch) / 60)
+                    var d = 0.0
+                    while (d < cw + ch) {
+                        val xa = ox0 + cut.x0 * k + d
+                        val ya = oyTop - cut.y1 * k
+                        sb.append(num(xa)).append(' ').append(num(ya)).append(" m ").append(num(xa - ch)).append(' ').append(num(ya + ch)).append(" l S\n")
+                        d += gap
+                    }
+                    sb.append("Q\n")
+                } else {
+                    sb.append("q\n0.25 w\n0.55 G\n[1.5 1.5] 0 d\n")
+                    for ((t, tile) in layout.grid.tiles.withIndex()) {
+                        if (!layout.needed(used, r, t)) continue
+                        val n = net(layout.grid, tile)
+                        val nx0 = max(cut.x0, region.ox + n.x0)
+                        val ny0 = max(cut.y0, region.oy + n.y0)
+                        val nx1 = min(cut.x1, region.ox + n.x1)
+                        val ny1 = min(cut.y1, region.oy + n.y1)
+                        if (nx1 <= nx0 || ny1 <= ny0) continue
+                        sb.append(num(ox0 + nx0 * k)).append(' ').append(num(oyTop - ny1 * k)).append(' ').append(num((nx1 - nx0) * k)).append(' ')
+                            .append(num((ny1 - ny0) * k)).append(" re S\n")
+                    }
+                    sb.append("Q\n")
+                }
+                val big = (min(cut.width, cut.height) * k / 4).coerceIn(8.0, 18.0)
+                val label = "Board ${cell.number}" + if (blank) " blank" else ""
+                sb.append("q\n1 g\n").append(num(ox0 + cut.x0 * k + 2.0)).append(' ').append(num(oyTop - cut.y0 * k - big - 4.0)).append(' ')
+                    .append(num(PdfText.width(label, big, true) + 4.0)).append(' ').append(num(big + 5.0)).append(" re f\nQ\n0.1 g\n")
+                text(sb, big, ox0 + cut.x0 * k + 4.0, oyTop - cut.y0 * k - big - 1.0, label, bold = true)
+                for (p in region.targets) {
+                    sb.append("q\n0 G\n0.5 w\n")
+                    val tx = ox0 + p.x * k
+                    val ty = oyTop - p.y * k
+                    val rr = 2.2
+                    sb.append(num(tx - rr)).append(' ').append(num(ty - rr)).append(' ').append(num(2 * rr)).append(' ').append(num(2 * rr)).append(" re S\n")
+                    sb.append(num(tx - rr)).append(' ').append(num(ty)).append(" m ").append(num(tx + rr)).append(' ').append(num(ty)).append(" l S\n")
+                    sb.append(num(tx)).append(' ').append(num(ty - rr)).append(" m ").append(num(tx)).append(' ').append(num(ty + rr)).append(" l S\nQ\n")
+                }
+            }
+            return sb.toString()
+        }
+
         fun referencePage(notes: List<Note>, sheet: Int, shapes: List<Placed>, color: Int, doc: PdfDoc): String {
             val sb = StringBuilder("0 g\n")
             text(sb, 12.0, left, top - 14.0, "CONTEXTUAL CUTTING NOTES", bold = true)
@@ -772,7 +922,7 @@ object PrintPdf {
                 for ((i, line) in note.lines.withIndex()) {
                     text(sb, if (i == 0) 9.5 else 9.0, labelX, refTop - 30.0 - i * 17.0, line, bold = i == 0)
                 }
-                text(sb, 7.5, labelX, refTop - 98.0, "Tile ${note.code}. NOT A CUTTING TEMPLATE")
+                text(sb, 7.5, labelX, refTop - 98.0, (if (note.board > 0) "Board ${note.board}, tile ${note.code}" else "Tile ${note.code}") + ". NOT A CUTTING TEMPLATE")
             }
             return sb.toString()
         }
@@ -784,17 +934,17 @@ object PrintPdf {
         private const val LEAD = 12.5
         private const val SIZE = 9.5
 
-        fun page(lay: Lay, sheetsInFile: Int, sheetTotal: Int): String {
+        fun page(lay: Lay, plan: Layout, sheetsInFile: Int, sheetTotal: Int): String {
             val landscape = lay.winW >= lay.winH * 1.2
             val vw = if (landscape) 780.0 else 540.0
             val dry = StringBuilder()
-            val used = layout(dry, lay, vw, landscape, sheetsInFile)
+            val used = draw(dry, lay, plan, vw, landscape, sheetsInFile)
             val barReserve = 34.0
             val scale = min(min(lay.winW / vw, (lay.winH - barReserve) / used), 1.5)
             val sb = StringBuilder("0 g\n")
             sb.append("q\n").append(Decimal.format(scale, 5)).append(" 0 0 ").append(Decimal.format(scale, 5)).append(' ')
                 .append(num(lay.left)).append(' ').append(num(lay.top)).append(" cm\n")
-            layout(sb, lay, vw, landscape, sheetsInFile)
+            draw(sb, lay, plan, vw, landscape, sheetsInFile)
             sb.append("Q\n")
             // True-size check bar at the foot of the page, never scaled.
             val bar = if (lay.winW >= 110.0 * K) 100.0 else 50.0
@@ -809,39 +959,70 @@ object PrintPdf {
             return sb.toString()
         }
 
-        private fun steps(sheetsInFile: Int, lay: Lay): List<Pair<String, String>> = listOf(
-            "PRINT AT 100%" to "In the print dialog choose \"Actual size\" or \"Scale 100%\". Never choose \"Fit to page\", " +
-                "\"Shrink to fit\" or \"Scale to printable area\": they change the size of your stencil. Check the bar at the foot of this page.",
-            "FIND YOUR PAGES" to "Each sheet starts with an assembly map: the grid of pages, each with a short code (column letter, " +
-                "row number: A1, B1, A2 ...). Pages with nothing to cut are left out and marked blank. Every page has its sheet and code " +
-                "printed small on uncut material.",
-            "TRIM" to "Your printer leaves a ${Decimal.format(MARGIN_MM, 0)} mm strip around every page unprinted. On each page that has a " +
+        private fun inches(mm: Double) = Decimal.format(mm / PhysicalSize.MM_PER_INCH, 2)
+
+        private fun steps(sheetsInFile: Int, plan: Layout): List<Pair<String, String>> {
+            val mount = plan.options.mount
+            val print = "PRINT AT 100%" to "In the print dialog choose \"Actual size\" or \"Scale 100%\". Never choose \"Fit to page\", " +
+                "\"Shrink to fit\" or \"Scale to printable area\": they change the size of your stencil. Check the bar at the foot of this page."
+            val trim = "TRIM" to "Your printer leaves a ${Decimal.format(MARGIN_MM, 0)} mm strip around every page unprinted. On each page that has a " +
                 "neighbour to its LEFT, cut off that strip along the left edge; on each page that has a neighbour ABOVE, cut off the strip " +
-                "along the top edge. Cut exactly along the edge of the printing. Leave the right and bottom edges as printed.",
-            "ALIGN" to "Work left to right, top to bottom, starting at A1. Lay each new page OVER the page to its left and the page above it, " +
+                "along the top edge. Cut exactly along the edge of the printing. Leave the right and bottom edges as printed."
+            val align = "ALIGN" to "Work left to right, top to bottom, starting at A1. Lay each new page OVER the page to its left and the page above it, " +
                 "so the trimmed edge covers that neighbour's blank strip and the ${Decimal.format(OVERLAP_MM, 0)} mm band that both pages print " +
-                "coincides. Slide it until each mark on it sits exactly on the mark beneath. Marks appear only where two pages meet. Hold the join up to a window or lamp: the marks show through.",
-            "TAPE" to "When the marks coincide, tape the join on the back. Do not trim anything else.",
-            "REPEAT FOR EVERY SHEET" to if (sheetsInFile > 1) "This file holds $sheetsInFile sheets. Each is its own stencil with its own map; " +
+                "coincides. Slide it until each mark on it sits exactly on the mark beneath. Marks appear only where two pages meet. " +
+                "Hold the join up to a window or lamp: the marks show through."
+            val tape = "TAPE" to "When the marks coincide, tape the join on the back. Do not trim anything else."
+            val repeat = "REPEAT FOR EVERY SHEET" to if (sheetsInFile > 1) "This file holds $sheetsInFile sheets. Each is its own stencil with its own map; " +
                 "assemble each one separately and do not mix pages from different sheets."
-            else "Each sheet of a stencil is its own file section; if you print more sheets later, assemble each one separately.",
-            "CUT" to "The dark outline is the cut. Grey notes (ISLAND, FINE DETAIL) sit only on material that stays. Pages marked REFERENCE ONLY " +
-                "show details too close to a cut for a note; they are not cutting templates.",
-        )
+            else "Each sheet of a stencil is its own file section; if you print more sheets later, assemble each one separately."
+            if (mount == null) return listOf(
+                print,
+                "FIND YOUR PAGES" to "Each sheet starts with an assembly map: the grid of pages, each with a short code (column letter, " +
+                    "row number: A1, B1, A2 ...). Pages with nothing to cut are left out and marked blank. Every page has its sheet and code " +
+                    "printed small on uncut material.",
+                trim, align, tape, repeat,
+                "CUT" to "The dark outline is the cut. Grey notes (ISLAND, FINE DETAIL) sit only on material that stays. Pages marked REFERENCE ONLY " +
+                    "show details too close to a cut for a note; they are not cutting templates.",
+            )
+            val bg = checkNotNull(plan.boardGrid)
+            val border = mount.borderMm
+            return listOf(
+                print,
+                "GET THE BOARD" to "Mount each sheet on ${mount.board.name} (${inches(mount.board.widthMm)} x ${inches(mount.board.heightMm)} in): " +
+                    "heavyweight poster board, or 4-ply or 6-ply railroad board. Thin poster board tears. Each sheet needs ${bg.count} boards " +
+                    "(${bg.cols} across x ${bg.rows} down, ${if (bg.landscape) "landscape" else "portrait"}); a board with nothing to cut is marked blank on the " +
+                    "map and needs no board. Every board keeps ${inches(border)} in (${Decimal.format(border, 1)} mm) of uncut border on all four sides.",
+                "FIND YOUR PAGES" to "Each sheet starts with an assembly map showing its boards and the pages on each. Every page says its sheet, its board " +
+                    "and its code (column letter, row number within the board: A1, B1 ...). A page never crosses a board edge, and marks only join " +
+                    "pages of the same board.",
+                trim, align.copy(second = align.second.replace("starting at A1.", "starting at A1 of one board, then do the same for each board.")), tape,
+                "GLUE" to "Lay the taped pages on the board and glue them down so each of the four corner targets sits exactly " +
+                    "${inches(border)} in (${Decimal.format(border, 1)} mm) in from both board edges at its corner. Measure from the board's edges. " +
+                    "A target is not a cut.",
+                "CUT" to "Cut through the paper and the board together along the dark outline. Grey notes (ISLAND, FINE DETAIL) sit only on " +
+                    "material that stays. Pages marked REFERENCE ONLY show details too close to a cut for a note; they are not cutting templates.",
+                "REGISTER ON THE WALL" to "To paint a piece that spans several boards, pierce each target with a pin, mark the wall through the holes, " +
+                    "and place the next board so its targets land on the marks the neighbouring board shares. Neighbouring boards share their corner points exactly.",
+                repeat,
+            )
+        }
 
         /** Draws the page at 1:1 in a [vw]-wide box whose top-left is the origin (y down), returns the height used. */
-        private fun layout(sb: StringBuilder, lay: Lay, vw: Double, twoCol: Boolean, sheetsInFile: Int): Double {
+        private fun draw(sb: StringBuilder, lay: Lay, plan: Layout, vw: Double, twoCol: Boolean, sheetsInFile: Int): Double {
             var y = 18.0
             text(sb, 16.0, 0.0, -y, "How to put the pages together", bold = true)
             y += 18.0
             val page = lay.spec
-            val summary = "${lay.grid.cols} x ${lay.grid.rows} pages per sheet on ${page.name} " +
-                "${Decimal.format(page.pageWidthMm, 1)} x ${Decimal.format(page.pageHeightMm, 1)} mm. " +
-                "These steps apply to every sheet in this file."
+            val bg = plan.boardGrid
+            val summary = if (bg == null) "${lay.grid.cols} x ${lay.grid.rows} pages per sheet on ${page.name} " +
+                "${Decimal.format(page.pageWidthMm, 1)} x ${Decimal.format(page.pageHeightMm, 1)} mm. These steps apply to every sheet in this file."
+            else "${bg.count} boards per sheet, each up to ${lay.grid.cols} x ${lay.grid.rows} pages on ${page.name} " +
+                "${Decimal.format(page.pageWidthMm, 1)} x ${Decimal.format(page.pageHeightMm, 1)} mm. These steps apply to every sheet in this file."
             val tw = if (twoCol) vw * 0.56 else vw
             for (l in PdfText.wrap(summary, tw, SIZE)) { text(sb, SIZE, 0.0, -y, l); y += LEAD }
             y += 6.0
-            for ((n, step) in steps(sheetsInFile, lay).withIndex()) {
+            for ((n, step) in steps(sheetsInFile, plan).withIndex()) {
                 text(sb, SIZE, 0.0, -y, "${n + 1}.", bold = true)
                 text(sb, SIZE, 16.0, -y, step.first, bold = true)
                 y += LEAD
@@ -849,11 +1030,52 @@ object PrintPdf {
                 y += 4.0
             }
             val textEnd = y
-            val dw = if (twoCol) vw - tw - 24.0 else min(vw, 420.0)
-            val dx = if (twoCol) tw + 24.0 else 0.0
-            val dTop = if (twoCol) 30.0 else y + 6.0
-            val dh = diagram(sb, dx, dTop, dw)
-            return max(textEnd, dTop + dh) + 4.0
+            if (bg == null) {
+                val dw = if (twoCol) vw - tw - 24.0 else min(vw, 420.0)
+                val dx = if (twoCol) tw + 24.0 else 0.0
+                val dTop = if (twoCol) 30.0 else y + 6.0
+                val dh = diagram(sb, dx, dTop, dw)
+                return max(textEnd, dTop + dh) + 4.0
+            }
+            val mount = checkNotNull(plan.options.mount)
+            if (twoCol) {
+                val dw = vw - tw - 24.0
+                val dx = tw + 24.0
+                val h1 = diagram(sb, dx, 30.0, dw)
+                val h2 = boardDiagram(sb, dx, 30.0 + h1 + 24.0, dw * 0.55, mount, bg.landscape)
+                return max(textEnd, 30.0 + h1 + 24.0 + h2) + 4.0
+            }
+            val half = (vw - 24.0) / 2
+            val dTop = y + 6.0
+            val h1 = diagram(sb, 0.0, dTop, half)
+            val h2 = boardDiagram(sb, half + 24.0, dTop, half * 0.8, mount, bg.landscape)
+            return dTop + max(h1, h2) + 4.0
+        }
+
+        /** One board, schematic: its border, its cut area and the four corner targets. Returns its height. */
+        private fun boardDiagram(sb: StringBuilder, x: Double, top: Double, w: Double, mount: MountOptions, landscape: Boolean): Double {
+            val b = mount.board.oriented(landscape)
+            val scale = w / b.widthMm
+            val h = b.heightMm * scale
+            val inset = mount.borderMm * scale
+            fun yy(v: Double) = -(top + v)
+            sb.append("q\n0.8 w\n0 G\n").append(num(x)).append(' ').append(num(yy(h))).append(' ').append(num(w)).append(' ').append(num(h)).append(" re S\nQ\n")
+            sb.append("q\n0.5 w\n0.4 G\n[3 2] 0 d\n").append(num(x + inset)).append(' ').append(num(yy(h - inset))).append(' ')
+                .append(num(w - 2 * inset)).append(' ').append(num(h - 2 * inset)).append(" re S\nQ\n")
+            sb.append("q\n0 G\n0.6 w\n")
+            val r = 3.0
+            for ((cx, cy) in listOf(x + inset to inset, x + w - inset to inset, x + inset to h - inset, x + w - inset to h - inset)) {
+                val ty = yy(cy)
+                sb.append(num(cx - r)).append(' ').append(num(ty - r)).append(' ').append(num(2 * r)).append(' ').append(num(2 * r)).append(" re S\n")
+                sb.append(num(cx - r - 2)).append(' ').append(num(ty)).append(" m ").append(num(cx + r + 2)).append(' ').append(num(ty)).append(" l S\n")
+                sb.append(num(cx)).append(' ').append(num(ty - r - 2)).append(" m ").append(num(cx)).append(' ').append(num(ty + r + 2)).append(" l S\n")
+            }
+            sb.append("Q\n0 g\n")
+            text(sb, 7.0, x + inset + 6.0, yy(h / 2), "cut area (the stencil)")
+            text(sb, 7.0, x + 3.0, yy(inset / 2 + 2.5), "border ${inches(mount.borderMm)} in")
+            text(sb, 7.5, x, yy(h + 11.0), "One board: uncut border, cut area, four corner targets", bold = true)
+            text(sb, 7.0, x, yy(h + 21.0), "Targets sit exactly the border in from both edges. Not to scale.")
+            return h + 24.0
         }
 
         /** Two neighbouring pages, schematic: the right page trimmed and laid over the left one, marks meeting. Returns its height. */
