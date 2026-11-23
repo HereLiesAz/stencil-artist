@@ -132,7 +132,7 @@ object StrokeStyler {
                     // only those axes erased the very feature being protected.
                     fun chord(dx: Int, dy: Int): Int {
                         var length = 1
-                        for (sign in intArrayOf(-1, 1)) {
+                        for (sign in -1..1 step 2) {
                             for (k in 1..4) {
                                 val xx = x + sign * k * dx
                                 val yy = y + sign * k * dy
