@@ -2,6 +2,7 @@ package com.hereliesaz.stencilartist.app
 
 import androidx.compose.runtime.Composable
 import com.hereliesaz.stencilartist.core.Separation
+import com.hereliesaz.stencilartist.core.StencilPackManifest
 
 /** A finished file, held in memory, ready to be handed to the user. */
 class ExportFile(val name: String, val mimeType: String, val bytes: ByteArray)
@@ -22,6 +23,14 @@ interface FileSaver {
 /** This platform's [FileSaver]. */
 @Composable
 expect fun rememberFileSaver(): FileSaver
+
+/** Share a generated StencilPack through the Android chooser or download it on the web. */
+interface StencilPackSharer {
+    suspend fun share(file: ExportFile)
+}
+
+@Composable
+expect fun rememberStencilPackSharer(): StencilPackSharer
 
 /**
  * Straight-alpha ARGB [pixels], row-major, as a PNG file with its transparency intact. Done by the
@@ -56,6 +65,34 @@ object RasterExports {
             name,
             PNG_MIME,
             encodePng(separation.render(sheet), separation.width, separation.height),
+        )
+    }
+
+    /**
+     * Versioned, portable stencil-layer archive for Graffux and GraffitiXR.
+     * The paint order is bottom-to-top and every PNG uses the same transparent pixel grid.
+     * The manifest carries names/colours, instead of forcing importers to guess from filenames.
+     */
+    fun stencilPack(separation: Separation): ExportFile {
+        require(separation.width in 1..8192 && separation.height in 1..8192)
+        require(separation.sheets.size in 1..1024)
+        val pngs = ArrayList<ExportFile>(separation.sheets.size + 1)
+        var payload = 0L
+        fun add(file: ExportFile) {
+            payload += file.bytes.size.toLong()
+            require(payload <= MAX_ZIP_PAYLOAD_BYTES) {
+                "Stencil package exceeds 32 MiB. Export individual PNGs instead."
+            }
+            pngs += file
+        }
+        for (i in separation.sheets.indices) add(png(separation, i))
+        add(png(separation))
+        val manifest = StencilPackManifest.encode(separation)
+        val files = listOf(ExportFile("manifest.json", "application/json", manifest.encodeToByteArray())) + pngs
+        return ExportFile(
+            "stencil-layers.stencilpack",
+            "application/vnd.hereliesaz.stencilpack+zip",
+            Zip.store(files),
         )
     }
 

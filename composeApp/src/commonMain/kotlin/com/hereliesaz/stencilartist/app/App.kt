@@ -154,6 +154,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     val tone = state.toneParams
     val colour = state.colorParams
     val saver = rememberFileSaver()
+    val stencilSharer = rememberStencilPackSharer()
     val exportScope = rememberCoroutineScope()
     var printWidthMm by remember { mutableFloatStateOf(203.2f) }
     var exporting by remember { mutableStateOf<String?>(null) }
@@ -182,6 +183,26 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 }
             } catch (error: Exception) {
                 state.fail("$label export failed: " + (error.message ?: "unknown error"))
+                exporting = null
+            }
+        }
+    }
+
+    fun shareStencilPack() {
+        if (exporting != null || state.busy) return
+        val snapshot = state.separation ?: return
+        exporting = "StencilPack share"
+        exportScope.launch {
+            try {
+                val file = withContext(Dispatchers.Default) { RasterExports.stencilPack(snapshot) }
+                if (state.separation !== snapshot) {
+                    state.fail("Stencil changed before sharing. Export the updated stencil instead.")
+                } else {
+                    stencilSharer.share(file)
+                }
+            } catch (error: Exception) {
+                state.fail("StencilPack sharing failed: " + (error.message ?: "unknown error"))
+            } finally {
                 exporting = null
             }
         }
@@ -328,6 +349,16 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Download sheet ${sheet + 1} PNG") }
             }
+            OutlinedButton(
+                onClick = { startExport("StencilPack") { RasterExports.stencilPack(it) } },
+                enabled = canExport,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Export layered StencilPack for Graffux / GraffitiXR") }
+            OutlinedButton(
+                onClick = ::shareStencilPack,
+                enabled = canExport,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Send StencilPack to Graffux / GraffitiXR") }
             OutlinedButton(
                 onClick = { startExport("PNG archive") { RasterExports.allPngsZip(it) } },
                 enabled = canExport,
