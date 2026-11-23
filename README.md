@@ -29,6 +29,9 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   delicate openings and tile codes inside uncut material; a note that cannot safely fit goes to a
   non-cutting reference page beside the affected detail. Pages with nothing to cut are skipped and
   shown as blank on the map.
+- Optionally mounts the print on poster board (22 x 28 in, or a custom board of at least 18 in a side) with an
+  uncut border of at least 1 in (default 2 in) on every side: the piece is divided into boards that butt exactly,
+  each board is tiled with its own pages, and four corner targets per board serve gluing and wall registration.
 - PDF export bounds pathological detail counts, diagnoses actual surviving components, and handles
   one stencil sheet at a time to keep memory use predictable.
 
@@ -63,6 +66,18 @@ custom size), portrait or landscape, and download the shown sheet or all sheets 
 also be set as **sheets wide** or **sheets high** (decimals allowed), and **Fit to whole pages** nudges
 the width so the last column or row is not a sliver (under 15% of a page). The section shows how many
 pages a sheet takes and how many are skipped as blank.
+
+**Mount on** chooses *Paper only*, *Poster board 22 x 28* or a *Custom board* (width and height in inches, at
+least 18 each) with a *Border* in inches (default 2, at least 1). The piece is divided into boards whose cut
+areas (the board less the border; 18 x 24 in for poster board at 2 in) butt exactly, in the orientation that
+needs fewer boards (portrait on a tie). Each board's pages are tiled from its own top-left, so no page spans two
+boards and page marks only join pages of one board. Every board gets four corner targets, a circle with a cross
+marked "not a cut", exactly on its cut area's corners. Glue the assembled pages on so each target is the border
+distance in from both board edges, then cut through paper and board together. To paint a piece that spans
+several boards, pierce each target with a pin, mark the wall through the holes, and place the next board so its
+targets land on the marks the neighbouring board shares (neighbouring boards share their corner points exactly).
+A board with nothing to cut on a sheet is skipped and shown as blank on the map. Use heavyweight poster board or
+4-ply or 6-ply railroad board; thin poster board tears. Foam board and tri-fold boards are not offered.
 
 Print at 100% / actual size. Each page keeps a fixed 3 mm border unprinted; after trimming the left and
 top border of every page that has a neighbour there, lay each page over its neighbour so the 1 mm
