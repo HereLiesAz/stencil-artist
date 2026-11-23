@@ -409,7 +409,7 @@ private fun CanCarousel(
             Box(
                 Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(6.dp))
                     .background(if (isSelected && onAssign == null) scheme.primary else scheme.surfaceVariant)
-                    .clickable(enabled = selectable, role = Role.Button) {
+                    .clickable(enabled = selectable, role = if (onAssign != null) Role.Button else Role.Checkbox) {
                         if (onAssign != null) onAssign(current) else state.toggleCan(current)
                     }
                     .semantics {
