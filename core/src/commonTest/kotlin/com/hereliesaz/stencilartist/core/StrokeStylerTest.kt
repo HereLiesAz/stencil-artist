@@ -113,6 +113,31 @@ class StrokeStylerTest {
     }
 
     @Test
+    fun attachedDiagonalHighlightsRemainFullyPainted() {
+        // A 5-row-wide diagonal branch is visually thinner than its horizontal
+        // bounding runs. Check the geometry itself, not a calculation reproduced
+        // from the reconstruction algorithm.
+        val w = 160
+        val h = 150
+        val originalMask = BooleanArray(w * h) { i ->
+            val x = i % w
+            val y = i / w
+            (x in 15..85 && y in 15..75) ||
+                (x in 85..125 && kotlin.math.abs(y - (x - 40)) <= 2)
+        }
+        val flat = RgbaImage(w, h, IntArray(w * h) { 0xFF777777.toInt() })
+        val source = Separation.fromMasks(w, h, listOf(black, white),
+            listOf(BooleanArray(w * h) { true }, originalMask))
+        val styled = StrokeStyler.stylize(flat, source).mask(1)
+        for (x in 88..125) for (y in (x - 42)..(x - 38)) {
+            assertTrue(styled[y * w + x],
+                "attached diagonal highlight must survive at ($x,$y)")
+        }
+        assertTrue(StencilPrintTips.detect(styled, w, h, 160.0)
+            .none { it.kind == PrintTipKind.ISLAND })
+    }
+
+    @Test
     fun aLongThinStrokeCannotConsumeTheQuotaOfItsAttachedBroadPatch() {
         val w = 900
         val h = 80
