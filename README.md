@@ -82,8 +82,9 @@ Set **Physical size**, then in **Cutter files** pick a format and choose **Whole
 or sheet, **Custom mat**, or **Roll**. Custom mats accept width, height, edge margin and tile
 overlap in millimetres. Rolls accept width, edge and overlap; length is unlimited, so tiled
 roll exports produce full-length strips. The panel reports the number of tiles and disables
-downloads if a size/overlap is invalid or the plan exceeds its tile limit. Download the shown
-sheet or all sheets.
+downloads if a size/overlap is invalid or the plan exceeds its tile limit. Disconnected
+pieces of concave shapes and clipped holes use independent closed cutter paths, not retraced
+tile-border edges. Download the shown sheet or all sheets.
 
 For **G-code**, select **Laser** or **Router** and set cutting feed, travel feed (mm/min),
 controller-specific power/spindle S value, and passes. Router mode also exposes safe and
