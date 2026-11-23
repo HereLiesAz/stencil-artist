@@ -120,6 +120,39 @@ object StrokeStyler {
                 if (required >= tail) continue
                 for (i in 0 until tail) rebuilt[queue[i]] = false
                 var painted = 0
+                // Component-wide thickness misses thin extensions attached to a wide
+                // blob. Preserve any locally narrow cross-section, regardless of
+                // whether it connects to a broad face, garment fold, or letter.
+                // Measure thickness on both axes, not merely distance to one edge:
+                // a wide region's perimeter is close to an edge but is NOT a
+                // thin stroke. The tail of a 3 px-wide attached line is.
+                for (i in 0 until tail) {
+                    val p = queue[i]
+                    val x = p % w
+                    val y = p / w
+                    var across = 1
+                    var down = 1
+                    for (k in 1..3) {
+                        if (x - k < 0 || !mask[p - k]) break
+                        across++
+                    }
+                    for (k in 1..3) {
+                        if (x + k >= w || !mask[p + k]) break
+                        across++
+                    }
+                    for (k in 1..3) {
+                        if (y - k < 0 || !mask[p - k * w]) break
+                        down++
+                    }
+                    for (k in 1..3) {
+                        if (y + k >= h || !mask[p + k * w]) break
+                        down++
+                    }
+                    if (min(across, down) <= 3) {
+                        rebuilt[p] = true
+                        painted++
+                    }
+                }
                 val seedSpacing = max(3, strokeWidthPixels + 2)
                 val fallbackX = if (maxX - minX >= maxY - minY) 1f else 0f
                 val fallbackY = 1f - fallbackX
