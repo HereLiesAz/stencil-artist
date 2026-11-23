@@ -28,7 +28,28 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - PDF export bounds pathological detail counts, diagnoses actual surviving components, and handles
   one stencil sheet at a time to keep memory use predictable.
 
-Not yet: vector/cutter export. See the roadmap.
+- Traces every sheet into vector outlines and writes cutter files at a real physical size: SVG,
+  DXF (R12), HPGL, G-code and vector PDF, whole or split across a cutting mat or sheet of paper.
+
+Not yet: bridges for islands, colour separation, custom mat sizes in the UI. See the roadmap.
+
+## Cutter files
+
+Set **Physical size**, then in **Cutter files** pick a format and, if the piece is larger than
+the machine takes, a mat or paper size to split it across. Download the shown sheet or all of them.
+
+| Format | For |
+|---|---|
+| SVG | Cricut Design Space, Brother CanvasWorkspace, Silhouette Studio (paid tiers), LightBurn, Inkscape |
+| DXF (R12, millimetres) | Silhouette Studio's free tier, CAD/CAM |
+| HPGL (`.plt`) | Roll plotters and vinyl cutters |
+| G-code | GRBL lasers and routers (outline only; default feed and power, edit before running) |
+| PDF | Printing and cutting by hand; split across pages it has an assembly map and registration marks |
+
+The formats are checked by parsing them back and with outside readers (ezdxf, pypdf, a browser).
+**None has been loaded into the cutter applications named above or run on a machine.** Cut a test
+piece first. Islands (a region enclosed by a cut) are traced faithfully and will fall out; nothing
+adds bridges yet.
 
 ## PNG exports
 

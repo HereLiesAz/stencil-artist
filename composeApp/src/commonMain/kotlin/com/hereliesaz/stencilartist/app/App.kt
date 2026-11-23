@@ -323,7 +323,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     val plan = Tiling.plan(printWidthMm.toDouble(), printWidthMm.toDouble() * stencil.height / stencil.width, fit)
                     Text(
                         "${plan.tiles.size} ${fit.name} piece" + (if (plan.tiles.size == 1) "" else "s") +
-                            " per sheet (${plan.rows} × ${plan.cols})",
+                            " per sheet: ${plan.cols} across, ${plan.rows} down",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
