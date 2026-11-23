@@ -32,7 +32,8 @@ class StrokeStylerTest {
         val input = Separation.fromMasks(w, h, listOf(black, gray), listOf(base, grayMask))
         val original = input.mask(1)
         val styled = StrokeStyler.stylize(image(w, h), input)
-        val changed = original.indices.count { original[it] && !styled.mask(1)[it] }
+        val cut = styled.mask(1)
+        val changed = original.indices.count { original[it] && !cut[it] }
         assertTrue(changed > 0, "a broad uniform region should develop some inward negative strokes")
         assertTrue(changed <= (original.count { it } * 0.085).toInt(), "texture cannot erase an arbitrary share of the layer")
         assertContentEquals(input.mask(0), styled.mask(0), "the black silhouette is never stylized")
