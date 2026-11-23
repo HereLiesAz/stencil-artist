@@ -68,12 +68,6 @@ object RasterExports {
     }
 
     /**
-     * One download for every sheet, in paint order, and the assembled preview. The ZIP contains
-     * the original-size, transparent PNGs, never a white matte or an enlarged approximation.
-     * Rejects an overlarge bundle with an actionable message; individual sheet export remains
-     * available, even when the sheet count is higher than this device can archive safely.
-     */
-    /**
      * Versioned, portable stencil-layer archive for Graffux and GraffitiXR.
      * The paint order is bottom-to-top and every PNG uses the same transparent pixel grid.
      * The manifest carries names/colours, instead of forcing importers to guess from filenames.
@@ -93,7 +87,15 @@ object RasterExports {
             val color = sheet.color.toUInt().toString(16).padStart(8, '0').uppercase()
             """{"name":"Sheet ${index + 1}","file":"${pngs[index].name}","color":"#$color","visible":true}"""
         }.joinToString(",")
-        val manifest = """{"format":"com.hereliesaz.stencilpack","version":1,"width":${separation.width},"height":${separation.height},"order":"bottom-to-top","coverage":"overpaint","composite":"stencil-composite.png","layers":[$layers]}"""
+        val manifest = buildString {
+            append("""{"format":"com.hereliesaz.stencilpack","version":1,"width":""")
+            append(separation.width)
+            append(""","height":""")
+            append(separation.height)
+            append(""","order":"bottom-to-top","coverage":"overpaint","composite":"stencil-composite.png","layers":[""")
+            append(layers)
+            append("]}")
+        }
         val files = listOf(ExportFile("manifest.json", "application/json", manifest.encodeToByteArray())) + pngs
         return ExportFile(
             "stencil-layers.stencilpack",
@@ -102,6 +104,12 @@ object RasterExports {
         )
     }
 
+    /**
+     * One download for every sheet, in paint order, and the assembled preview. The ZIP contains
+     * the original-size, transparent PNGs, never a white matte or an enlarged approximation.
+     * Rejects an overlarge bundle with an actionable message; individual sheet export remains
+     * available, even when the sheet count is higher than this device can archive safely.
+     */
     fun allPngsZip(separation: Separation): ExportFile {
         require(separation.sheets.isNotEmpty()) { "A bundle needs at least one sheet" }
         val files = ArrayList<ExportFile>(separation.sheets.size + 1)
