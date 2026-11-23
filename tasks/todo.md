@@ -120,6 +120,25 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       `version.properties`. Release APKs are ARM-only (72 MB; all four ABIs was 153 MB).
       Not exercised: the central signing/publishing run, which happens only after merge.
 - [x] **12. Review** — see Review below.
+- [x] **13. Colour separation** — `ColorSeparator` (`core`) makes the same `Separation` as `TonalSeparator`.
+      `ColorParams(sheets, smoothing, closing, order, colors)`: 1..1024 sheets, `ColorOrder` AUTO / LIGHT_TO_DARK /
+      DARK_TO_LIGHT / LARGEST_FIRST, optional exact `colors` (nearest-colour assignment, no clustering). Same
+      silhouette as the tonal stencil (shared `Subject`); per-channel median of the straight colour; weighted
+      k-means in Oklab (own arithmetic-only conversion, so JVM and Wasm agree) on a 5-bit colour histogram with
+      deterministic greedy seeding; every pixel assigned exactly; all sheets closed at once as a grey-scale closing
+      of the index (proved equal to `Raster.close` per sheet in a test). `Raster.medianBlur` now tracks its median
+      instead of scanning (same output, held by the OpenCV fixtures). App: "Separate by" Tone / Colour, each mode
+      keeps its own settings, "Order" in Colour mode, "Base" and "Tonal bias" in Tone mode only; the sheet strip's
+      number is black or white by contrast. `StencilState.setSheetColor` and `ColorParams.colors` are ready;
+      **next step: a colour picker / palette editor (no UI yet).**
+      Verified: 26 new tests on JVM and Wasm (flat regions of 2/5/9/24 colours, determinism, given colours,
+      every order, invariants for 1..60 sheets on dark and light subjects, fewer colours than sheets, null cases,
+      Oklab round trip, and a colour separation through the vectoriser, SVG/DXF/HPGL/G-code and `PrintPdf` with
+      and without mounting). The web build was driven in headless Chromium on the astronaut photo (4 and 8
+      sheets, one sheet, composite PNG, SVG: fills are the sheet colours). Separating a 1600 px cut-out takes
+      about 0.6 s on the JVM at 4 to 100 sheets. **Not verified:** Android on a device or emulator, timing in a
+      browser on a phone, Colour mode with depth lighting or on photographs other than the astronaut, a sheet
+      colour edited by hand (no UI).
 
 ## Verification
 

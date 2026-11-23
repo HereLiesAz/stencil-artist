@@ -19,7 +19,7 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Optional depth-based Lambert lighting (azimuth, elevation, intensity, ambient and depth strength)
   relights the **base image before any stencil sheets are generated**, with a base-image preview.
 - Colour separation: the subject's colours are clustered (k-means in Oklab, deterministic, on a
-  colour histogram so a 1600 px photo takes about half a second) into as many flat paint colours
+  colour histogram so a 1600 px photo takes under a second on the JVM) into as many flat paint colours
   as there are sheets, up to 1024, and sprayed in an order of your choice: auto (dark base for a
   dark subject, light for a light one), light to dark, dark to light, or largest area first.
   An image with fewer distinct colours than sheets asked for makes that many sheets, not duplicates.
