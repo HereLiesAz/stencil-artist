@@ -40,6 +40,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -64,6 +66,7 @@ import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.ColorOrder
 import com.hereliesaz.stencilartist.core.export.Board
 import com.hereliesaz.stencilartist.core.export.BoardGrid
+import com.hereliesaz.stencilartist.core.export.GcodeOptions
 import com.hereliesaz.stencilartist.core.export.MountOptions
 import com.hereliesaz.stencilartist.core.export.Paper
 import com.hereliesaz.stencilartist.core.export.PrintOptions
@@ -159,8 +162,29 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     var printWidthMm by remember { mutableFloatStateOf(203.2f) }
     var exporting by remember { mutableStateOf<String?>(null) }
     var cutterFormat by remember { mutableStateOf(CutterFormat.SVG) }
-    var cutterFit by remember { mutableStateOf<TileSpec?>(null) }
+    // -1: whole, 0..presets.lastIndex: preset, presets.size: custom mat, +1: roll.
+    var cutterFitChoice by remember { mutableIntStateOf(-1) }
+    var cutterCustomWidthMm by remember { mutableDoubleStateOf(304.8) }
+    var cutterCustomHeightMm by remember { mutableDoubleStateOf(304.8) }
+    var cutterRollWidthMm by remember { mutableDoubleStateOf(304.8) }
+    var cutterEdgeMm by remember { mutableDoubleStateOf(6.35) }
+    var cutterOverlapMm by remember { mutableDoubleStateOf(10.0) }
     var cutterCutLines by remember { mutableStateOf(true) }
+    var gcodeLaser by remember { mutableStateOf(true) }
+    var gcodeFeed by remember { mutableDoubleStateOf(1200.0) }
+    var gcodeTravel by remember { mutableDoubleStateOf(6000.0) }
+    var gcodePower by remember { mutableDoubleStateOf(1000.0) }
+    var gcodePasses by remember { mutableIntStateOf(1) }
+    var gcodeSafeZ by remember { mutableDoubleStateOf(5.0) }
+    var gcodeCutZ by remember { mutableDoubleStateOf(-1.0) }
+    // A temporarily blank or malformed number must not silently export its previous value.
+    var invalidCutterDrafts by remember { mutableStateOf(emptySet<String>()) }
+    val recordCutterDraft: (String, String, Boolean) -> Unit = { field, raw, whole ->
+        val number = raw.replace(',', '.').toDoubleOrNull()
+        val valid = number != null && number.isFinite() &&
+            (!whole || (number in 1.0..1000.0 && number == number.toInt().toDouble()))
+        invalidCutterDrafts = if (valid) invalidCutterDrafts - field else invalidCutterDrafts + field
+    }
     val print = remember { PrintSettings() }
 
     // The Android picker completes asynchronously. Keep every export control locked until the
@@ -393,18 +417,81 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     Choice(format.label, selected = cutterFormat == format) { cutterFormat = format }
                 }
             }
-            // What the piece is split across: nothing, or a cutting mat or sheet of paper.
+            // All cutter formats share the same fit: a preset, user mat, or unlimited roll.
+            // Validate through TileSpec and Tiling so an invalid or enormous plan cannot
+            // reach a save request. A roll is always one row of full-length strips.
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Choice("Whole", selected = cutterFit == null) { cutterFit = null }
-                for (fit in CUTTER_FITS) {
-                    Choice(fit.name, selected = cutterFit == fit) { cutterFit = fit }
+                Choice("Whole", selected = cutterFitChoice == -1) { cutterFitChoice = -1 }
+                for ((index, preset) in CUTTER_FITS.withIndex()) {
+                    Choice(preset.name, selected = cutterFitChoice == index) { cutterFitChoice = index }
+                }
+                Choice("Custom mat", selected = cutterFitChoice == CUTTER_FITS.size) {
+                    cutterFitChoice = CUTTER_FITS.size
+                }
+                Choice("Roll", selected = cutterFitChoice == CUTTER_FITS.size + 1) {
+                    cutterFitChoice = CUTTER_FITS.size + 1
                 }
             }
-            state.separation?.let { stencil ->
-                cutterFit?.let { fit ->
-                    val plan = Tiling.plan(printWidthMm.toDouble(), printWidthMm.toDouble() * stencil.height / stencil.width, fit)
+            val customMat = cutterFitChoice == CUTTER_FITS.size
+            val roll = cutterFitChoice == CUTTER_FITS.size + 1
+            if (customMat || roll) {
+                if (customMat) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NumberField("Mat width (mm)", cutterCustomWidthMm, 1,
+                            { cutterCustomWidthMm = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("matWidth", it, false) })
+                        NumberField("Mat height (mm)", cutterCustomHeightMm, 1,
+                            { cutterCustomHeightMm = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("matHeight", it, false) })
+                    }
+                } else {
+                    NumberField("Roll width (mm)", cutterRollWidthMm, 1, { cutterRollWidthMm = it },
+                        onDraft = { recordCutterDraft("rollWidth", it, false) })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField("Edge margin (mm)", cutterEdgeMm, 2,
+                        { cutterEdgeMm = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("edge", it, false) })
+                    NumberField("Tile overlap (mm)", cutterOverlapMm, 2,
+                        { cutterOverlapMm = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("overlap", it, false) })
+                }
+            }
+            val fitResult = runCatching {
+                when (cutterFitChoice) {
+                    -1 -> null
+                    in CUTTER_FITS.indices -> CUTTER_FITS[cutterFitChoice]
+                    CUTTER_FITS.size -> TileSpec.custom(
+                        cutterCustomWidthMm, cutterCustomHeightMm, cutterEdgeMm, cutterOverlapMm,
+                    )
+                    else -> TileSpec.roll(cutterRollWidthMm, cutterEdgeMm, cutterOverlapMm)
+                }
+            }
+            val fit = fitResult.getOrNull()
+            val stencil = state.separation
+            val tilePlan = if (fit != null && stencil != null) runCatching {
+                Tiling.plan(
+                    printWidthMm.toDouble(),
+                    printWidthMm.toDouble() * stencil.height / stencil.width,
+                    fit,
+                )
+            } else null
+            val relevantFitDrafts = when {
+                customMat -> setOf("matWidth", "matHeight", "edge", "overlap")
+                roll -> setOf("rollWidth", "edge", "overlap")
+                else -> emptySet()
+            }
+            val badFitDraft = invalidCutterDrafts.any { it in relevantFitDrafts }
+            val fitError = if (badFitDraft) "Enter a valid number in each visible size field."
+                else fitResult.exceptionOrNull()?.message ?: tilePlan?.exceptionOrNull()?.message
+            if (fitError != null) {
+                Text("Invalid cutter size: $fitError", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error)
+            } else {
+                tilePlan?.getOrNull()?.let { plan ->
                     Text(
-                        "${plan.tiles.size} ${fit.name} piece" + (if (plan.tiles.size == 1) "" else "s") +
+                        "${plan.tiles.size} ${fit?.name ?: "cutting"} piece" +
+                            (if (plan.tiles.size == 1) "" else "s") +
                             " per sheet: ${plan.cols} across, ${plan.rows} down",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -417,20 +504,90 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     Choice("Filled", selected = !cutterCutLines, modifier = Modifier.weight(1f)) { cutterCutLines = false }
                 }
             }
+            if (cutterFormat == CutterFormat.GCODE) {
+                Text("G-CODE MACHINE SETTINGS", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Choice("Laser", selected = gcodeLaser, modifier = Modifier.weight(1f)) { gcodeLaser = true }
+                    Choice("Router", selected = !gcodeLaser, modifier = Modifier.weight(1f)) { gcodeLaser = false }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField("Cut feed (mm/min)", gcodeFeed, 0, { gcodeFeed = it }, Modifier.weight(1f),
+                        onDraft = { recordCutterDraft("feed", it, false) })
+                    NumberField("Travel (mm/min)", gcodeTravel, 0, { gcodeTravel = it }, Modifier.weight(1f),
+                        onDraft = { recordCutterDraft("travel", it, false) })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField(if (gcodeLaser) "Laser power (S)" else "Spindle speed (S)",
+                        gcodePower, 0, { gcodePower = it }, Modifier.weight(1f),
+                        onDraft = { recordCutterDraft("power", it, false) })
+                    NumberField("Passes", gcodePasses.toDouble(), 0, {
+                        if (it.isFinite() && it in 1.0..1000.0 && it == it.toInt().toDouble()) {
+                            gcodePasses = it.toInt()
+                        }
+                    }, Modifier.weight(1f),
+                        onDraft = { recordCutterDraft("passes", it, true) })
+                }
+                if (!gcodeLaser) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NumberField("Safe Z (mm)", gcodeSafeZ, 2, { gcodeSafeZ = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("safeZ", it, false) })
+                        NumberField("Cut Z (mm)", gcodeCutZ, 2, { gcodeCutZ = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("cutZ", it, false) })
+                    }
+                }
+                Text(
+                    "Power S uses your controller's range, not a universal percentage. " +
+                        "Verify feed, power, depth and tool-off moves with a dry run before cutting.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            val gcodeResult = if (cutterFormat == CutterFormat.GCODE) runCatching {
+                GcodeOptions(
+                    feedMmPerMin = gcodeFeed,
+                    travelMmPerMin = gcodeTravel,
+                    power = gcodePower,
+                    passes = gcodePasses,
+                    laserMode = gcodeLaser,
+                    // Z is unused for lasers: a previous router draft must not block laser exports.
+                    safeZMm = if (gcodeLaser) 5.0 else gcodeSafeZ,
+                    cutZMm = if (gcodeLaser) -1.0 else gcodeCutZ,
+                )
+            } else Result.success(GcodeOptions())
+            val relevantGcodeDrafts = if (gcodeLaser) setOf("feed", "travel", "power", "passes")
+                else setOf("feed", "travel", "power", "passes", "safeZ", "cutZ")
+            val badGcodeDraft = cutterFormat == CutterFormat.GCODE &&
+                invalidCutterDrafts.any { it in relevantGcodeDrafts }
+            val gcodeError = if (badGcodeDraft) "Enter a valid number in each visible G-code field."
+                else gcodeResult.exceptionOrNull()?.message
+            gcodeError?.let { error ->
+                Text("Invalid G-code settings: $error", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error)
+            }
             val format = cutterFormat
-            val fit = cutterFit
             val lines = cutterCutLines
             val width = printWidthMm.toDouble()
+            val options = gcodeResult.getOrNull()
+            val cutterReady = canExport && fitError == null && gcodeError == null && options != null
             state.shownSheet?.let { sheet ->
                 OutlinedButton(
-                    onClick = { startExport("Sheet ${sheet + 1} ${format.label}") { CutterExports.make(it, format, width, sheet, fit, lines) } },
-                    enabled = canExport,
+                    onClick = {
+                        if (cutterReady && options != null) startExport("Sheet ${sheet + 1} ${format.label}") {
+                            CutterExports.make(it, format, width, sheet, fit, lines, options)
+                        }
+                    },
+                    enabled = cutterReady,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Download sheet ${sheet + 1} ${format.label}") }
             }
             OutlinedButton(
-                onClick = { startExport("All sheets ${format.label}") { CutterExports.make(it, format, width, null, fit, lines) } },
-                enabled = canExport,
+                onClick = {
+                    if (cutterReady && options != null) startExport("All sheets ${format.label}") {
+                        CutterExports.make(it, format, width, null, fit, lines, options)
+                    }
+                },
+                enabled = cutterReady,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Download all sheets ${format.label}") }
         }
@@ -642,22 +799,40 @@ private fun PrintSection(
  * A small numeric text field in the app's monochrome: [value] shown to [decimals] places, [onValue] called
  * with each valid number as it is typed (a comma counts as a point). When [value] changes from outside, as
  * "Fit to whole pages" does, the text follows, but typing "2." is never rewritten under the cursor.
+ * Optional [onDraft] also sees incomplete text so cutter downloads can be disabled while a
+ * numeric field is invalid, rather than exporting a stale last-valid number.
  */
 @Composable
-private fun NumberField(title: String, value: Double, decimals: Int, onValue: (Double) -> Unit, modifier: Modifier = Modifier) {
+private fun NumberField(
+    title: String,
+    value: Double,
+    decimals: Int,
+    onValue: (Double) -> Unit,
+    modifier: Modifier = Modifier,
+    onDraft: ((String) -> Unit)? = null,
+) {
     val scheme = MaterialTheme.colorScheme
     var text by remember { mutableStateOf(fixedDecimals(value, decimals)) }
     LaunchedEffect(value) {
         val typed = text.replace(',', '.').toDoubleOrNull()
-        if (typed == null || abs(typed - value) > 0.5 / 10.0.pow(decimals)) text = fixedDecimals(value, decimals)
+        if (typed == null || abs(typed - value) > 0.5 / 10.0.pow(decimals)) {
+            text = fixedDecimals(value, decimals)
+            onDraft?.invoke(text)
+        }
     }
+    // Hidden fields are disposed when switching formats. On return their text is recreated
+    // from the last valid value, so invalidate no export based on a stale prior draft.
+    LaunchedEffect(Unit) { onDraft?.invoke(text) }
     Column(modifier) {
         Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
         BasicTextField(
             value = text,
             onValueChange = { next ->
                 text = next
-                next.replace(',', '.').toDoubleOrNull()?.let(onValue)
+                onDraft?.invoke(next)
+                // Kotlin parses NaN and Infinity; storing either would crash fixedDecimals
+                // when this field is recreated and could leak invalid machine parameters.
+                next.replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }?.let(onValue)
             },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

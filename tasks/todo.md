@@ -295,7 +295,10 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
   marks user-entered values as approximate. MTN maker RGB values are still unavailable.
   A live site/reference is not a redistribution license for its imagery or swatch database.
   Visual/touch checks on actual devices remain outstanding.
-- Custom mat and roll sizes, and G-code feed/power, are in core but have no UI yet.
+- Custom mat and roll sizes, overlap/margin validation, and G-code laser/router settings
+  (feed, travel, power, passes, safe/cut Z) are now exposed in the Cutter files UI. Invalid
+  entries and oversized tiling plans block downloads; settings flow into the exporter.
+  The resulting machine files still require dry-run verification on hardware.
 - Tiled text formats clip with Sutherland-Hodgman: a concave shape cut by a mat edge gets doubled
   edges along that edge, which a cutter traces twice. The PDF clips properly and has none.
 - The web pipeline still runs on the page's only thread.
