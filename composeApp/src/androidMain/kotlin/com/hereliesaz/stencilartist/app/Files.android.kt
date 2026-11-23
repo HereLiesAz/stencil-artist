@@ -66,5 +66,12 @@ private class DocumentSaver(private val context: Context, private val scope: Cor
 
 actual fun encodePng(pixels: IntArray, width: Int, height: Int): ByteArray {
     val bitmap = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
-    return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    try {
+        val output = ByteArrayOutputStream()
+        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "PNG encoding failed" }
+        return output.toByteArray()
+    } finally {
+        // Bundling many sheets should not retain an extra native 1600px bitmap per PNG.
+        bitmap.recycle()
+    }
 }

@@ -63,6 +63,45 @@ class SeparationTest {
     }
 
     @Test
+    fun rasterExportPlanesPreserveStraightAlphaAndOnlyShowCutPixels() {
+        val base = 0x80102030.toInt()
+        val middle = 0x40305070
+        val top = 0xFFDCBA98.toInt()
+        // The fixture is specified in paint order with a hole at each end.
+        val s = Separation(7, 1, listOf(Sheet(base), Sheet(middle), Sheet(top)),
+            intArrayOf(none, 0, 1, 2, 1, 0, none))
+        assertContentEquals(
+            intArrayOf(0, base, base, base, base, base, 0),
+            s.render(0), "First PNG must preserve the complete base cut and its supplied alpha")
+        assertContentEquals(
+            intArrayOf(0, 0, middle, middle, middle, 0, 0),
+            s.render(1), "Second PNG overlays only its cut; uncut stock is transparent")
+        assertContentEquals(
+            intArrayOf(0, 0, 0, top, 0, 0, 0),
+            s.render(2), "Final PNG contains only the smallest, latest cut")
+        assertContentEquals(
+            intArrayOf(0, base, middle, top, middle, base, 0),
+            s.render(), "Composite PNG must match the finished preview, not flatten to white")
+    }
+
+    @Test
+    fun rasterExportsNeverAssumeThreeSheetsOrAWhiteBackground() {
+        val palette = listOf(0x80FF1122.toInt(), 0xFF00EE33.toInt(),
+            0x200000FF, 0xFFFFCC00.toInt(), 0xFF102030.toInt())
+        val s = Separation(3, 2, palette.map(::Sheet),
+            intArrayOf(none, 0, 4, 2, 3, none))
+        assertContentEquals(intArrayOf(0, palette[0], palette[4], palette[2],
+            palette[3], 0), s.render())
+        assertContentEquals(intArrayOf(0, 0, palette[4], 0, 0, 0),
+            s.render(4))
+        assertContentEquals(intArrayOf(0, palette[0], palette[0], palette[0],
+            palette[0], 0), s.render(0))
+        // All exported planes retain the same dimensions and pixel layout as the source.
+        assertEquals(6, s.render(4).size)
+        assertEquals(6, s.render().size)
+    }
+
+    @Test
     fun aSheetThatIsNotThereIsRefused() {
         val s = three(listOf(black, grey, white))
         assertFailsWith<IllegalArgumentException> { s.render(3) }

@@ -57,5 +57,16 @@ actual fun encodePng(pixels: IntArray, width: Int, height: Int): ByteArray {
         bytes[i * 4 + 3] = (p ushr 24).toByte()
     }
     val image = Image.makeRaster(ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.UNPREMUL), bytes, width * 4)
-    return image.encodeToData(EncodedImageFormat.PNG)?.bytes ?: error("PNG encoding failed")
+    try {
+        val encoded = image.encodeToData(EncodedImageFormat.PNG) ?: error("PNG encoding failed")
+        try {
+            return encoded.bytes
+        } finally {
+            encoded.close()
+        }
+    } finally {
+        // Both the raster image and its encoded Skia buffer hold native/Wasm resources.
+        // Free them between sheets rather than retaining them during a large ZIP export.
+        image.close()
+    }
 }

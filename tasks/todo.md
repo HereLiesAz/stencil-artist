@@ -72,7 +72,13 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       alpha preservation, silhouette refinement and light direction. A CI CPU benchmark confirmed
       both Depth Anything V2 Small and MiDaS Small ONNX models and non-square depth inputs.
       **Not device-verified:** Android/model loading and PWA browser inference; tracked under review.
-- [ ] **6. Raster export** — per-sheet and stacked transparent PNG.
+- [x] **6. Raster export** — native-resolution, transparent PNG for a selected sheet or the
+      finished composite, plus one ZIP containing all sheet PNGs in paint order and the composite.
+      Uses existing `Separation.render`, Android Bitmap and web Skia encoders, the existing
+      `Zip.store` archive writer, and the platform save/download interface. ZIP payloads are
+      bounded at 32 MiB; individual PNGs are always available. Existing geometry/alpha render
+      tests are extended with opaque and semi-transparent, non-grey and non-three-sheet fixtures.
+      Export is disabled while separation regeneration is pending or a save chooser is open.
 - [ ] **7. Vectorise** — contour tracing with holes, Douglas-Peucker simplify, min-feature filter.
 - [ ] **8. Cutter export** — SVG, DXF (R12 polylines), HPGL/PLT, vector PDF, G-code. Physical size
       in mm/in drives all of them; tiled per mat/roll. See Resolved > Cutting machines.
@@ -105,8 +111,10 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 ## Known limits (to fix in the phase named)
 
-- Smoothing and closing are in working-image pixels (longest edge 1600). Export at other sizes
-  must scale them (phase 6).
+- Smoothing and closing remain measured in working-image pixels (longest edge 1600). Phase 6
+  PNG exports intentionally use those native pixel dimensions, with no upscaling. Reprocessing
+  the original full-resolution file at different pixel sizes remains unsupported because image
+  picking currently downsizes to the working limit.
 - On the web the pipeline runs on the only thread; the UI holds still while it works. A Web Worker
   is the fix if it proves slow on phones (phase 10).
 - The web ONNX runtime is a 14.8 MB WebAssembly file (plus the 4.6 MB model), fetched only when a

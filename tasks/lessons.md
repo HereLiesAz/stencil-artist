@@ -49,3 +49,14 @@ Rules written after corrections. Read at the start of every session on this repo
   let the PWA cache the requested model. No user should need depth to use basic stencil tools.
 - Never claim a model is benchmarked because a build compiled. Measure runtime and visual quality
   on representative devices before checking off performance tasks.
+
+## 2026-11-22 — Raster output must stay identical to the stencil preview
+
+- Encode per-sheet PNG pixels through `Separation.render(sheet)` and composite through
+  `Separation.render()`. No second separation path, no opaque white backdrop, no invented
+  greyscale palette. Transparent gaps stay transparent; sheets retain their ARGB alpha.
+- Export only completed separations. Debounced parameter edits invalidate pending exports;
+  the Android document chooser must hold the save lock until its result callback.
+- Use the existing Android/Skia PNG encoders and ZIP writer rather than duplicating codecs.
+  Bound in-memory archive size, and keep individual sheet export available when an archive
+  is too large.
