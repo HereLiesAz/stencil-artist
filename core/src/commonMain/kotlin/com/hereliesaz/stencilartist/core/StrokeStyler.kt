@@ -45,6 +45,7 @@ object StrokeStyler {
 
         for (sheet in 1 until masks.size) {
             val mask = masks[sheet]
+            val unstyled = mask.copyOf()
             val originalPainted = mask.count { it }
             if (originalPainted < 200) continue
             val budget = (originalPainted * maximumRemovedFraction).toInt()
@@ -100,8 +101,9 @@ object StrokeStyler {
                 val dy = if (ny > 0) 1 else if (ny < 0) -1 else 0
                 var length = 0
                 for (k in 1..6) {
-                    val q = (y + k * dy) * w + x + k * dx
-                    if (q !in mask.indices || !mask[q]) break
+                    val xx = x + k * dx
+                    val yy = y + k * dy
+                    if (xx !in 0 until w || yy !in 0 until h || !mask[yy * w + xx]) break
                     length++
                 }
                 if (length < 5) continue
@@ -112,10 +114,12 @@ object StrokeStyler {
             if (seeds.isEmpty()) continue
             // Reserve some budget per seed, distributing marks across the whole subject.
             // The deterministic sparse stride prevents a limit from affecting only the top.
-            val expectedCost = max(1, strokeWidthPixels * 14)
+            val effectiveWidth = halfWidth * 2 + 1
+            val expectedCost = max(1, effectiveWidth * 14 + effectiveWidth * effectiveWidth)
             val stride = max(1, (seeds.size * expectedCost + budget - 1) / budget)
             val chosen = seeds.filterIndexed { i, _ -> i % stride == 0 }
-            val lengthPerStroke = min(36, max(5, budget / max(1, chosen.size * strokeWidthPixels)))
+            val lengthPerStroke = min(36, max(5,
+                (budget / max(1, chosen.size) - effectiveWidth * effectiveWidth) / effectiveWidth))
             var removed = 0
             fun carve(x: Int, y: Int): Boolean {
                 if (x !in 0 until w || y !in 0 until h) return false
@@ -147,7 +151,7 @@ object StrokeStyler {
                     val x = px.roundToInt()
                     val y = py.roundToInt()
                     if (x !in 2 until w - 2 || y !in 2 until h - 2) break
-                    if (!mask[y * w + x] && step > 0) break
+                    if (!unstyled[y * w + x] && step > 0) break
                     // Complete 4-connected stock even when rounding moves diagonally.
                     if (step > 0 && x != lastX && y != lastY) carve(x, lastY)
                     if (!carve(x, y) && step > 1) break
