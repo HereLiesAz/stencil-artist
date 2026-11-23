@@ -4,7 +4,6 @@ import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.export.DxfExporter
 import com.hereliesaz.stencilartist.core.export.GcodeExporter
 import com.hereliesaz.stencilartist.core.export.HpglExporter
-import com.hereliesaz.stencilartist.core.export.PdfExporter
 import com.hereliesaz.stencilartist.core.export.PhysicalSize
 import com.hereliesaz.stencilartist.core.export.SvgExporter
 import com.hereliesaz.stencilartist.core.export.SvgOptions
@@ -18,14 +17,13 @@ import com.hereliesaz.stencilartist.core.vector.Vectorizer
 /**
  * The vector formats cutting machines and their software take. Which to use is the machine's
  * business, not the app's: craft cutters import SVG or DXF, roll plotters take HPGL, lasers and
- * routers take G-code, and anything with a printer driver takes PDF.
+ * routers take G-code. Printing on paper is the separate print PDF, [PrintPdf].
  */
 enum class CutterFormat(val label: String, val extension: String, val mimeType: String) {
     SVG("SVG", "svg", "image/svg+xml"),
     DXF("DXF", "dxf", "application/dxf"),
     HPGL("HPGL", "plt", "application/vnd.hp-hpgl"),
     GCODE("G-code", "gcode", "text/plain"),
-    PDF("PDF", "pdf", "application/pdf"),
 }
 
 /**
@@ -68,7 +66,6 @@ object CutterExports {
             CutterFormat.DXF -> DxfExporter.export(drawing, size, one, tile)
             CutterFormat.HPGL -> HpglExporter.export(drawing, size, one, tile)
             CutterFormat.GCODE -> GcodeExporter.export(drawing, size, one, tile)
-            CutterFormat.PDF -> error("PDF is written by PdfExporter")
         }.encodeToByteArray()
 
         val files = ArrayList<ExportFile>()
@@ -81,11 +78,7 @@ object CutterExports {
             files += ExportFile("$name.${format.extension}", format.mimeType, bytes)
         }
 
-        if (format == CutterFormat.PDF) {
-            // A tiled PDF is one document per sheet: an assembly map, then a page per tile.
-            if (fit == null) add(if (sheet == null) "stencil" else "stencil-${sheetName(sheet)}", PdfExporter.single(drawing, size, wanted))
-            else for (i in wanted) add("stencil-${sheetName(i)}-tiled", PdfExporter.tiled(drawing, size, i, fit))
-        } else if (fit == null) {
+        if (fit == null) {
             // SVG and DXF keep sheets apart as groups and layers; HPGL and G-code run them in turn.
             add(if (sheet == null) "stencil" else "stencil-${sheetName(sheet)}", text(sheet, null))
         } else {

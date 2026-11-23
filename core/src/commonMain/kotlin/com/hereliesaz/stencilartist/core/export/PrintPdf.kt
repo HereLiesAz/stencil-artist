@@ -1,0 +1,755 @@
+package com.hereliesaz.stencilartist.core.export
+
+import com.hereliesaz.stencilartist.core.Separation
+import com.hereliesaz.stencilartist.core.StencilPrintTips
+import com.hereliesaz.stencilartist.core.PrintTip
+import com.hereliesaz.stencilartist.core.PrintTipKind
+import com.hereliesaz.stencilartist.core.vector.Point
+import com.hereliesaz.stencilartist.core.vector.Vectorizer
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+
+/**
+ * What to print: the finished piece's physical width (its height follows the image) on [paper], turned
+ * to [landscape] or portrait. The printer's unprintable border and the overlap between pages are not
+ * options: see [PrintPdf.MARGIN_MM] and [PrintPdf.OVERLAP_MM].
+ */
+data class PrintOptions(
+    val widthMm: Double = 203.2,
+    val paper: Paper = Paper.US_LETTER,
+    val landscape: Boolean = false,
+) {
+    init {
+        require(widthMm > 0.0 && widthMm.isFinite()) { "The stencil width must be a positive number of millimetres." }
+        val page = paper.oriented(landscape)
+        require(
+            PrintPdf.printableWidthMm(page) >= PrintPdf.MIN_PRINTABLE_MM &&
+                PrintPdf.printableHeightMm(page) >= PrintPdf.MIN_PRINTABLE_MM,
+        ) {
+            "The paper is too small: after the ${PrintPdf.MARGIN_MM} mm border each page must print at least " +
+                "${PrintPdf.MIN_PRINTABLE_MM} mm each way, but this one prints " +
+                "${Decimal.format(PrintPdf.printableWidthMm(page), 1)} x ${Decimal.format(PrintPdf.printableHeightMm(page), 1)} mm."
+        }
+    }
+
+    /** The paper as it lies in the printer. */
+    val page: Paper get() = paper.oriented(landscape)
+
+    /** The tiling of [page]: the printer border as the unusable edge, the fixed overlap between pages. */
+    val spec: TileSpec get() = PrintPdf.spec(page)
+}
+
+/** The pages of one sheet: [printed] tiles get a page, [blank] tiles have nothing to cut and are skipped. */
+data class SheetPages(val sheet: Int, val printed: List<Tile>, val blank: List<Tile>)
+
+/**
+ * How a print divides up before anything is drawn: the page [grid] of the piece and, for each requested
+ * sheet, which tiles are printed and which are blank. It is computed by the same code that writes the
+ * PDF, so a readout built from it is the PDF's own page count (less the instructions page, the maps and
+ * any reference pages, which depend on the cutting tips).
+ */
+class PrintPlan(val options: PrintOptions, val grid: TilePlan, val sheets: List<SheetPages>) {
+    /** Tiles in the grid, printed or not: the pages one sheet would take if nothing were blank. */
+    val tilesPerSheet: Int get() = grid.tiles.size
+
+    /** Tile pages over all requested sheets. */
+    val printedPages: Int get() = sheets.sumOf { it.printed.size }
+
+    /** Tiles skipped as blank over all requested sheets. */
+    val blankPages: Int get() = sheets.sumOf { it.blank.size }
+}
+
+/**
+ * The print PDF: the one PDF the app writes. PDF 1.4 written by hand, true physical size, never scaled:
+ * print at 100% / actual size.
+ *
+ * Layout. A page's printable area is the paper less a fixed [MARGIN_MM] border on every side (what a
+ * printer cannot print). Each printable area is one tile, and tiles advance by their printable size less
+ * [OVERLAP_MM], so neighbours share a 1 mm band that BOTH print, artwork included. Tile i along an axis
+ * starts at i * (printable - overlap) in finished-piece millimetres; the last tile is cut off at the
+ * piece's edge.
+ *
+ * Marks. Marks exist only where two pages meet, inside the shared 1 mm bands, drawn on each band's
+ * centre line (0.5 mm in from the printable edge, so 3.5 mm from the paper's edge) with a stroke of
+ * [MARK_WIDTH_MM], thin enough to lie wholly inside the band. Where a vertical and a horizontal band cross
+ * the page prints an L with arms of [MARK_ARM_MM] running inward along the two bands; where a band runs
+ * out to the piece's outer edge it prints a straight arm of the same length. A page edge with no
+ * neighbour has no mark, and a single page has none at all. A mark is defined in finished-piece
+ * coordinates, so the two pages that share a band print the identical segments at the identical place:
+ * the arms along the band coincide when one page is laid over the other, and an L's corner is the same
+ * point on all the pages that meet there.
+ *
+ * Convention (the instructions page says the same). On every page with a neighbour to its left and/or
+ * above, trim the 3 mm unprinted strip off that left and/or top side, cutting along the printed edge.
+ * Then lay that page over its neighbour so the two bands coincide and each L sits exactly on the L
+ * beneath; the trimmed page covers only the neighbour's blank right or bottom strip and its identical
+ * band. Tape; work left to right, top to bottom.
+ *
+ * Pages. One instructions page for the whole file; then for each sheet an assembly map, the sheet's tile
+ * pages (a tile whose net cell, the part of the piece it alone owns, has nothing to cut is skipped and
+ * shown as blank on the map), and non-cutting reference pages for tips that cannot be placed. The cut
+ * shapes are vectors clipped to the printable area, filled in the sheet's colour and outlined in dark
+ * ink so a pale sheet stays visible.
+ *
+ * Cutting tips ([StencilPrintTips]) are printed only on surviving uncut material, with a cut-free
+ * buffer, never across a cut. A tip that cannot be placed on its page, including one whose page is
+ * blank, goes to a reference page beside a copy of its cut detail; nothing is dropped. Islands are
+ * diagnosed once on the full sheet, not per tile. One sheet's masks and clearance tables are alive at
+ * a time, and a count of details or pages that cannot be printed is rejected up front.
+ *
+ * The page label and short code ("Sheet 2 of 5 - Row 1 Col 3 (C1)") are placed like a tip: on uncut
+ * material or beyond the piece's edge, never on a cut. Only if a page has no such room at all (it is
+ * cut open from edge to edge) is it printed at the top-left corner regardless.
+ */
+object PrintPdf {
+    /** The unprintable border of every page, from the paper's edge, in mm. Fixed. */
+    const val MARGIN_MM = 3.0
+
+    /** How far neighbouring pages overlap, in mm: the band the L marks sit in. Fixed. */
+    const val OVERLAP_MM = 1.0
+
+    /** Length of each arm of an L mark, in mm. */
+    const val MARK_ARM_MM = 4.0
+
+    /** Stroke width of the L marks, in mm; under [OVERLAP_MM] so a mark lies inside its band. */
+    const val MARK_WIDTH_MM = 0.2
+
+    /** The smallest printable width and height a page may have, in mm, so the instructions and notes fit. */
+    const val MIN_PRINTABLE_MM = 120.0
+
+    private const val MAX_PAGES = 4096
+    private const val MAX_TIPS = 16384
+    private const val K = 72.0 / PhysicalSize.MM_PER_INCH
+    private const val INK = "0.1 0.1 0.1"
+    private const val TIP_W = 146.0 / K
+    private const val TIP_H = 49.0 / K
+    private const val TIP_CLEARANCE = 5.0 / K
+    private const val INSET = 1.5
+    private const val LABEL_PT = 6.5
+
+    /** The paper's printable width: paper less the border on both sides. */
+    fun printableWidthMm(page: Paper): Double = page.widthMm - 2 * MARGIN_MM
+
+    /** The paper's printable height. */
+    fun printableHeightMm(page: Paper): Double = page.heightMm - 2 * MARGIN_MM
+
+    /** How far a tile advances across: printable width less the overlap. */
+    fun stepWidthMm(page: Paper): Double = printableWidthMm(page) - OVERLAP_MM
+
+    /** How far a tile advances down. */
+    fun stepHeightMm(page: Paper): Double = printableHeightMm(page) - OVERLAP_MM
+
+    /** [page] as the tiling spec the print uses. */
+    fun spec(page: Paper): TileSpec = TileSpec(page.widthMm, page.heightMm, MARGIN_MM, OVERLAP_MM, page.name)
+
+    /** A spreadsheet-style column name: 0 is "A", 25 is "Z", 26 is "AA". */
+    fun columnName(col: Int): String {
+        var n = col
+        val sb = StringBuilder()
+        do {
+            sb.insert(0, 'A' + n % 26)
+            n = n / 26 - 1
+        } while (n >= 0)
+        return sb.toString()
+    }
+
+    /** A tile's short code: column letter then row number, "C1" for row 1, column 3. */
+    fun tileCode(tile: Tile): String = columnName(tile.col) + (tile.row + 1)
+
+    /**
+     * The marks [tile] prints, each a polyline in finished-piece mm (y down): an L of three points at
+     * every crossing of two shared bands, and a straight tick of two points where a shared band runs out
+     * to the piece's outer edge. Marks lie only on the centre lines of shared bands, 0.5 mm in from the
+     * page's printable edge; a side with no neighbour has none, and a single page has none at all.
+     */
+    internal fun marks(grid: TilePlan, tile: Tile): List<List<Point>> {
+        val spec = grid.spec
+        val x0 = tile.clip.x0
+        val y0 = tile.clip.y0
+        val h = OVERLAP_MM / 2
+        val a = MARK_ARM_MM
+        val xl = x0 + h
+        val xr = x0 + spec.printableWidthMm - h
+        val yt = y0 + h
+        val yb = y0 + spec.printableHeightMm - h
+        val left = tile.col > 0
+        val right = tile.col < grid.cols - 1
+        val top = tile.row > 0
+        val bottom = tile.row < grid.rows - 1
+        val out = ArrayList<List<Point>>()
+        // Vertical bands: an arm from each end, an L where a horizontal band crosses there.
+        for ((x, dx, present) in listOf(Triple(xl, 1, left), Triple(xr, -1, right))) {
+            if (!present) continue
+            for ((y, dy, crossed) in listOf(Triple(yt, 1, top), Triple(yb, -1, bottom))) {
+                out += if (crossed) listOf(Point(x + dx * a, y), Point(x, y), Point(x, y + dy * a))
+                else listOf(Point(x, y), Point(x, y + dy * a))
+            }
+        }
+        // Horizontal bands: an arm from each end that no vertical band covers.
+        for ((y, present) in listOf(yt to top, yb to bottom)) {
+            if (!present) continue
+            if (!left) out += listOf(Point(xl, y), Point(xl + a, y))
+            if (!right) out += listOf(Point(xr, y), Point(xr - a, y))
+        }
+        return out
+    }
+
+    /** The part of the piece only [tile] owns: its tile less the overlap shared with the next tile along and down. */
+    internal fun net(grid: TilePlan, tile: Tile): RectMm {
+        val x1 = if (tile.col == grid.cols - 1) grid.widthMm else tile.clip.x0 + grid.spec.stepWidthMm
+        val y1 = if (tile.row == grid.rows - 1) grid.heightMm else tile.clip.y0 + grid.spec.stepHeightMm
+        return RectMm(tile.clip.x0, tile.clip.y0, x1, y1)
+    }
+
+    private fun gridFor(separation: Separation, options: PrintOptions, sheetCount: Int): TilePlan {
+        require(separation.width > 0 && separation.height > 0 && separation.sheets.isNotEmpty()) { "A print needs a non-empty stencil." }
+        val heightMm = options.widthMm * separation.height / separation.width
+        val grid = Tiling.plan(options.widthMm, heightMm, options.spec)
+        val pages = (grid.tiles.size.toLong() + 1) * sheetCount + 1
+        require(pages <= MAX_PAGES) {
+            "Printout needs too many pages: ${grid.cols} x ${grid.rows} pages per sheet is $pages in all, more than the $MAX_PAGES allowed. Make the stencil smaller or use bigger paper."
+        }
+        return grid
+    }
+
+    private fun checkSheets(separation: Separation, sheets: List<Int>) {
+        require(sheets.isNotEmpty()) { "No sheets to print." }
+        for (s in sheets) require(s in separation.sheets.indices) { "There is no sheet ${s + 1}." }
+    }
+
+    /** Which tiles of [grid] have any cut in their net cell, by tile index. */
+    private fun usedTiles(mask: BooleanArray, width: Int, height: Int, grid: TilePlan): BooleanArray {
+        val mmPerPx = grid.widthMm / width
+        val stepX = grid.spec.stepWidthMm
+        val stepY = grid.spec.stepHeightMm
+        val colOf = IntArray(width) { min(grid.cols - 1, floor((it + 0.5) * mmPerPx / stepX).toInt()) }
+        val rowOf = IntArray(height) { min(grid.rows - 1, floor((it + 0.5) * mmPerPx / stepY).toInt()) }
+        val used = BooleanArray(grid.tiles.size)
+        for (y in 0 until height) {
+            val base = rowOf[y] * grid.cols
+            val row = y * width
+            for (x in 0 until width) if (mask[row + x]) used[base + colOf[x]] = true
+        }
+        return used
+    }
+
+    /**
+     * How the print divides into pages for [sheets] (default all) of [separation]: the grid, and per
+     * sheet the printed and blank tiles. Cheap next to [make]: no outlines are traced and no tips found.
+     */
+    fun plan(separation: Separation, options: PrintOptions, sheets: List<Int> = separation.sheets.indices.toList()): PrintPlan {
+        checkSheets(separation, sheets)
+        val grid = gridFor(separation, options, sheets.size)
+        val perSheet = sheets.map { sheet ->
+            val used = usedTiles(separation.mask(sheet), separation.width, separation.height, grid)
+            SheetPages(sheet, grid.tiles.filterIndexed { i, _ -> used[i] }, grid.tiles.filterIndexed { i, _ -> !used[i] })
+        }
+        return PrintPlan(options, grid, perSheet)
+    }
+
+    /** The print PDF of [sheets] (default all) of [separation], as one file. */
+    fun make(separation: Separation, options: PrintOptions, sheets: List<Int> = separation.sheets.indices.toList()): ByteArray {
+        checkSheets(separation, sheets)
+        val grid = gridFor(separation, options, sheets.size)
+        val lay = Lay(grid, separation.sheets.size)
+        val doc = PdfDoc()
+        doc.addPage(lay.pageW, lay.pageH, Instructions.page(lay, sheets.size, separation.sheets.size))
+
+        var tipsUsed = 0
+        for (sheet in sheets) {
+            // Everything per sheet lives in this iteration, so one sheet's mask and tables are alive at a time.
+            val mask = separation.mask(sheet)
+            val used = usedTiles(mask, separation.width, separation.height, grid)
+            val tips = StencilPrintTips.detect(
+                mask, separation.width, separation.height, options.widthMm, maxTips = MAX_TIPS - tipsUsed,
+            )
+            tipsUsed += tips.size
+            val mmPerPx = options.widthMm / separation.width
+            val uncut = UncutSpace(mask, separation.width, separation.height, mmPerPx)
+            val outline = Vectorizer.vectorizeSheet(separation, sheet)
+            val shapes = outline.shapes.map { Placed(it.rings.map { r -> r.points }, mmPerPx, lay.heightMm) }
+            val color = outline.color
+
+            doc.addPage(lay.pageW, lay.pageH, lay.mapPage(sheet, used, shapes, color, doc))
+
+            val required = LinkedHashMap<String, Note>()
+            val homes = HashMap<Int, MutableList<Note>>()
+            for (tip in tips) {
+                val note = lay.note(sheet, tip, mmPerPx)
+                required[note.key] = note
+                homes.getOrPut(note.tile) { ArrayList() } += note
+            }
+            val placed = HashSet<String>()
+            for ((index, tile) in grid.tiles.withIndex()) {
+                if (!used[index]) continue
+                doc.addPage(
+                    lay.pageW, lay.pageH,
+                    lay.tilePage(sheet, tile, shapes, color, doc, uncut, homes[index].orEmpty(), placed),
+                )
+                require(doc.pageCount <= MAX_PAGES) { "Printout needs too many pages" }
+            }
+            for (notes in required.values.filter { it.key !in placed }.chunked(lay.referenceRows)) {
+                require(doc.pageCount < MAX_PAGES) { "Printout needs too many reference pages" }
+                doc.addPage(lay.pageW, lay.pageH, lay.referencePage(notes, sheet, shapes, color, doc))
+            }
+        }
+        return doc.finish("Stencil Artist - print")
+    }
+
+    // ---- Geometry shared by all pages.
+
+    /** A cut shape's rings as path operators in points (y up from the piece's bottom edge), with its extent in mm (y down). */
+    internal class Placed(rings: List<List<Point>>, mmPerPx: Double, heightMm: Double) {
+        val data: String
+        val minX: Double
+        val maxX: Double
+        val minY: Double
+        val maxY: Double
+
+        init {
+            val sb = StringBuilder()
+            var x0 = Double.MAX_VALUE
+            var x1 = -Double.MAX_VALUE
+            var y0 = Double.MAX_VALUE
+            var y1 = -Double.MAX_VALUE
+            for ((r, ring) in rings.withIndex()) {
+                for ((i, p) in ring.withIndex()) {
+                    val x = p.x * mmPerPx
+                    val y = p.y * mmPerPx
+                    if (r == 0) {
+                        x0 = min(x0, x); x1 = max(x1, x)
+                        y0 = min(y0, y); y1 = max(y1, y)
+                    }
+                    sb.append(num(x * K)).append(' ').append(num((heightMm - y) * K)).append(if (i == 0) " m\n" else " l\n")
+                }
+                sb.append("h\n")
+            }
+            data = sb.toString()
+            minX = x0; maxX = x1; minY = y0; maxY = y1
+        }
+    }
+
+    /** A cutting tip's text and where its anchor is, in finished-piece mm; [tile] is the index of the tile that owns the anchor. */
+    internal class Note(val key: String, val sheet: Int, val lines: List<String>, val x: Double, val y: Double, val tile: Int, val code: String)
+
+    private class Rect(val x: Double, val y: Double, val w: Double, val h: Double) {
+        fun overlaps(o: Rect, gap: Double = 1.4): Boolean =
+            x < o.x + o.w + gap && x + w + gap > o.x && y < o.y + o.h + gap && y + h + gap > o.y
+    }
+
+    /** Summed-area table of cut openings: a rectangle is clear only if it and a buffer around it hold no cut pixel. */
+    internal class UncutSpace(mask: BooleanArray, val width: Int, val height: Int, private val mmPerPx: Double) {
+        private val stride = width + 1
+        private val sums = IntArray((width + 1) * (height + 1))
+
+        init {
+            for (y in 0 until height) {
+                var row = 0
+                for (x in 0 until width) {
+                    if (mask[y * width + x]) row++
+                    sums[(y + 1) * stride + x + 1] = sums[y * stride + x + 1] + row
+                }
+            }
+        }
+
+        /** Whether the mm rectangle, widened by [buffer] mm and one pixel (the outlines are simplified), is wholly on the piece and cut-free. */
+        fun clear(x: Double, y: Double, w: Double, h: Double, buffer: Double): Boolean {
+            val x0 = floor((x - buffer) / mmPerPx).toInt() - 1
+            val x1 = ceil((x + w + buffer) / mmPerPx).toInt() + 1
+            val y0 = floor((y - buffer) / mmPerPx).toInt() - 1
+            val y1 = ceil((y + h + buffer) / mmPerPx).toInt() + 1
+            if (x0 < 0 || y0 < 0 || x1 > width || y1 > height) return false
+            return sums[y1 * stride + x1] - sums[y0 * stride + x1] - sums[y1 * stride + x0] + sums[y0 * stride + x0] == 0
+        }
+    }
+
+    private fun num(v: Double) = Decimal.format(v, 3)
+
+    private fun text(sb: StringBuilder, size: Double, x: Double, y: Double, s: String, bold: Boolean = false) {
+        sb.append("BT\n/").append(if (bold) "F2" else "F1").append(' ').append(Decimal.format(size, 2)).append(" Tf\n")
+            .append(num(x)).append(' ').append(num(y)).append(" Td\n(").append(PdfText.escape(s)).append(") Tj\nET\n")
+    }
+
+    private fun rgb(argb: Int): String =
+        listOf(argb shr 16 and 255, argb shr 8 and 255, argb and 255).joinToString(" ") { Decimal.format(it / 255.0, 4) }
+
+    private fun fillAndOutline(sb: StringBuilder, p: Placed, color: Int, doc: PdfDoc, lineWidth: Double) {
+        sb.append("q\n")
+        doc.alphaState(color)?.let { sb.append("/$it gs\n") }
+        sb.append(rgb(color)).append(" rg\n").append(p.data).append("f*\nQ\n")
+        sb.append("q\n$INK RG\n${Decimal.format(lineWidth, 4)} w\n1 j\n").append(p.data).append("S\nQ\n")
+    }
+
+    /** Everything about the page and the piece that the page builders share. */
+    internal class Lay(val grid: TilePlan, private val sheetTotal: Int) {
+        val spec = grid.spec
+        val pageW = spec.pageWidthMm * K
+        val pageH = spec.pageHeightMm * K
+        val widthMm = grid.widthMm
+        val heightMm = grid.heightMm
+        val left = MARGIN_MM * K
+        val right = pageW - left
+        val top = pageH - left
+        val bottom = left
+        val winW = right - left
+        val winH = top - bottom
+
+        /** Rows of notes a reference page holds. */
+        val referenceRows: Int get() = max(1, ((winH - 42.0) / 153.0).toInt())
+
+        fun note(sheet: Int, tip: PrintTip, mmPerPx: Double): Note {
+            val x = (tip.x + 0.5) * mmPerPx
+            val y = (tip.y + 0.5) * mmPerPx
+            val col = min(grid.cols - 1, floor(x / spec.stepWidthMm).toInt())
+            val row = min(grid.rows - 1, floor(y / spec.stepHeightMm).toInt())
+            val position = "At ${x.roundToInt()},${y.roundToInt()}mm"
+            val lines = when (tip.kind) {
+                PrintTipKind.ISLAND -> listOf("ISLAND", position, "Add small bridges", "before cutting.")
+                PrintTipKind.FINE_CUT -> listOf("FINE DETAIL", position, "Cut this part last.", "Lift waste slowly.")
+            }
+            return Note("S$sheet:${tip.kind}:${tip.x}:${tip.y}", sheet, lines, x, y, row * grid.cols + col, columnName(col) + (row + 1))
+        }
+
+        private fun label(sheet: Int, tile: Tile) =
+            "Sheet ${sheet + 1} of $sheetTotal - Row ${tile.row + 1} Col ${tile.col + 1} (${tileCode(tile)})"
+
+        /** A box in finished mm to a page-point x. */
+        private fun px(tile: Tile, mm: Double) = (MARGIN_MM + mm - tile.clip.x0) * K
+        private fun py(tile: Tile, mm: Double) = pageH - (MARGIN_MM + mm - tile.clip.y0) * K
+
+        fun tilePage(
+            sheet: Int, tile: Tile, shapes: List<Placed>, color: Int, doc: PdfDoc,
+            uncut: UncutSpace, notes: List<Note>, placed: MutableSet<String>,
+        ): String {
+            val sb = StringBuilder()
+            val x0 = tile.clip.x0
+            val y0 = tile.clip.y0
+            val x1 = x0 + spec.printableWidthMm
+            val y1 = y0 + spec.printableHeightMm
+            sb.append("q\n").append(num(left)).append(' ').append(num(bottom)).append(' ').append(num(winW)).append(' ')
+                .append(num(winH)).append(" re W n\n")
+            sb.append("1 0 0 1 ").append(num((MARGIN_MM - x0) * K)).append(' ')
+                .append(num(pageH - (MARGIN_MM - y0 + heightMm) * K)).append(" cm\n")
+            for (s in shapes) {
+                if (s.maxX < x0 || s.minX > x1 || s.maxY < y0 || s.minY > y1) continue
+                fillAndOutline(sb, s, color, doc, 0.7)
+            }
+            sb.append("Q\n")
+
+            // The L marks: finished-piece geometry, so neighbours print the same ones.
+            sb.append("q\n0 G\n").append(num(MARK_WIDTH_MM * K)).append(" w\n0 J\n0 j\n")
+            for (m in marks(grid, tile)) {
+                for ((i, pt) in m.withIndex()) {
+                    sb.append(num(px(tile, pt.x))).append(' ').append(num(py(tile, pt.y))).append(if (i == 0) " m " else " l ")
+                }
+                sb.append("S\n")
+            }
+            sb.append("Q\n")
+
+            // The label first, then the tips around it.
+            val labelText = label(sheet, tile)
+            val lw = PdfText.width(labelText, LABEL_PT) / K + 1.0
+            val lh = LABEL_PT / K + 1.0
+            val labelBox = place(tile, lw, lh, 2.0, 1.0, uncut, emptyList())
+                ?: place(tile, lw, lh, 1.0, 0.0, uncut, emptyList())
+                ?: Rect(x0 + INSET, y0 + INSET, lw, lh)
+            sb.append("0 g\n")
+            text(sb, LABEL_PT, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K, labelText)
+
+            val used = arrayListOf(labelBox)
+            if (notes.isNotEmpty()) {
+                val candidates = candidates(tile, TIP_W, TIP_H, 12.0 / K, TIP_CLEARANCE, uncut, false)
+                for (note in notes) {
+                    if (note.lines.withIndex().any { (i, l) -> PdfText.width(l, if (i == 0) 7.4 else 7.0, i == 0) + 4.0 > TIP_W * K }) continue
+                    var best: Rect? = null
+                    var bestDist = Double.POSITIVE_INFINITY
+                    for (r in candidates) {
+                        if (used.any { it.overlaps(r) }) continue
+                        val dx = r.x + r.w / 2 - note.x
+                        val dy = r.y + r.h / 2 - note.y
+                        val d = dx * dx + dy * dy
+                        if (d < bestDist) { bestDist = d; best = r }
+                    }
+                    val r = best ?: continue
+                    used += r
+                    placed += note.key
+                    // Muted words and nothing else: no boxes, leaders or arrows, so nothing can cross a cut.
+                    sb.append("q 0.42 g\n")
+                    for ((i, line) in note.lines.withIndex()) {
+                        text(sb, if (i == 0) 7.4 else 7.0, px(tile, r.x) + 2.0, py(tile, r.y) - 11.0 - i * 11.0, line, bold = i == 0)
+                    }
+                    sb.append("Q\n")
+                }
+            }
+            return sb.toString()
+        }
+
+        /** Boxes of [w] x [h] mm inside [tile]'s printable area, inset, that are on the piece and clear (or, if [beyondOk], wholly beyond it). */
+        private fun candidates(tile: Tile, w: Double, h: Double, step: Double, buffer: Double, uncut: UncutSpace, beyondOk: Boolean): List<Rect> {
+            val out = ArrayList<Rect>()
+            val x0 = tile.clip.x0 + INSET
+            val y0 = tile.clip.y0 + INSET
+            val xMax = tile.clip.x0 + spec.printableWidthMm - INSET - w
+            val yMax = tile.clip.y0 + spec.printableHeightMm - INSET - h
+            var y = y0
+            while (y <= yMax) {
+                var x = x0
+                while (x <= xMax) {
+                    if (ok(x, y, w, h, buffer, uncut, beyondOk)) out += Rect(x, y, w, h)
+                    x += step
+                }
+                y += step
+            }
+            return out
+        }
+
+        private fun ok(x: Double, y: Double, w: Double, h: Double, buffer: Double, uncut: UncutSpace, beyondOk: Boolean): Boolean {
+            if (x + w <= widthMm && y + h <= heightMm) return uncut.clear(x, y, w, h, buffer)
+            return beyondOk && (x >= widthMm || y >= heightMm)
+        }
+
+        private fun place(tile: Tile, w: Double, h: Double, step: Double, buffer: Double, uncut: UncutSpace, avoid: List<Rect>): Rect? {
+            val x0 = tile.clip.x0 + INSET
+            val y0 = tile.clip.y0 + INSET
+            val xMax = tile.clip.x0 + spec.printableWidthMm - INSET - w
+            val yMax = tile.clip.y0 + spec.printableHeightMm - INSET - h
+            var y = y0
+            while (y <= yMax) {
+                var x = x0
+                while (x <= xMax) {
+                    if (ok(x, y, w, h, buffer, uncut, true) && avoid.none { it.overlaps(Rect(x, y, w, h)) }) return Rect(x, y, w, h)
+                    x += step
+                }
+                y += step
+            }
+            return null
+        }
+
+        fun mapPage(sheet: Int, used: BooleanArray, shapes: List<Placed>, color: Int, doc: PdfDoc): String {
+            val sb = StringBuilder("0 g\n")
+            var y = top - 14.0
+            text(sb, 13.0, left, y, "Sheet ${sheet + 1} of $sheetTotal - assembly map", bold = true)
+            val printed = used.count { it }
+            val blank = used.size - printed
+            val page = spec
+            val lines = listOf(
+                "Finished size: ${Decimal.format(widthMm, 1)} x ${Decimal.format(heightMm, 1)} mm (${Decimal.format(widthMm / 25.4, 2)} x ${Decimal.format(heightMm / 25.4, 2)} in)",
+                "Pages: ${grid.cols} across x ${grid.rows} down = ${used.size}; $printed printed, $blank skipped as blank (nothing to cut)",
+                "Paper: ${page.name} ${Decimal.format(page.pageWidthMm, 1)} x ${Decimal.format(page.pageHeightMm, 1)} mm, ${Decimal.format(MARGIN_MM, 0)} mm unprintable border, ${Decimal.format(OVERLAP_MM, 0)} mm overlap",
+                "Print at 100%. Work left to right, top to bottom; trim, lay each page over the one before it, match the marks.",
+            )
+            for ((i, l) in lines.withIndex()) {
+                for (w in PdfText.wrap(l, winW, if (i == 0) 10.0 else 8.5)) {
+                    y -= 13.0
+                    text(sb, if (i == 0) 10.0 else 8.5, left, y, w)
+                }
+            }
+            val boxTop = y - 14.0
+            val boxH = boxTop - bottom
+            val k = min(winW / widthMm, boxH / heightMm)
+            val c = k / K
+            val oy = boxTop - heightMm * k
+            sb.append("q\n1 0 0 1 ").append(num(left)).append(' ').append(num(oy)).append(" cm\n")
+            sb.append(Decimal.format(c, 6)).append(" 0 0 ").append(Decimal.format(c, 6)).append(" 0 0 cm\n")
+            for (s in shapes) fillAndOutline(sb, s, color, doc, 0.5 / c)
+            sb.append("Q\n")
+            sb.append("q\n0.5 w\n0.45 G\n")
+            sb.append(num(left)).append(' ').append(num(oy)).append(' ').append(num(widthMm * k)).append(' ').append(num(heightMm * k)).append(" re S\n")
+            sb.append("[2 2] 0 d\n")
+            for (t in grid.tiles) {
+                val r = net(grid, t)
+                sb.append(num(left + r.x0 * k)).append(' ').append(num(boxTop - r.y1 * k)).append(' ')
+                    .append(num(r.width * k)).append(' ').append(num(r.height * k)).append(" re S\n")
+            }
+            sb.append("Q\n")
+            for ((i, t) in grid.tiles.withIndex()) {
+                val r = net(grid, t)
+                val cw = r.width * k
+                val ch = r.height * k
+                if (!used[i]) {
+                    // Hatched: skipped, nothing to cut on this page.
+                    sb.append("q\n").append(num(left + r.x0 * k)).append(' ').append(num(boxTop - r.y1 * k)).append(' ')
+                        .append(num(cw)).append(' ').append(num(ch)).append(" re W n\n0.6 G\n0.3 w\n")
+                    val gap = max(4.0, (cw + ch) / 60)
+                    var d = 0.0
+                    while (d < cw + ch) {
+                        val xa = left + r.x0 * k + d
+                        val ya = boxTop - r.y1 * k
+                        sb.append(num(xa)).append(' ').append(num(ya)).append(" m ")
+                            .append(num(xa - ch)).append(' ').append(num(ya + ch)).append(" l S\n")
+                        d += gap
+                    }
+                    sb.append("Q\n")
+                }
+                val fs = (min(cw, ch) / 5).coerceIn(5.0, 12.0)
+                // A white plate keeps the code legible over a black shape; the map is not a cutting template.
+                val code = tileCode(t) + if (used[i]) "" else " blank"
+                val lx = left + r.x0 * k + 3.0
+                val ly = boxTop - r.y0 * k - fs - 2.0
+                sb.append("q\n1 g\n").append(num(lx - 1.5)).append(' ').append(num(ly - 2.0)).append(' ')
+                    .append(num(PdfText.width(code, fs, true) + 3.0)).append(' ').append(num(fs + 4.0)).append(" re f\nQ\n0.1 g\n")
+                text(sb, fs, lx, ly, code, bold = true)
+            }
+            return sb.toString()
+        }
+
+        fun referencePage(notes: List<Note>, sheet: Int, shapes: List<Placed>, color: Int, doc: PdfDoc): String {
+            val sb = StringBuilder("0 g\n")
+            text(sb, 12.0, left, top - 14.0, "CONTEXTUAL CUTTING NOTES", bold = true)
+            text(sb, 9.0, left, top - 32.0, "REFERENCE ONLY - DO NOT CUT FROM THIS PAGE", bold = true)
+            text(sb, 8.0, left, top - 46.0, "Details shown at actual scale. Coordinates are mm from the stencil's top-left.")
+            for ((row, note) in notes.withIndex()) {
+                val refX = left + 8.0
+                val refTop = top - 84.0 - row * 153.0
+                val cropW = min(120.0 / K, widthMm)
+                val cropH = min(105.0 / K, heightMm)
+                val cx = (note.x - cropW / 2).coerceIn(0.0, widthMm - cropW)
+                val cy = (note.y - cropH / 2).coerceIn(0.0, heightMm - cropH)
+                // The excerpt and the words are separate, so no glyph can touch the cut geometry.
+                sb.append("q\n").append(num(refX)).append(' ').append(num(refTop - cropH * K)).append(' ')
+                    .append(num(cropW * K)).append(' ').append(num(cropH * K)).append(" re W n\n")
+                sb.append("1 0 0 1 ").append(num(refX - cx * K)).append(' ')
+                    .append(num(refTop - cropH * K - (heightMm - (cy + cropH)) * K)).append(" cm\n")
+                for (s in shapes) {
+                    if (s.maxX < cx || s.minX > cx + cropW || s.maxY < cy || s.minY > cy + cropH) continue
+                    fillAndOutline(sb, s, color, doc, 0.7)
+                }
+                sb.append("Q\n0 g\n")
+                val labelX = left + 148.0
+                text(sb, 8.5, labelX, refTop - 11.0, "SHEET ${note.sheet + 1} - LOCAL DETAIL", bold = true)
+                for ((i, line) in note.lines.withIndex()) {
+                    text(sb, if (i == 0) 9.5 else 9.0, labelX, refTop - 30.0 - i * 17.0, line, bold = i == 0)
+                }
+                text(sb, 7.5, labelX, refTop - 98.0, "Tile ${note.code}. NOT A CUTTING TEMPLATE")
+            }
+            return sb.toString()
+        }
+    }
+
+    // ---- The instructions page.
+
+    internal object Instructions {
+        private const val LEAD = 12.5
+        private const val SIZE = 9.5
+
+        fun page(lay: Lay, sheetsInFile: Int, sheetTotal: Int): String {
+            val landscape = lay.winW >= lay.winH * 1.2
+            val vw = if (landscape) 780.0 else 540.0
+            val dry = StringBuilder()
+            val used = layout(dry, lay, vw, landscape, sheetsInFile)
+            val barReserve = 34.0
+            val scale = min(min(lay.winW / vw, (lay.winH - barReserve) / used), 1.5)
+            val sb = StringBuilder("0 g\n")
+            sb.append("q\n").append(Decimal.format(scale, 5)).append(" 0 0 ").append(Decimal.format(scale, 5)).append(' ')
+                .append(num(lay.left)).append(' ').append(num(lay.top)).append(" cm\n")
+            layout(sb, lay, vw, landscape, sheetsInFile)
+            sb.append("Q\n")
+            // True-size check bar at the foot of the page, never scaled.
+            val bar = if (lay.winW >= 110.0 * K) 100.0 else 50.0
+            val by = lay.bottom + 22.0
+            sb.append("q\n0 G\n0.8 w\n")
+            sb.append(num(lay.left)).append(' ').append(num(by)).append(" m ").append(num(lay.left + bar * K)).append(' ').append(num(by)).append(" l S\n")
+            for (x in listOf(lay.left, lay.left + bar * K)) {
+                sb.append(num(x)).append(' ').append(num(by - 4)).append(" m ").append(num(x)).append(' ').append(num(by + 4)).append(" l S\n")
+            }
+            sb.append("Q\n")
+            text(sb, 8.0, lay.left, by - 14.0, "This bar must measure exactly ${bar.roundToInt()} mm. If it does not, the page was scaled: print again at 100%.")
+            return sb.toString()
+        }
+
+        private fun steps(sheetsInFile: Int, lay: Lay): List<Pair<String, String>> = listOf(
+            "PRINT AT 100%" to "In the print dialog choose \"Actual size\" or \"Scale 100%\". Never choose \"Fit to page\", " +
+                "\"Shrink to fit\" or \"Scale to printable area\": they change the size of your stencil. Check the bar at the foot of this page.",
+            "FIND YOUR PAGES" to "Each sheet starts with an assembly map: the grid of pages, each with a short code (column letter, " +
+                "row number: A1, B1, A2 ...). Pages with nothing to cut are left out and marked blank. Every page has its sheet and code " +
+                "printed small on uncut material.",
+            "TRIM" to "Your printer leaves a ${Decimal.format(MARGIN_MM, 0)} mm strip around every page unprinted. On each page that has a " +
+                "neighbour to its LEFT, cut off that strip along the left edge; on each page that has a neighbour ABOVE, cut off the strip " +
+                "along the top edge. Cut exactly along the edge of the printing. Leave the right and bottom edges as printed.",
+            "ALIGN" to "Work left to right, top to bottom, starting at A1. Lay each new page OVER the page to its left and the page above it, " +
+                "so the trimmed edge covers that neighbour's blank strip and the ${Decimal.format(OVERLAP_MM, 0)} mm band that both pages print " +
+                "coincides. Slide it until each mark on it sits exactly on the mark beneath. Marks appear only where two pages meet. Hold the join up to a window or lamp: the marks show through.",
+            "TAPE" to "When the marks coincide, tape the join on the back. Do not trim anything else.",
+            "REPEAT FOR EVERY SHEET" to if (sheetsInFile > 1) "This file holds $sheetsInFile sheets. Each is its own stencil with its own map; " +
+                "assemble each one separately and do not mix pages from different sheets."
+            else "Each sheet of a stencil is its own file section; if you print more sheets later, assemble each one separately.",
+            "CUT" to "The dark outline is the cut. Grey notes (ISLAND, FINE DETAIL) sit only on material that stays. Pages marked REFERENCE ONLY " +
+                "show details too close to a cut for a note; they are not cutting templates.",
+        )
+
+        /** Draws the page at 1:1 in a [vw]-wide box whose top-left is the origin (y down), returns the height used. */
+        private fun layout(sb: StringBuilder, lay: Lay, vw: Double, twoCol: Boolean, sheetsInFile: Int): Double {
+            var y = 18.0
+            text(sb, 16.0, 0.0, -y, "How to put the pages together", bold = true)
+            y += 18.0
+            val page = lay.spec
+            val summary = "${lay.grid.cols} x ${lay.grid.rows} pages per sheet on ${page.name} " +
+                "${Decimal.format(page.pageWidthMm, 1)} x ${Decimal.format(page.pageHeightMm, 1)} mm. " +
+                "These steps apply to every sheet in this file."
+            val tw = if (twoCol) vw * 0.56 else vw
+            for (l in PdfText.wrap(summary, tw, SIZE)) { text(sb, SIZE, 0.0, -y, l); y += LEAD }
+            y += 6.0
+            for ((n, step) in steps(sheetsInFile, lay).withIndex()) {
+                text(sb, SIZE, 0.0, -y, "${n + 1}.", bold = true)
+                text(sb, SIZE, 16.0, -y, step.first, bold = true)
+                y += LEAD
+                for (l in PdfText.wrap(step.second, tw - 16.0, SIZE)) { text(sb, SIZE, 16.0, -y, l); y += LEAD }
+                y += 4.0
+            }
+            val textEnd = y
+            val dw = if (twoCol) vw - tw - 24.0 else min(vw, 420.0)
+            val dx = if (twoCol) tw + 24.0 else 0.0
+            val dTop = if (twoCol) 30.0 else y + 6.0
+            val dh = diagram(sb, dx, dTop, dw)
+            return max(textEnd, dTop + dh) + 4.0
+        }
+
+        /** Two neighbouring pages, schematic: the right page trimmed and laid over the left one, marks meeting. Returns its height. */
+        private fun diagram(sb: StringBuilder, x: Double, top: Double, w: Double): Double {
+            val h = w * 0.62
+            val m = 12.0 // the unprinted border, exaggerated
+            val band = 6.0 // the shared band, exaggerated
+            val bWide = w * 0.5
+            val aWide = w - bWide + m + band
+            val ph = h - 28.0
+            fun yy(v: Double) = -(top + v)
+            val barLeft = x + aWide - m - band // trimmed left edge of B
+            val winTop = m
+            val winBottom = ph - m
+            sb.append("q\n0.5 w\n0.4 G\n1 g\n").append(num(x)).append(' ').append(num(yy(ph))).append(' ').append(num(aWide)).append(' ')
+                .append(num(ph)).append(" re B\nQ\n")
+            sb.append("q\n0.3 w\n0.6 G\n[2 2] 0 d\n").append(num(x + m)).append(' ').append(num(yy(winBottom))).append(' ')
+                .append(num(aWide - 2 * m)).append(' ').append(num(winBottom - winTop)).append(" re S\nQ\n")
+            // The shared band, shaded.
+            sb.append("q\n0.82 g\n").append(num(barLeft)).append(' ').append(num(yy(winBottom))).append(' ').append(num(band)).append(' ')
+                .append(num(winBottom - winTop)).append(" re f\nQ\n")
+            val cx = barLeft + band / 2
+            val ya = top + winTop + band / 2
+            val yb = top + winBottom - band / 2
+            val arm = 22.0
+            // Marks on page A, beneath, heavy grey: an arm from each end of the band.
+            sb.append("q\n0.55 G\n2.2 w\n")
+            for ((yTop, dir) in listOf(ya to 1, yb to -1)) {
+                sb.append(num(cx)).append(' ').append(num(-yTop)).append(" m ").append(num(cx)).append(' ')
+                    .append(num(-(yTop + dir * arm))).append(" l S\n")
+            }
+            sb.append("Q\n")
+            // Page B, trimmed, over A: outline only, so A's marks show; its own marks lie exactly on them.
+            sb.append("q\n0.8 w\n0 G\n").append(num(barLeft)).append(' ').append(num(yy(ph))).append(' ').append(num(bWide))
+                .append(' ').append(num(ph)).append(" re S\nQ\n")
+            sb.append("q\n0 G\n0.9 w\n")
+            for ((yTop, dir) in listOf(ya to 1, yb to -1)) {
+                sb.append(num(cx)).append(' ').append(num(-yTop)).append(" m ").append(num(cx)).append(' ')
+                    .append(num(-(yTop + dir * arm))).append(" l S\n")
+            }
+            sb.append("Q\n0 g\n")
+            text(sb, 7.5, x, yy(ph + 11.0), "A1: already in place", bold = true)
+            text(sb, 7.5, barLeft + 6.0, yy(ph + 11.0), "B1: trimmed at its left edge, laid over A1", bold = true)
+            text(sb, 7.0, x, yy(ph + 22.0), "Not to scale. The bands coincide and the marks lie exactly on each other.")
+            return h
+        }
+    }
+}

@@ -17,9 +17,10 @@ data class RectMm(val x0: Double, val y0: Double, val x1: Double, val y1: Double
 }
 
 /**
- * The sheet of material one tile goes on: a printed page, a cutting mat or a roll. [marginMm] is kept
- * clear on every side and [overlapMm] is how far neighbouring tiles repeat each other, so pieces can be
- * lined up. The printable area is the page less its margins; it must be wider than the overlap.
+ * The sheet of material one tile goes on: a printed page, a cutting mat or a roll. [edgeMm] is the
+ * strip along every side that cannot be used (a printer's unprintable border, or the edge of a mat a
+ * blade should stay off) and [overlapMm] is how far neighbouring tiles repeat each other, so pieces can
+ * be lined up. The usable area is the page less its edges; it must be wider than the overlap.
  *
  * A roll ([roll]) has a width but no length: the page height is infinite. A drawing wider than the
  * roll is cut into strips of the roll's width laid SIDE BY SIDE; each strip is as long as the whole
@@ -28,51 +29,57 @@ data class RectMm(val x0: Double, val y0: Double, val x1: Double, val y1: Double
 data class TileSpec(
     val pageWidthMm: Double,
     val pageHeightMm: Double,
-    val marginMm: Double = 10.0,
+    val edgeMm: Double = 10.0,
     val overlapMm: Double = 10.0,
     val name: String = "Custom",
 ) {
     init {
         require(pageWidthMm > 0.0 && pageWidthMm.isFinite()) { "page width must be positive, got $pageWidthMm" }
         require(pageHeightMm > 0.0 && !pageHeightMm.isNaN()) { "page height must be positive, got $pageHeightMm" }
-        require(marginMm >= 0.0 && marginMm.isFinite()) { "margin must be >= 0, got $marginMm" }
+        require(edgeMm >= 0.0 && edgeMm.isFinite()) { "edge must be >= 0, got $edgeMm" }
         require(overlapMm >= 0.0 && overlapMm.isFinite()) { "overlap must be >= 0, got $overlapMm" }
         require(printableWidthMm > overlapMm) { "overlap $overlapMm mm leaves nothing of a $printableWidthMm mm printable width" }
         require(printableHeightMm > overlapMm) { "overlap $overlapMm mm leaves nothing of a $printableHeightMm mm printable height" }
     }
 
+    /** How far a tile advances across: the usable width less the overlap. */
+    val stepWidthMm: Double get() = printableWidthMm - overlapMm
+
+    /** How far a tile advances down: the usable height less the overlap; infinite for a roll. */
+    val stepHeightMm: Double get() = printableHeightMm - overlapMm
+
     /** Whether the length is unlimited. */
     val isRoll: Boolean get() = pageHeightMm.isInfinite()
 
-    /** Page width less both margins. */
-    val printableWidthMm: Double get() = pageWidthMm - 2 * marginMm
+    /** Page width less both edges. */
+    val printableWidthMm: Double get() = pageWidthMm - 2 * edgeMm
 
-    /** Page height less both margins; infinite for a roll. */
-    val printableHeightMm: Double get() = pageHeightMm - 2 * marginMm
+    /** Page height less both edges; infinite for a roll. */
+    val printableHeightMm: Double get() = pageHeightMm - 2 * edgeMm
 
     companion object {
-        /** US Letter, 8.5 x 11 in, portrait, 10 mm margins. */
+        /** US Letter, 8.5 x 11 in, portrait, 10 mm edges. */
         val US_LETTER = TileSpec(215.9, 279.4, name = "US Letter")
 
-        /** A4, portrait, 10 mm margins. */
+        /** A4, portrait, 10 mm edges. */
         val A4 = TileSpec(210.0, 297.0, name = "A4")
 
-        /** A3, portrait, 10 mm margins. */
+        /** A3, portrait, 10 mm edges. */
         val A3 = TileSpec(297.0, 420.0, name = "A3")
 
-        /** A 12 x 12 in cutting mat. The margin is a quarter inch, the edge a blade should stay off. */
-        val MAT_12X12 = TileSpec(304.8, 304.8, marginMm = 6.35, name = "12x12 in mat")
+        /** A 12 x 12 in cutting mat. The edge is a quarter inch, the strip a blade should stay off. */
+        val MAT_12X12 = TileSpec(304.8, 304.8, edgeMm = 6.35, name = "12x12 in mat")
 
         /** A 12 x 24 in cutting mat, 12 in across and 24 in long. */
-        val MAT_12X24 = TileSpec(304.8, 609.6, marginMm = 6.35, name = "12x24 in mat")
+        val MAT_12X24 = TileSpec(304.8, 609.6, edgeMm = 6.35, name = "12x24 in mat")
 
         /** Any page of [widthMm] by [heightMm]. */
-        fun custom(widthMm: Double, heightMm: Double, marginMm: Double = 10.0, overlapMm: Double = 10.0): TileSpec =
-            TileSpec(widthMm, heightMm, marginMm, overlapMm)
+        fun custom(widthMm: Double, heightMm: Double, edgeMm: Double = 10.0, overlapMm: Double = 10.0): TileSpec =
+            TileSpec(widthMm, heightMm, edgeMm, overlapMm)
 
         /** A roll [widthMm] wide and as long as needed. */
-        fun roll(widthMm: Double, marginMm: Double = 10.0, overlapMm: Double = 10.0): TileSpec =
-            TileSpec(widthMm, Double.POSITIVE_INFINITY, marginMm, overlapMm, name = "Roll")
+        fun roll(widthMm: Double, edgeMm: Double = 10.0, overlapMm: Double = 10.0): TileSpec =
+            TileSpec(widthMm, Double.POSITIVE_INFINITY, edgeMm, overlapMm, name = "Roll")
     }
 }
 
@@ -87,8 +94,8 @@ data class TilePlan(val spec: TileSpec, val widthMm: Double, val heightMm: Doubl
         return tiles[row * cols + col]
     }
 
-    /** The page height needed for [tile]: the spec's, or for a roll just enough for the strip and its margins. */
-    fun pageHeightMm(tile: Tile): Double = if (spec.isRoll) tile.clip.height + 2 * spec.marginMm else spec.pageHeightMm
+    /** The page height needed for [tile]: the spec's, or for a roll just enough for the strip and its edges. */
+    fun pageHeightMm(tile: Tile): Double = if (spec.isRoll) tile.clip.height + 2 * spec.edgeMm else spec.pageHeightMm
 }
 
 /**
@@ -108,8 +115,8 @@ object Tiling {
         val cols = count(widthMm, spec.printableWidthMm, spec.overlapMm)
         val rows = if (spec.isRoll) 1 else count(heightMm, spec.printableHeightMm, spec.overlapMm)
         require(cols.toLong() * rows <= MAX_TILES) { "$cols x $rows tiles is more than the $MAX_TILES allowed; use a larger page" }
-        val stepX = spec.printableWidthMm - spec.overlapMm
-        val stepY = spec.printableHeightMm - spec.overlapMm
+        val stepX = spec.stepWidthMm
+        val stepY = spec.stepHeightMm
         val tiles = ArrayList<Tile>(rows * cols)
         for (row in 0 until rows) {
             for (col in 0 until cols) {
@@ -126,7 +133,8 @@ object Tiling {
     /** The grid for [drawing] at [size] on [spec]. */
     fun plan(drawing: Drawing, size: PhysicalSize, spec: TileSpec): TilePlan = plan(size.widthMm, size.heightMm(drawing), spec)
 
-    private fun count(total: Double, printable: Double, overlap: Double): Int {
+    /** How many tiles of [printable] length, each advancing by [printable] less [overlap], cover [total]. */
+    fun count(total: Double, printable: Double, overlap: Double): Int {
         if (total <= printable + EPS) return 1
         val n = 1 + ceil((total - printable) / (printable - overlap) - EPS)
         return if (n > Int.MAX_VALUE) Int.MAX_VALUE else n.toInt()

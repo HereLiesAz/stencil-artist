@@ -22,14 +22,18 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
   transparent PNG; or every sheet plus the composite in one ZIP. Every PNG uses the same paint
   order, sheet colours and alpha as the preview, at the current working-image pixel dimensions.
-- Downloads actual-size tiled print PDFs for every stencil sheet. Printouts label trapped islands,
-  delicate openings, and tile joins inside uncut material. When a note cannot safely fit,
-  a non-cutting reference page shows the affected detail immediately beside its tip.
+- Downloads one actual-size print PDF for the shown sheet or every sheet: a single instructions page,
+  then per sheet an assembly map and the tiled pages. Pages are used edge to edge except a fixed
+  3 mm border the printer cannot print; neighbouring pages overlap by a fixed 1 mm, and that band
+  carries thin L and tick alignment marks, identical on both pages. Printouts label trapped islands,
+  delicate openings and tile codes inside uncut material; a note that cannot safely fit goes to a
+  non-cutting reference page beside the affected detail. Pages with nothing to cut are skipped and
+  shown as blank on the map.
 - PDF export bounds pathological detail counts, diagnoses actual surviving components, and handles
   one stencil sheet at a time to keep memory use predictable.
 
 - Traces every sheet into vector outlines and writes cutter files at a real physical size: SVG,
-  DXF (R12), HPGL, G-code and vector PDF, whole or split across a cutting mat or sheet of paper.
+  DXF (R12), HPGL and G-code, whole or split across a cutting mat or sheet of paper.
 
 Not yet: bridges for islands, colour separation, custom mat sizes in the UI. See the roadmap.
 
@@ -44,12 +48,27 @@ the machine takes, a mat or paper size to split it across. Download the shown sh
 | DXF (R12, millimetres) | Silhouette Studio's free tier, CAD/CAM |
 | HPGL (`.plt`) | Roll plotters and vinyl cutters |
 | G-code | GRBL lasers and routers (outline only; default feed and power, edit before running) |
-| PDF | Printing and cutting by hand; split across pages it has an assembly map and registration marks |
+
+Printing on paper is the separate **Print PDF** section (see below), not a cutter format.
 
 The formats are checked by parsing them back and with outside readers (ezdxf, pypdf, a browser).
 **None has been loaded into the cutter applications named above or run on a machine.** Cut a test
 piece first. Islands (a region enclosed by a cut) are traced faithfully and will fall out; nothing
 adds bridges yet.
+
+## Print PDF
+
+Set **Physical size**, then in **Print PDF** choose paper (US Letter, Legal, Tabloid, A4, A3, A2 or a
+custom size), portrait or landscape, and download the shown sheet or all sheets as one PDF. Size can
+also be set as **sheets wide** or **sheets high** (decimals allowed), and **Fit to whole pages** nudges
+the width so the last column or row is not a sliver (under 15% of a page). The section shows how many
+pages a sheet takes and how many are skipped as blank.
+
+Print at 100% / actual size. Each page keeps a fixed 3 mm border unprinted; after trimming the left and
+top border of every page that has a neighbour there, lay each page over its neighbour so the 1 mm
+bands coincide and the marks sit on the marks beneath, then tape. The first page of the PDF says so,
+with a diagram and a 100 mm check bar. Checked here with pypdf (strict), PyMuPDF renders and an overlay
+of two neighbouring pages; **not printed on a real printer.**
 
 ## PNG exports
 

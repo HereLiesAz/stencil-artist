@@ -95,8 +95,8 @@ class TilingTest {
 
     @Test
     fun anImpossibleSpecIsRefused() {
-        assertFailsWith<IllegalArgumentException> { TileSpec.custom(50.0, 100.0, marginMm = 20.0, overlapMm = 10.0) }
-        assertFailsWith<IllegalArgumentException> { TileSpec.custom(100.0, 100.0, marginMm = -1.0) }
+        assertFailsWith<IllegalArgumentException> { TileSpec.custom(50.0, 100.0, edgeMm = 20.0, overlapMm = 10.0) }
+        assertFailsWith<IllegalArgumentException> { TileSpec.custom(100.0, 100.0, edgeMm = -1.0) }
         assertFailsWith<IllegalArgumentException> { TileSpec.roll(0.0) }
         assertFailsWith<IllegalArgumentException> { Tiling.plan(0.0, 10.0, TileSpec.A4) }
         assertFailsWith<IllegalArgumentException> { Tiling.plan(10.0, 10.0, TileSpec.A4).tile(5, 5) }

@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -32,6 +34,8 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -45,20 +49,29 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.hereliesaz.stencilartist.core.Base
+import com.hereliesaz.stencilartist.core.export.Paper
+import com.hereliesaz.stencilartist.core.export.PrintOptions
+import com.hereliesaz.stencilartist.core.export.PrintPdf
+import com.hereliesaz.stencilartist.core.export.PrintPlan
+import com.hereliesaz.stencilartist.core.export.PrintSizing
 import com.hereliesaz.stencilartist.core.export.TileSpec
 import com.hereliesaz.stencilartist.core.export.Tiling
 import com.hereliesaz.stencilartist.core.Sheet
-import com.hereliesaz.stencilartist.core.StencilPrintPdf
-import com.hereliesaz.stencilartist.core.StencilPrintOptions
 import com.hereliesaz.stencilartist.core.TonalParams
 import com.hereliesaz.stencilartist.core.Separation
+import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -140,6 +153,11 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     var cutterFormat by remember { mutableStateOf(CutterFormat.SVG) }
     var cutterFit by remember { mutableStateOf<TileSpec?>(null) }
     var cutterCutLines by remember { mutableStateOf(true) }
+    // The print PDF's page: a preset or a custom size, portrait or landscape.
+    var printPaper by remember { mutableStateOf<Paper?>(Paper.US_LETTER) } // null is Custom
+    var customWidthMm by remember { mutableStateOf(200.0) }
+    var customHeightMm by remember { mutableStateOf(300.0) }
+    var printLandscape by remember { mutableStateOf(false) }
 
     // The Android picker completes asynchronously. Keep every export control locked until the
     // result callback, not merely until the file bytes have been passed to the picker.
@@ -353,24 +371,177 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             ) { Text("Download all sheets ${format.label}") }
         }
 
-        Section("Print with cutting tips") {
-            OutlinedButton(
-                onClick = {
-                    val width = printWidthMm.toDouble()
-                    startExport("PDF") { stencil ->
-                        ExportFile(
-                            "stencil-print.pdf", "application/pdf",
-                            StencilPrintPdf.make(stencil, StencilPrintOptions(widthMm = width)),
-                        )
-                    }
-                },
-                enabled = canExport,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (exporting == "PDF") "Preparing PDF..." else "Download stencil PDF")
+        PrintSection(
+            state = state,
+            paper = printPaper ?: Paper.custom(customWidthMm, customHeightMm),
+            isCustom = printPaper == null,
+            landscape = printLandscape,
+            widthMm = printWidthMm.toDouble(),
+            customWidthMm = customWidthMm,
+            customHeightMm = customHeightMm,
+            canExport = canExport,
+            exporting = exporting,
+            onPaper = { printPaper = it },
+            onCustomWidth = { customWidthMm = it },
+            onCustomHeight = { customHeightMm = it },
+            onLandscape = { printLandscape = it },
+            onWidth = { printWidthMm = it.toFloat() },
+            onExport = { label, sheets -> startExport(label) { stencil -> printPdfFile(stencil, printWidthMm.toDouble(), printPaper ?: Paper.custom(customWidthMm, customHeightMm), printLandscape, sheets) } },
+        )
+    }
+}
+
+/** The one print PDF as a downloadable file: one sheet, or all of them. */
+private fun printPdfFile(stencil: Separation, widthMm: Double, paper: Paper, landscape: Boolean, sheet: Int?): ExportFile {
+    val bytes = PrintPdf.make(stencil, PrintOptions(widthMm, paper, landscape), if (sheet == null) stencil.sheets.indices.toList() else listOf(sheet))
+    val name = if (sheet == null) "stencil-print.pdf" else "stencil-print-sheet-${(sheet + 1).toString().padStart(2, '0')}.pdf"
+    return ExportFile(name, "application/pdf", bytes)
+}
+
+/**
+ * Everything about the print PDF in one section: paper, orientation, size by sheets, the page readout
+ * (from the same planning code the exporter uses) and the download.
+ */
+@Composable
+private fun PrintSection(
+    state: StencilState,
+    paper: Paper,
+    isCustom: Boolean,
+    landscape: Boolean,
+    widthMm: Double,
+    customWidthMm: Double,
+    customHeightMm: Double,
+    canExport: Boolean,
+    exporting: String?,
+    onPaper: (Paper?) -> Unit,
+    onCustomWidth: (Double) -> Unit,
+    onCustomHeight: (Double) -> Unit,
+    onLandscape: (Boolean) -> Unit,
+    onWidth: (Double) -> Unit,
+    onExport: (String, Int?) -> Unit,
+) {
+    val stencil = state.separation
+    val options = remember(widthMm, paper, landscape) { runCatching { PrintOptions(widthMm, paper, landscape) } }
+    val page = paper.oriented(landscape)
+    val aspect = stencil?.let { it.height.toDouble() / it.width }
+    val subdued = MaterialTheme.colorScheme.onSurfaceVariant
+    Section("Print PDF") {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (preset in Paper.PRESETS) Choice(preset.name, selected = !isCustom && paper.name == preset.name) { onPaper(preset) }
+            Choice("Custom", selected = isCustom) { onPaper(null) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Portrait", selected = !landscape, modifier = Modifier.weight(1f)) { onLandscape(false) }
+            Choice("Landscape", selected = landscape, modifier = Modifier.weight(1f)) { onLandscape(true) }
+        }
+        if (isCustom) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NumberField("Paper width (mm)", customWidthMm, 1, { if (it > 0) onCustomWidth(it) }, Modifier.weight(1f))
+                NumberField("Paper height (mm)", customHeightMm, 1, { if (it > 0) onCustomHeight(it) }, Modifier.weight(1f))
             }
         }
+        Text(
+            "Pages print ${PrintPdf.MARGIN_MM.roundToInt()} mm in from the paper's edge and overlap by " +
+                "${PrintPdf.OVERLAP_MM.roundToInt()} mm, where the alignment marks are.",
+            style = MaterialTheme.typography.bodySmall, color = subdued,
+        )
+        if (stencil != null && aspect != null && options.isSuccess) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NumberField("Sheets wide", PrintSizing.sheetsWide(widthMm, page), 2, {
+                    if (it > 0) onWidth(PrintSizing.widthMmForSheetsWide(it, page))
+                }, Modifier.weight(1f))
+                NumberField("Sheets high", PrintSizing.sheetsHigh(widthMm, aspect, page), 2, {
+                    if (it > 0) onWidth(PrintSizing.widthMmForSheetsHigh(it, aspect, page))
+                }, Modifier.weight(1f))
+            }
+            OutlinedButton(
+                onClick = { onWidth(PrintSizing.snapToWholePages(widthMm, aspect, page)) },
+                enabled = PrintSizing.hasSliver(widthMm, aspect, page),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Fit to whole pages") }
+        }
+        val failure = options.exceptionOrNull()
+        if (failure != null) Text(failure.message ?: "These print settings do not work.", style = MaterialTheme.typography.bodySmall)
+        val plan by produceState<Result<PrintPlan>?>(null, stencil, options) {
+            value = null
+            val wanted = options.getOrNull()
+            if (stencil != null && wanted != null) {
+                value = withContext(Dispatchers.Default) { runCatching { PrintPdf.plan(stencil, wanted) } }
+            }
+        }
+        plan?.let { result ->
+            val ready = result.getOrNull()
+            if (ready == null) {
+                Text(result.exceptionOrNull()?.message ?: "This cannot be printed.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                val shown = state.shownSheet?.let { sheet -> ready.sheets.firstOrNull { it.sheet == sheet } }
+                val line = if (shown != null) {
+                    "${shown.printed.size} pages on sheet ${shown.sheet + 1} (${ready.grid.cols} across, ${ready.grid.rows} down), " +
+                        "${shown.blank.size} skipped as blank"
+                } else {
+                    "${ready.printedPages} pages over ${ready.sheets.size} sheets (${ready.grid.cols} across, ${ready.grid.rows} down each), " +
+                        "${ready.blankPages} skipped as blank"
+                }
+                Text(line, style = MaterialTheme.typography.bodySmall, color = subdued)
+            }
+        }
+        val ok = canExport && options.isSuccess
+        state.shownSheet?.let { sheet ->
+            OutlinedButton(
+                onClick = { onExport("Sheet ${sheet + 1} print PDF", sheet) },
+                enabled = ok,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (exporting != null && exporting.endsWith("print PDF")) "Preparing PDF..." else "Download sheet ${sheet + 1} print PDF") }
+        }
+        OutlinedButton(
+            onClick = { onExport("All sheets print PDF", null) },
+            enabled = ok,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Download all sheets print PDF") }
     }
+}
+
+/**
+ * A small numeric text field in the app's monochrome: [value] shown to [decimals] places, [onValue] called
+ * with each valid number as it is typed (a comma counts as a point). When [value] changes from outside, as
+ * "Fit to whole pages" does, the text follows, but typing "2." is never rewritten under the cursor.
+ */
+@Composable
+private fun NumberField(title: String, value: Double, decimals: Int, onValue: (Double) -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    var text by remember { mutableStateOf(fixedDecimals(value, decimals)) }
+    LaunchedEffect(value) {
+        val typed = text.replace(',', '.').toDoubleOrNull()
+        if (typed == null || abs(typed - value) > 0.5 / 10.0.pow(decimals)) text = fixedDecimals(value, decimals)
+    }
+    Column(modifier) {
+        Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+        BasicTextField(
+            value = text,
+            onValueChange = { next ->
+                text = next
+                next.replace(',', '.').toDoubleOrNull()?.let(onValue)
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            textStyle = TextStyle(color = scheme.onSurface, fontSize = 14.sp),
+            cursorBrush = SolidColor(scheme.primary),
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp).height(40.dp)
+                .clip(RoundedCornerShape(6.dp)).background(scheme.surfaceVariant)
+                .border(1.dp, scheme.outline, RoundedCornerShape(6.dp))
+                .semantics { contentDescription = title },
+            decorationBox = { inner -> Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) { inner() } },
+        )
+    }
+}
+
+/** [value] to [decimals] places without locale or platform formatting. */
+private fun fixedDecimals(value: Double, decimals: Int): String {
+    val scale = 10.0.pow(decimals)
+    val scaled = (abs(value) * scale).roundToInt()
+    val whole = scaled / scale.roundToInt()
+    val fraction = (scaled % scale.roundToInt()).toString().padStart(decimals, '0')
+    return (if (value < 0 && scaled != 0) "-" else "") + whole + if (decimals > 0) ".$fraction" else ""
 }
 
 @Composable
