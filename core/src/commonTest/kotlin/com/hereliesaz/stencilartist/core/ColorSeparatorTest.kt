@@ -283,4 +283,23 @@ class ColorSeparatorTest {
         assertEquals(1, s.sheets.size, "one colour, however soft its edge")
         assertTrue(channelGap(s.sheets[0].color, light) <= 2)
     }
+
+    @Test
+    fun closingEverySheetAtOnceIsClosingEachMaskOnItsOwn() {
+        var seed = 99L
+        fun next(bound: Int): Int { seed = seed * 6364136223846793005L + 1442695040888963407L; return ((seed ushr 33) % bound).toInt() }
+        for ((w, h, kernel) in listOf(Triple(23, 17, 5), Triple(31, 9, 4), Triple(8, 40, 7), Triple(13, 13, 2))) {
+            val sheets = 6
+            val observed = BooleanArray(w * h) { next(10) != 0 }
+            val rank = IntArray(w * h) { if (!observed[it]) (if (next(2) == 0) 0 else Separation.NONE) else next(sheets) }
+            val closed = ColorSeparator.closedRanks(rank, observed, w, h, kernel)
+            for (s in 1 until sheets) {
+                val expected = Raster.close(BooleanArray(w * h) { rank[it] >= s }, w, h, kernel)
+                for (i in 0 until w * h) {
+                    val shown = closed[i] >= s
+                    assertEquals(expected[i] && observed[i], shown, "${w}x$h kernel $kernel sheet $s pixel $i")
+                }
+            }
+        }
+    }
 }

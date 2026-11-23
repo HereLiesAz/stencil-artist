@@ -93,12 +93,13 @@ class ColorResult(val separation: Separation, val dark: Boolean, val order: Colo
  *  5. The sheets are put in paint order ([ColorOrder]); a pixel's index is the position of its
  *     cluster in that order.
  *  6. Each sheet is made cuttable as in the tonal stencil. The mask `index >= s` is closed with
- *     [Raster.close] and every subject pixel inside the closed mask is given index `s`, taking the
+ *     [Raster.close] (done for all sheets in one grey-scale closing of the index, see [closedRanks],
+ *     which gives the same masks) and every subject pixel inside the closed mask is given index `s`, taking the
  *     highest `s` that reaches it. Because the masks `index >= s` are nested (a pixel of a later
  *     sheet is in every earlier one's mask) and closing keeps nested masks nested, the closed mask
  *     of sheet `s` is exactly the mask of the finished separation: it nests, the base is the
- *     silhouette, and a pixel only ever moves to a LATER sheet, never to an earlier one or out of
- *     the subject. Closing fills gaps narrower than the kernel in a sheet with that sheet's colour,
+ *     silhouette, and (for an odd kernel) a pixel only ever moves to a LATER sheet, never to an
+ *     earlier one or out of the subject. Closing fills gaps narrower than the kernel in a sheet with that sheet's colour,
  *     so a speck of an earlier colour inside a later colour's notch is absorbed by the later one.
  *     Filled-in holes and closed gaps were never seen, so they stay on the base.
  */
@@ -171,43 +172,106 @@ object ColorSeparator {
                 else -> Separation.NONE
             }
         }
-        val index = rank.copyOf()
-        if (params.closing > 1) {
-            val remaining = IntArray(sheets.size + 1)
-            for (r in rank) if (r > 0) remaining[r]++
-            for (s in sheets.size - 1 downTo 1) remaining[s] += remaining[s + 1]
-            for (s in 1 until sheets.size) {
-                if (remaining[s] == 0) break
-                val open = BooleanArray(size) { rank[it] >= s }
-                val closed = Raster.close(open, w, h, params.closing)
-                for (i in 0 until size) if (closed[i] && observed[i]) index[i] = s
-            }
-        }
+        val index = if (params.closing > 1 && sheets.size > 1) closedRanks(rank, observed, w, h, params.closing) else rank
         return ColorResult(Separation(w, h, sheets, index), dark, order)
     }
 
-    /** Three 8-bit colour planes of the subject, smoothed, in R, G, B order. */
+    /**
+     * Closes every sheet at once. The mask `rank >= s` closed with a square is the same as the
+     * grey-scale closing of the rank image (a maximum filter, then a minimum filter, over the same
+     * square) thresholded at `s`, because a maximum is at least `s` exactly when some pixel is, and a
+     * minimum exactly when every pixel is. So two passes over the image close all sheets, however
+     * many there are, and give the same masks as [Raster.close] run on each. A pixel that was never seen
+     * keeps its rank, so it stays on the base. A seen pixel takes the highest sheet whose closed mask
+     * holds it, and at least the base: an odd kernel never lowers a pixel, while an even one is not
+     * symmetric about its pixel and may, as in the tonal stencil, drop one to an earlier sheet.
+     */
+    internal fun closedRanks(rank: IntArray, observed: BooleanArray, w: Int, h: Int, kernel: Int): IntArray {
+        val before = kernel / 2
+        val after = kernel - 1 - before
+        val queue = IntArray(maxOf(w, h))
+        val dilated = IntArray(rank.size)
+        slide(rank, dilated, w, h, before, after, true, queue)
+        val closed = IntArray(rank.size)
+        slide(dilated, closed, w, h, before, after, false, queue)
+        return IntArray(rank.size) { if (observed[it]) maxOf(closed[it], 0) else rank[it] }
+    }
+
+    /**
+     * One separable pass: [dst] is the maximum (or, without [max], minimum) of [src] over the window
+     * of `before` pixels back and `after` forward, along every row and then every column, with
+     * pixels beyond the image edge simply absent. Each line is done with a monotone queue in
+     * linear time; [queue] is scratch of at least the longer side.
+     */
+    private fun slide(src: IntArray, dst: IntArray, w: Int, h: Int, before: Int, after: Int, max: Boolean, queue: IntArray) {
+        val across = IntArray(src.size)
+        for (y in 0 until h) line(src, across, y * w, 1, w, before, after, max, queue)
+        for (x in 0 until w) line(across, dst, x, w, h, before, after, max, queue)
+    }
+
+    private fun line(
+        src: IntArray, dst: IntArray, start: Int, stride: Int, length: Int, before: Int, after: Int, max: Boolean, queue: IntArray,
+    ) {
+        var head = 0
+        var tail = 0
+        var next = 0
+        for (i in 0 until length) {
+            val last = minOf(length - 1, i + after)
+            while (next <= last) {
+                val v = src[start + next * stride]
+                while (tail > head && (if (max) src[start + queue[tail - 1] * stride] <= v else src[start + queue[tail - 1] * stride] >= v)) tail--
+                queue[tail++] = next++
+            }
+            while (queue[head] < i - before) head++
+            dst[start + i * stride] = src[start + queue[head] * stride]
+        }
+    }
+
+    /**
+     * Three 8-bit colour planes of the subject, smoothed, in R, G, B order. Only the subject's
+     * bounding box, grown by the filter's radius, is filtered: nothing outside it is read later, and
+     * every pixel inside the box sees the same neighbours it would in the whole frame.
+     */
     private fun smoothedPlanes(image: RgbaImage, observed: BooleanArray, smoothing: Int): Array<ByteArray> {
         val w = image.width
         val h = image.height
-        val size = w * h
+        var x0 = w
+        var y0 = h
+        var x1 = -1
+        var y1 = -1
+        for (i in observed.indices) {
+            if (!observed[i]) continue
+            val x = i % w
+            val y = i / w
+            if (x < x0) x0 = x
+            if (x > x1) x1 = x
+            if (y < y0) y0 = y
+            if (y > y1) y1 = y
+        }
+        val reach = smoothing / 2
+        val left = maxOf(0, x0 - reach)
+        val top = maxOf(0, y0 - reach)
+        val cw = minOf(w - 1, x1 + reach) - left + 1
+        val ch = minOf(h - 1, y1 + reach) - top + 1
+        val size = cw * ch
+        val seen = BooleanArray(size) { observed[(top + it / cw) * w + left + it % cw] }
         val planes = Array(3) { ByteArray(size) }
         for (i in 0 until size) {
-            if (!observed[i]) continue
-            val p = image.pixels[i]
+            if (!seen[i]) continue
+            val p = image.pixels[(top + i / cw) * w + left + i % cw]
             planes[0][i] = (p shr 16).toByte()
             planes[1][i] = (p shr 8).toByte()
             planes[2][i] = p.toByte()
         }
         // Breadth-first from the subject, so every other pixel takes its nearest subject pixel's colour.
-        val reached = observed.copyOf()
+        val reached = seen.copyOf()
         val queue = IntArray(size)
         var head = 0
         var tail = 0
-        for (i in 0 until size) if (observed[i]) queue[tail++] = i
+        for (i in 0 until size) if (seen[i]) queue[tail++] = i
         while (head < tail) {
             val i = queue[head++]
-            val x = i % w
+            val x = i % cw
             fun spread(to: Int) {
                 if (reached[to]) return
                 reached[to] = true
@@ -215,11 +279,16 @@ object ColorSeparator {
                 queue[tail++] = to
             }
             if (x > 0) spread(i - 1)
-            if (x < w - 1) spread(i + 1)
-            if (i >= w) spread(i - w)
-            if (i < size - w) spread(i + w)
+            if (x < cw - 1) spread(i + 1)
+            if (i >= cw) spread(i - cw)
+            if (i < size - cw) spread(i + cw)
         }
-        return Array(3) { Raster.medianBlur(planes[it], w, h, smoothing) }
+        return Array(3) { c ->
+            val smooth = Raster.medianBlur(planes[c], cw, ch, smoothing)
+            val full = ByteArray(w * h)
+            for (row in 0 until ch) smooth.copyInto(full, (top + row) * w + left, row * cw, (row + 1) * cw)
+            full
+        }
     }
 
     /** Cluster centres in Oklab, struct-of-arrays. */

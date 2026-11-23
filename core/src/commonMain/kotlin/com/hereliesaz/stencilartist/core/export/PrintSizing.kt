@@ -4,9 +4,9 @@ import kotlin.math.abs
 import kotlin.math.floor
 
 /**
- * How big a print is, counted in pages as well as in millimetres. Pages are the oriented [Paper] less
- * the printer's fixed border, advancing by [PrintPdf.OVERLAP_MM] less than their printable size, so
- * "N sheets wide" means a piece exactly N pages wide with the last page full. Everything here is pure
+ * How big a print is, counted in pages as well as in millimetres. Paper-only, sheets of the oriented [Paper] advance by
+ * their size less [PrintPdf.PAPER_OVERLAP_MM] (see [PrintPdf.stepWidthMm]), so "N sheets wide" means a piece exactly
+ * N pages wide, the last page's printed area full: (N - 1) steps plus one printed width. Everything here is pure
  * arithmetic; decimals are allowed (2.5 sheets wide ends in a half page).
  */
 object PrintSizing {
@@ -16,11 +16,14 @@ object PrintSizing {
     /** The finished width, in mm, of a piece [sheets] pages wide on [paper]. */
     fun widthMmForSheetsWide(sheets: Double, paper: Paper): Double {
         require(sheets > 0.0 && sheets.isFinite()) { "sheets wide must be positive, got $sheets" }
-        return sheets * PrintPdf.stepWidthMm(paper) + PrintPdf.OVERLAP_MM
+        val width = (sheets - 1) * PrintPdf.stepWidthMm(paper) + PrintPdf.printableWidthMm(paper)
+        require(width > 0.0) { "$sheets sheets wide is less than nothing on this paper" }
+        return width
     }
 
     /** How many pages wide a piece [widthMm] wide is, as a decimal. */
-    fun sheetsWide(widthMm: Double, paper: Paper): Double = (widthMm - PrintPdf.OVERLAP_MM) / PrintPdf.stepWidthMm(paper)
+    fun sheetsWide(widthMm: Double, paper: Paper): Double =
+        (widthMm - PrintPdf.printableWidthMm(paper)) / PrintPdf.stepWidthMm(paper) + 1
 
     /**
      * The finished width, in mm, of a piece [sheets] pages high on [paper] whose height is [aspect]
@@ -29,12 +32,14 @@ object PrintSizing {
     fun widthMmForSheetsHigh(sheets: Double, aspect: Double, paper: Paper): Double {
         require(sheets > 0.0 && sheets.isFinite()) { "sheets high must be positive, got $sheets" }
         require(aspect > 0.0 && aspect.isFinite()) { "aspect must be positive, got $aspect" }
-        return (sheets * PrintPdf.stepHeightMm(paper) + PrintPdf.OVERLAP_MM) / aspect
+        val height = (sheets - 1) * PrintPdf.stepHeightMm(paper) + PrintPdf.printableHeightMm(paper)
+        require(height > 0.0) { "$sheets sheets high is less than nothing on this paper" }
+        return height / aspect
     }
 
     /** How many pages high a piece [widthMm] wide is, as a decimal, for a piece [aspect] times as high as wide. */
     fun sheetsHigh(widthMm: Double, aspect: Double, paper: Paper): Double =
-        (widthMm * aspect - PrintPdf.OVERLAP_MM) / PrintPdf.stepHeightMm(paper)
+        (widthMm * aspect - PrintPdf.printableHeightMm(paper)) / PrintPdf.stepHeightMm(paper) + 1
 
     /**
      * Whether a piece [widthMm] wide and [aspect] times as high ends in a sliver column or row. When
@@ -74,7 +79,7 @@ object PrintSizing {
         widthMm * aspect / mount.cutSize(landscape).second
 
     private fun isSliver(length: Double, printable: Double, step: Double): Boolean {
-        val count = Tiling.count(length, printable, PrintPdf.OVERLAP_MM)
+        val count = PrintPdf.pageCount(length, printable, step)
         if (count < 2) return false
         return length - (count - 1) * step < SLIVER_FRACTION * printable
     }

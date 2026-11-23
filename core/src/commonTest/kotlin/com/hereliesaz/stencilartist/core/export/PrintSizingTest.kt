@@ -9,17 +9,17 @@ import kotlin.test.assertTrue
 class PrintSizingTest {
     private val letter = Paper.US_LETTER.oriented(false)
 
-    // Letter is 215.9 x 279.4: printable 209.9 x 273.4 after the 3 mm border; step 208.9 x 272.4 with the 1 mm overlap.
+    // Letter is 215.9 x 279.4: printable 209.9 x 273.4 after the 3 mm border; sheets advance by the paper less 4 mm: 211.9 x 275.4.
 
     @Test
     fun sheetsWideAndHighConvertToMillimetresForAPaper() {
         assertEquals(209.9, PrintSizing.widthMmForSheetsWide(1.0, letter), 1e-9)
-        assertEquals(2 * 208.9 + 1.0, PrintSizing.widthMmForSheetsWide(2.0, letter), 1e-9)
-        assertEquals(208.9 * 2.5 + 1.0, PrintSizing.widthMmForSheetsWide(2.5, letter), 1e-9)
-        // Two sheets high of a piece twice as high as wide: height 2 * 272.4 + 1 = 545.8, width half of that.
-        assertEquals(272.9, PrintSizing.widthMmForSheetsHigh(2.0, 2.0, letter), 1e-9)
+        assertEquals(211.9 + 209.9, PrintSizing.widthMmForSheetsWide(2.0, letter), 1e-9)
+        assertEquals(1.5 * 211.9 + 209.9, PrintSizing.widthMmForSheetsWide(2.5, letter), 1e-9)
+        // Two sheets high of a piece twice as high as wide: height 275.4 + 273.4 = 548.8, width half of that.
+        assertEquals(274.4, PrintSizing.widthMmForSheetsHigh(2.0, 2.0, letter), 1e-9)
         val landscape = Paper.US_LETTER.oriented(true)
-        assertEquals(3 * (279.4 - 7.0) + 1.0, PrintSizing.widthMmForSheetsWide(3.0, landscape), 1e-9)
+        assertEquals(2 * (279.4 - 4.0) + (279.4 - 6.0), PrintSizing.widthMmForSheetsWide(3.0, landscape), 1e-9)
     }
 
     @Test
@@ -31,11 +31,12 @@ class PrintSizingTest {
     }
 
     @Test
-    fun aWholeNumberOfSheetsMakesExactlyThatManyFullPages() {
+    fun aWholeNumberOfSheetsMakesExactlyThatManyPagesWithTheLastPrintedAreaFull() {
         val w = PrintSizing.widthMmForSheetsWide(3.0, letter)
-        val plan = Tiling.plan(w, 100.0, PrintPdf.spec(letter))
+        val sep = com.hereliesaz.stencilartist.core.Separation(10, 3, listOf(com.hereliesaz.stencilartist.core.Sheet(-16777216)), IntArray(30) { 0 })
+        val plan = PrintPdf.plan(sep, PrintOptions(w, Paper.US_LETTER)).grid
         assertEquals(3, plan.cols)
-        assertEquals(plan.spec.printableWidthMm, plan.tile(0, 2).clip.width, 1e-9, "the last page is full")
+        assertEquals(w, plan.tile(0, 2).clip.x0 + plan.spec.printableWidthMm, 1e-9, "the last page's printed area ends exactly at the piece")
     }
 
     @Test

@@ -169,24 +169,6 @@ class PrintMountTest {
         ((p.first / k - 3.0) + ox + w.col * step) to (((pageH - p.second) / k - 3.0) + oy + w.row * stepY)
 
 
-    /** A 31-bit polynomial checksum of [bytes]. */
-    private fun checksum(bytes: ByteArray): Long {
-        var h = 7L
-        for (b in bytes) h = (h * 31 + (b.toInt() and 0xFF)) % 2147483647L
-        return h
-    }
-
-    @Test
-    fun paperOnlyOutputIsByteForByteUnchangedByMounting() {
-        // Checksums of the paper-only PDFs as they were before the board-fitted page grid existed.
-        val cases = listOf(
-            checksum(PrintPdf.make(stencil(240, 240) { x, y -> x == 100 && y == 110 }, PrintOptions(200.0))) to 474479166L,
-            checksum(PrintPdf.make(stripes(), PrintOptions(450.0))) to 111653748L,
-            checksum(PrintPdf.make(stripes(), PrintOptions(1000.0, Paper.A4, true))) to 1746395361L,
-        )
-        assertEquals(cases.map { it.second }, cases.map { it.first })
-    }
-
     // ---- Boards and options.
 
     @Test
@@ -405,15 +387,15 @@ class PrintMountTest {
             }
             assertEquals(0.0, minX, 1e-9); assertEquals(board.widthMm, maxX, 1e-9)
             assertEquals(0.0, minY, 1e-9); assertEquals(board.heightMm, maxY, 1e-9)
-            // Neighbours' printed areas overlap by at least 1 mm and by the same amount across the board.
+            // Neighbouring sheets of paper overlap by at least 4 mm (the top page's paper edge is inside the under page's printed area) and equally across the board.
             val printable = page.widthMm - 6.0
-            val overlapsX = (0 until grid.cols - 1).map { c -> grid.tile(0, c).clip.x0 + printable - grid.tile(0, c + 1).clip.x0 }
-            for (o in overlapsX) { assertTrue(o >= 1.0 - 1e-9, "overlap $o on ${paper.name}"); assertEquals(overlapsX.first(), o, 1e-9) }
+            val paperOverlapsX = (0 until grid.cols - 1).map { c -> page.widthMm - (grid.tile(0, c + 1).clip.x0 - grid.tile(0, c).clip.x0) }
+            for (o in paperOverlapsX) { assertTrue(o >= 4.0 - 1e-9, "paper overlap $o on ${paper.name}"); assertEquals(paperOverlapsX.first(), o, 1e-9) }
             val printableH = page.heightMm - 6.0
-            val overlapsY = (0 until grid.rows - 1).map { r -> grid.tile(r, 0).clip.y0 + printableH - grid.tile(r + 1, 0).clip.y0 }
-            for (o in overlapsY) { assertTrue(o >= 1.0 - 1e-9); assertEquals(overlapsY.first(), o, 1e-9) }
-            // And it is the fewest pages that can do it: one fewer would overlap by less than 1 mm (or not reach).
-            if (grid.cols > 1) assertTrue((board.widthMm - page.widthMm) / (grid.cols - 2) > printable - 1.0 - 1e-9 || grid.cols == 2 && board.widthMm - page.widthMm > printable - 1.0 - 1e-9)
+            val paperOverlapsY = (0 until grid.rows - 1).map { r -> page.heightMm - (grid.tile(r + 1, 0).clip.y0 - grid.tile(r, 0).clip.y0) }
+            for (o in paperOverlapsY) { assertTrue(o >= 4.0 - 1e-9); assertEquals(paperOverlapsY.first(), o, 1e-9) }
+            // And it is the fewest pages that can do it: one fewer could not overlap by 4 mm.
+            if (grid.cols > 1) assertTrue(grid.cols == 2 && board.widthMm - page.widthMm > page.widthMm - 4.0 - 1e-9 || (board.widthMm - page.widthMm) / (grid.cols - 2) > page.widthMm - 4.0 - 1e-9)
             // Every cut pixel (here the whole piece) is inside at least one printed page's printable area.
             for (b in plan.sheets.single().boards) {
                 val ox = b.board.cut.x0 - poster.borderMm
@@ -423,8 +405,9 @@ class PrintMountTest {
                 while (x < minOf(cut.x1, piece.first)) {
                     var y = cut.y0 + 1.0
                     while (y < minOf(cut.y1, piece.second * 1.0)) {
-                        val covered = b.printed.any { t -> x >= ox + t.clip.x0 && x <= ox + t.clip.x0 + printable && y >= oy + t.clip.y0 && y <= oy + t.clip.y0 + printableH }
-                        assertTrue(covered, "point $x,$y of board ${b.board.number} is on no printed page (${paper.name})")
+                        // On a printed page's printable area, or in a page's blank 3 mm margin lying over another (the strip at a join).
+                        val covered = b.printed.any { t -> x >= ox + t.clip.x0 - 3.0 && x <= ox + t.clip.x0 + printable + 3.0 && y >= oy + t.clip.y0 - 3.0 && y <= oy + t.clip.y0 + printableH + 3.0 }
+                        assertTrue(covered, "point $x,$y of board ${b.board.number} is on no printed sheet (${paper.name})")
                         y += 37.0
                     }
                     x += 41.0
@@ -435,14 +418,14 @@ class PrintMountTest {
     }
 
     @Test
-    fun sharedBandMarksAreIdenticalOnBothPagesAndSitHalfAMillimetreInsideTheUpperPagesPrintedEdge() {
+    fun theUnderPageOfEveryOverlapPrintsGuidesOnTheTopPagesPaperEdgesAndTheTopPagePrintsNone() {
         val sep = allCut()
         val opts = options(1000.0)
         val grid = assertNotNull(PrintPdf.plan(sep, opts).boards)
         val pdf = pages(PrintPdf.make(sep, opts))
         val pageH = 279.4 * k
         val cell = grid.cells.first().cut
-        val ox = cell.x0 - poster.borderMm + 3.0
+        val ox = cell.x0 - poster.borderMm + 3.0 // finished x of page A1's printed left edge
         val oy = cell.y0 - poster.borderMm + 3.0
         val byPos = HashMap<Pair<Int, Int>, Drawn>()
         val whereBy = HashMap<Pair<Int, Int>, Where>()
@@ -455,33 +438,29 @@ class PrintMountTest {
         }
         fun segs(pos: Pair<Int, Int>) = byPos.getValue(pos).strokes.flatMap { poly -> poly.zipWithNext() }
             .map { (a, b) -> finished(a, pageH, ox, oy, whereBy.getValue(pos)) to finished(b, pageH, ox, oy, whereBy.getValue(pos)) }
-        fun key(a: Pair<Double, Double>, b: Pair<Double, Double>): String {
-            fun f(p: Pair<Double, Double>) = Decimal.format(p.first, 2) + "," + Decimal.format(p.second, 2)
-            return listOf(f(a), f(b)).sorted().joinToString("-")
-        }
         var pairs = 0
         for (c in 0..1) for (r in 0..2) {
             val under = c to r
             val upper = c + 1 to r
             if (under !in byPos || upper !in byPos) continue
-            // The upper page's printed left edge, in finished mm; the band line is 0.5 mm inside it.
-            val line = ox + upper.first * step + 0.5
-            val verticalOnLine = { pos: Pair<Int, Int> -> segs(pos).filter { (a, b) -> abs(a.first - line) < 0.01 && abs(b.first - line) < 0.01 }.map { (a, b) -> key(a, b) }.toSet() }
-            val mine = verticalOnLine(under)
-            val theirs = verticalOnLine(upper)
-            assertTrue(mine.isNotEmpty(), "marks on the shared band of $under and $upper")
-            assertEquals(mine, theirs, "identical marks in the band of $under and $upper")
+            // The top page's paper left edge, in finished mm: its window's left edge less the 3 mm margin.
+            val edge = ox + upper.first * step - 3.0
+            val onEdge = { pos: Pair<Int, Int> -> segs(pos).filter { (a, b) -> abs(a.first - b.first) < 1e-6 && abs(a.first - (edge - 0.1)) < 0.01 } }
+            assertTrue(onEdge(under).isNotEmpty(), "guides on the paper edge of $upper under $under")
+            // They lie in the under page's printed area (its window ends 1 mm or more past the edge).
+            val windowRight = ox + under.first * step + 209.9
+            assertTrue(onEdge(under).all { (a, b) -> a.first <= windowRight && b.first <= windowRight })
+            assertTrue(segs(upper).none { (a, b) -> abs(a.first - b.first) < 1e-6 && abs(a.first - (edge - 0.1)) < 0.5 }, "the top page prints nothing in its own margin")
             pairs++
         }
         for (c in 0..2) for (r in 0..1) {
             val under = c to r
             val lower = c to r + 1
             if (under !in byPos || lower !in byPos) continue
-            val line = oy + lower.second * stepY + 0.5
-            val horizontalOnLine = { pos: Pair<Int, Int> -> segs(pos).filter { (a, b) -> abs(a.second - line) < 0.01 && abs(b.second - line) < 0.01 }.map { (a, b) -> key(a, b) }.toSet() }
-            val mine = horizontalOnLine(under)
-            assertTrue(mine.isNotEmpty())
-            assertEquals(mine, horizontalOnLine(lower))
+            val edge = oy + lower.second * stepY - 3.0
+            val onEdge = { pos: Pair<Int, Int> -> segs(pos).filter { (a, b) -> abs(a.second - b.second) < 1e-6 && abs(a.second - (edge - 0.1)) < 0.01 } }
+            assertTrue(onEdge(under).isNotEmpty())
+            assertTrue(segs(lower).none { (a, b) -> abs(a.second - b.second) < 1e-6 && abs(a.second - (edge - 0.1)) < 0.5 })
             pairs++
         }
         assertTrue(pairs >= 8, "most neighbours of board 1 were compared: $pairs")
@@ -541,11 +520,12 @@ class PrintMountTest {
         val pdf = pages(PrintPdf.make(stripes(), options()))
         val text = interpret(pdf[0].content).words.joinToString(" ") { it.third }
         for (needle in listOf("GET THE BOARD", "Poster board 22 x 28 in", "railroad board", "Thin poster board tears", "6 boards", "2 in", "50.8 mm",
-            "GLUE", "outermost pages lie on the board's edges on every side", "CUT", "paper and the board together",
-            "One board: page A1, unprinted strip, border, cut area", "TRIM", "ALIGN", "A1 is the board's top-left corner page")) {
+            "LAY THE PAGES", "GLUE", "outermost pages lie on the board's edges on every side", "CUT", "paper and the board together", "THE 3 MM STRIP", "Continue each cut line", "and any tab too",
+            "One board: page A1, unprinted strip, border, cut area", "A1 is the board's top-left corner page")) {
             assertTrue(needle in text, "instructions mention '$needle'")
         }
         for (gone in listOf("REGISTER", "target", "pierce")) assertFalse(gone in text, "no '$gone' in the instructions")
+        assertFalse("trim" in text.lowercase(), "the instructions never ask for trimming")
     }
 
     @Test

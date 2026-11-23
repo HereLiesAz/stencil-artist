@@ -25,11 +25,20 @@ object Raster {
         val histogram = IntArray(256)
         for (y in 0 until height) {
             histogram.fill(0)
+            // The median is tracked, not searched for: `level` is the smallest level whose cumulative
+            // count exceeds half the window, and `upTo` that cumulative count. Adding or dropping a
+            // value moves them by one, and the few steps that restore them are cheap on real images.
+            var level = 0
+            var upTo = 0
             // Rows of the window, clamped to the image (the edge row repeats).
             val rows = IntArray(kernel) { (y - r + it).coerceIn(0, height - 1) * width }
             fun column(x: Int, delta: Int) {
                 val cx = x.coerceIn(0, width - 1)
-                for (row in rows) histogram[src[row + cx].toInt() and 0xFF] += delta
+                for (row in rows) {
+                    val v = src[row + cx].toInt() and 0xFF
+                    histogram[v] += delta
+                    if (v <= level) upTo += delta
+                }
             }
             for (x in -r..r) column(x, +1)
             for (x in 0 until width) {
@@ -37,13 +46,8 @@ object Raster {
                     column(x - r - 1, -1)
                     column(x + r, +1)
                 }
-                var seen = 0
-                var level = 0
-                while (true) {
-                    seen += histogram[level]
-                    if (seen > half) break
-                    level++
-                }
+                while (upTo <= half) upTo += histogram[++level]
+                while (upTo - histogram[level] > half) upTo -= histogram[level--]
                 out[y * width + x] = level.toByte()
             }
         }

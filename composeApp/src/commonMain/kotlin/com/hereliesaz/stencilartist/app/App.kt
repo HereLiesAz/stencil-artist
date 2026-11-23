@@ -50,6 +50,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -60,6 +61,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hereliesaz.stencilartist.core.Base
+import com.hereliesaz.stencilartist.core.ColorOrder
 import com.hereliesaz.stencilartist.core.export.Board
 import com.hereliesaz.stencilartist.core.export.BoardGrid
 import com.hereliesaz.stencilartist.core.export.MountOptions
@@ -71,7 +73,6 @@ import com.hereliesaz.stencilartist.core.export.PrintSizing
 import com.hereliesaz.stencilartist.core.export.TileSpec
 import com.hereliesaz.stencilartist.core.export.Tiling
 import com.hereliesaz.stencilartist.core.Sheet
-import com.hereliesaz.stencilartist.core.TonalParams
 import com.hereliesaz.stencilartist.core.Separation
 import kotlin.math.abs
 import kotlin.math.pow
@@ -148,7 +149,8 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
 
 @Composable
 private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) {
-    val params = state.params
+    val tone = state.toneParams
+    val colour = state.colorParams
     val saver = rememberFileSaver()
     val exportScope = rememberCoroutineScope()
     var printWidthMm by remember { mutableFloatStateOf(203.2f) }
@@ -244,34 +246,60 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
+        Section("Separate by") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice("Tone", selected = state.mode == SeparationMode.TONE, modifier = Modifier.weight(1f)) {
+                    state.selectMode(SeparationMode.TONE)
+                }
+                Choice("Colour", selected = state.mode == SeparationMode.COLOUR, modifier = Modifier.weight(1f)) {
+                    state.selectMode(SeparationMode.COLOUR)
+                }
+            }
+        }
+
         Section("Sheets") {
             Stepper(
-                value = params.sheets,
-                range = 1..TonalParams.MAX_SHEETS,
+                value = state.sheetCount,
+                range = 1..state.maxSheets,
                 label = "sheets",
-                onChange = { state.update(params.copy(sheets = it, colors = null)) },
+                onChange = state::setSheetCount,
             )
         }
 
-        Section("Base") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((base, name) in listOf(Base.AUTO to "Auto", Base.DARK to "Dark", Base.LIGHT to "Light")) {
-                    Choice(name, selected = params.base == base, modifier = Modifier.weight(1f)) {
-                        state.update(params.copy(base = base))
+        if (state.mode == SeparationMode.TONE) {
+            Section("Base") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((base, name) in listOf(Base.AUTO to "Auto", Base.DARK to "Dark", Base.LIGHT to "Light")) {
+                        Choice(name, selected = tone.base == base, modifier = Modifier.weight(1f)) {
+                            state.update(tone.copy(base = base))
+                        }
+                    }
+                }
+            }
+        } else {
+            Section("Order") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((order, name) in listOf(
+                        ColorOrder.AUTO to "Auto", ColorOrder.LIGHT_TO_DARK to "Light to dark",
+                        ColorOrder.DARK_TO_LIGHT to "Dark to light", ColorOrder.LARGEST_FIRST to "Largest first",
+                    )) {
+                        Choice(name, selected = colour.order == order) { state.update(colour.copy(order = order)) }
                     }
                 }
             }
         }
 
         // Smoothing is a median filter and must be odd: the slider counts in steps of two.
-        LabelledSlider("Smoothing", "${params.smoothing} px", (params.smoothing - 1) / 2f, 0f..15f) {
-            state.update(params.copy(smoothing = it.roundToInt() * 2 + 1))
+        LabelledSlider("Smoothing", "${state.smoothing} px", (state.smoothing - 1) / 2f, 0f..15f) {
+            state.setSmoothing(it.roundToInt() * 2 + 1)
         }
-        LabelledSlider("Edge closing", "${params.closing} px", params.closing.toFloat(), 1f..25f) {
-            state.update(params.copy(closing = it.roundToInt()))
+        LabelledSlider("Edge closing", "${state.closing} px", state.closing.toFloat(), 1f..25f) {
+            state.setClosing(it.roundToInt())
         }
-        LabelledSlider("Tonal bias", params.bias.let { if (it > 0) "+$it" else "$it" }, params.bias.toFloat(), -100f..100f) {
-            state.update(params.copy(bias = it.roundToInt()))
+        if (state.mode == SeparationMode.TONE) {
+            LabelledSlider("Tonal bias", tone.bias.let { if (it > 0) "+$it" else "$it" }, tone.bias.toFloat(), -100f..100f) {
+                state.update(tone.copy(bias = it.roundToInt()))
+            }
         }
 
         Section("Raster PNG") {
@@ -641,7 +669,7 @@ private fun SheetStrip(sheets: List<Sheet>, shown: Int?, onShow: (Int?) -> Unit)
                     .semantics { contentDescription = "Sheet ${i + 1} of ${sheets.size}" },
                 contentAlignment = Alignment.Center,
             ) {
-                // The number is drawn in whichever of black and white reads against the swatch.
+                // The number is drawn in whichever of black and white reads better against the swatch.
                 Text("${i + 1}", color = if (Color(sheets[i].color).isLight()) Color.Black else Color.White,
                     style = MaterialTheme.typography.labelMedium)
             }
@@ -649,7 +677,12 @@ private fun SheetStrip(sheets: List<Sheet>, shown: Int?, onShow: (Int?) -> Unit)
     }
 }
 
-private fun Color.isLight(): Boolean = 0.299f * red + 0.587f * green + 0.114f * blue > 0.5f
+/**
+ * Whether black text reads better on this colour than white. Relative luminance (which weighs
+ * green far above blue and works in linear light) crosses over at 0.179, where black and white
+ * give equal contrast; a flat 0.5 on gamma values would put white on a bright orange or green.
+ */
+private fun Color.isLight(): Boolean = luminance() > 0.179f
 
 @Composable
 private fun Choice(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {

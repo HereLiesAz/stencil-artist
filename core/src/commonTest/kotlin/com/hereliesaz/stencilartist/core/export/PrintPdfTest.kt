@@ -266,44 +266,18 @@ class PrintPdfTest {
         assertFailsWith<IllegalArgumentException> { PrintPdf.make(stencil(40, 40) { _, _ -> true }, options(30000.0)) }
     }
 
-    // ---- Tiles, overlap and marks.
-
-    @Test
-    fun tilesAdvanceByThePrintableSizeLessOneMillimetreAndCoverThePieceWithoutGaps() {
-        for (paper in Paper.PRESETS + Paper.custom(250.0, 180.0)) for (landscape in listOf(false, true)) {
-            val page = paper.oriented(landscape)
-            val spec = PrintPdf.spec(page)
-            assertEquals(page.widthMm - 6.0, spec.printableWidthMm, 1e-9)
-            assertEquals(page.widthMm - 6.0 - 1.0, spec.stepWidthMm, 1e-9)
-            val plan = Tiling.plan(1500.0, 1100.0, spec)
-            for (c in 1 until plan.cols) {
-                val prev = plan.tile(0, c - 1).clip
-                val cur = plan.tile(0, c).clip
-                assertEquals(spec.stepWidthMm * c, cur.x0, 1e-9)
-                assertEquals(1.0, prev.x1 - cur.x0, 1e-9, "neighbours share exactly 1 mm")
-            }
-            for (r in 1 until plan.rows) assertEquals(1.0, plan.tile(r - 1, 0).clip.y1 - plan.tile(r, 0).clip.y0, 1e-9)
-            assertEquals(0.0, plan.tile(0, 0).clip.x0)
-            assertEquals(1500.0, plan.tile(0, plan.cols - 1).clip.x1, 1e-9)
-            assertEquals(1100.0, plan.tile(plan.rows - 1, 0).clip.y1, 1e-9)
-        }
-    }
+    // ---- Pages, overlap and guides.
 
     private fun segments(poly: List<Pair<Double, Double>>) = poly.zipWithNext()
-
-    private fun key(a: Pair<Double, Double>, b: Pair<Double, Double>): String {
-        fun f(p: Pair<Double, Double>) = Decimal.format(p.first, 2) + "," + Decimal.format(p.second, 2)
-        return listOf(f(a), f(b)).sorted().joinToString("-")
-    }
 
     private fun inside(p: Pair<Double, Double>, x0: Double, y0: Double, x1: Double, y1: Double, eps: Double = 0.02) =
         p.first >= x0 - eps && p.first <= x1 + eps && p.second >= y0 - eps && p.second <= y1 + eps
 
-    /** The marks of every page of a 3 x 3 grid of [paper], keyed by (row, col). */
+    /** The guide marks of every page of a 3 x 3 grid of [paper], keyed by (row, col), in finished-piece mm. */
     private fun gridMarks(paper: Paper, landscape: Boolean): Triple<TilePlan, Map<Pair<Int, Int>, List<List<Pair<Double, Double>>>>, Double> {
         val page = paper.oriented(landscape)
         val width = PrintSizing.widthMmForSheetsWide(2.5, page)
-        val aspect = (2.5 * PrintPdf.stepHeightMm(page) + PrintPdf.OVERLAP_MM) / width
+        val aspect = (1.5 * PrintPdf.stepHeightMm(page) + PrintPdf.printableHeightMm(page)) / width
         val sep = stencil(100, (100 * aspect).roundToInt()) { _, _ -> true }
         val o = PrintOptions(width, paper, landscape)
         val pdf = parse(PrintPdf.make(sep, o))
@@ -315,76 +289,80 @@ class PrintPdfTest {
     }
 
     @Test
-    fun neighbouringPagesPrintIdenticalMarkSegmentsInTheirSharedBand() {
+    fun sheetsAdvanceByThePaperSizeLessFourMillimetresSoTheTopPagesPaperEdgeIsOneMillimetreInsideTheUnderPagesPrintedArea() {
+        assertEquals(4.0, PrintPdf.PAPER_OVERLAP_MM, 0.0)
+        for (paper in Paper.PRESETS + Paper.custom(250.0, 180.0)) for (landscape in listOf(false, true)) {
+            val page = paper.oriented(landscape)
+            val width = PrintSizing.widthMmForSheetsWide(3.0, page)
+            val aspect = 0.4
+            val sep = stencil(100, 40) { _, _ -> true }
+            val grid = PrintPdf.plan(sep, PrintOptions(width, paper, landscape)).grid
+            assertEquals(3, grid.cols)
+            val p = PrintPdf.printableWidthMm(page)
+            for (c in 1 until grid.cols) {
+                assertEquals(page.widthMm - 4.0, grid.tile(0, c).clip.x0 - grid.tile(0, c - 1).clip.x0, 1e-9, "step is the paper width less 4 mm")
+                // The top page's paper edge (its window less the 3 mm margin) lies exactly 1 mm inside the under page's printed edge.
+                val paperEdge = grid.tile(0, c).clip.x0 - 3.0
+                assertEquals(1.0, grid.tile(0, c - 1).clip.x0 + p - paperEdge, 1e-9)
+            }
+            assertTrue(aspect > 0)
+        }
+    }
+
+    @Test
+    fun guideMarksLieOnTheTopPagesPaperEdgesInsideTheUnderPagesPrintedArea() {
         val (plan, marks, _) = gridMarks(Paper.US_LETTER, false)
-        val spec = plan.spec
-        val pw = spec.printableWidthMm
-        val ph = spec.printableHeightMm
-        var compared = 0
+        val p = plan.spec.printableWidthMm
+        val ph = plan.spec.printableHeightMm
+        var vertical = 0
+        var horizontal = 0
         for (t in plan.tiles) {
-            for ((dr, dc) in listOf(0 to 1, 1 to 0)) {
-                if (t.row + dr >= plan.rows || t.col + dc >= plan.cols) continue
-                val n = plan.tile(t.row + dr, t.col + dc)
-                // The shared band: the next tile's first millimetre across (or down), over the pair's common run.
-                val bx0 = n.clip.x0
-                val by0 = n.clip.y0
-                val (bx1, by1) = if (dc == 1) bx0 + 1.0 to by0 + ph else bx0 + pw to by0 + 1.0
-                fun inBand(m: List<List<Pair<Double, Double>>>) = m.flatMap { segments(it) }
-                    .filter { (a, b) -> inside(a, bx0, by0, bx1, by1) && inside(b, bx0, by0, bx1, by1) }
-                    .map { (a, b) -> key(a, b) }.toSet()
-                val mine = inBand(marks.getValue(t.row to t.col))
-                val theirs = inBand(marks.getValue(n.row to n.col))
-                assertTrue(mine.isNotEmpty(), "pages ${t.row},${t.col} and ${n.row},${n.col} have marks in their band")
-                assertEquals(mine, theirs, "marks in the band shared by ${t.row},${t.col} and ${n.row},${n.col}")
-                compared++
-            }
-        }
-        assertEquals(2 * plan.cols * plan.rows - plan.cols - plan.rows, compared)
-    }
-
-    @Test
-    fun theFourPagesMeetingAtACrossingAllPrintAnLWhoseCornerIsTheSamePoint() {
-        val (plan, marks, _) = gridMarks(Paper.A4, false)
-        val spec = plan.spec
-        val cx = spec.stepWidthMm + 0.5
-        val cy = spec.stepHeightMm + 0.5
-        for ((r, c) in listOf(0 to 0, 0 to 1, 1 to 0, 1 to 1)) {
-            val ls = marks.getValue(r to c).filter { it.size == 3 }
-            assertTrue(ls.any { abs(it[1].first - cx) < 0.01 && abs(it[1].second - cy) < 0.01 }, "page $r,$c has an L at ($cx, $cy)")
-        }
-    }
-
-    @Test
-    fun everyMarkLiesOnTheCentreLineOfASharedBandAndOuterSidesHaveNone() {
-        val (plan, marks, _) = gridMarks(Paper.US_LETTER, true)
-        val spec = plan.spec
-        val lines = { step: Double, n: Int -> (1 until n).map { it * step + 0.5 } }
-        val xs = lines(spec.stepWidthMm, plan.cols)
-        val ys = lines(spec.stepHeightMm, plan.rows)
-        for (t in plan.tiles) {
+            val strokes = marks.getValue(t.row to t.col)
             val x0 = t.clip.x0; val y0 = t.clip.y0
-            val x1 = x0 + spec.printableWidthMm; val y1 = y0 + spec.printableHeightMm
-            for (poly in marks.getValue(t.row to t.col)) for ((a, b) in segments(poly)) {
-                val vertical = abs(a.first - b.first) < 1e-6
-                val horizontal = abs(a.second - b.second) < 1e-6
-                assertTrue(vertical || horizontal)
-                if (vertical) assertTrue(xs.any { abs(it - a.first) <= 0.01 }, "vertical mark at x=${a.first} is on a band centre line")
-                if (horizontal) assertTrue(ys.any { abs(it - a.second) <= 0.01 }, "horizontal mark at y=${a.second} is on a band centre line")
-                // Nothing along an outer side of the piece.
-                if (t.col == 0 && vertical) assertTrue(a.first > x0 + 1.0)
-                if (t.col == plan.cols - 1 && vertical) assertTrue(a.first < x1 - 1.0)
-                if (t.row == 0 && horizontal) assertTrue(a.second > y0 + 1.0)
-                if (t.row == plan.rows - 1 && horizontal) assertTrue(a.second < y1 - 1.0)
-                // Within the printable area, and within a band's width of the printable edge it belongs to.
-                assertTrue(inside(a, x0, y0, x1, y1, 1e-6) && inside(b, x0, y0, x1, y1, 1e-6))
+            val hasRight = t.col < plan.cols - 1
+            val hasBelow = t.row < plan.rows - 1
+            if (!hasRight && !hasBelow) assertTrue(strokes.isEmpty(), "the last page has nothing laid on it, so prints nothing")
+            // The covering pages' paper edges, in finished mm: the stroke's inner edge touches them from outside (0.1 mm centre offset).
+            val rightEdge = if (hasRight) plan.tile(t.row, t.col + 1).clip.x0 - 3.0 else Double.NaN
+            val belowEdge = if (hasBelow) plan.tile(t.row + 1, t.col).clip.y0 - 3.0 else Double.NaN
+            val dlEdge = if (hasBelow && t.col > 0) plan.tile(t.row + 1, t.col - 1).clip.x0 + p + 3.0 else Double.NaN
+            for (poly in strokes) for ((a, b) in segments(poly)) {
+                assertTrue(inside(a, x0, y0, x0 + p, y0 + ph, 1e-6) && inside(b, x0, y0, x0 + p, y0 + ph, 1e-6), "guide inside the under page's printed area")
+                if (abs(a.first - b.first) < 1e-6) {
+                    val onRight = hasRight && abs(a.first - (rightEdge - 0.1)) < 0.01
+                    val onDl = hasBelow && t.col > 0 && abs(a.first - (dlEdge + 0.1)) < 0.01
+                    assertTrue(onRight || onDl, "vertical guide at ${a.first} is on a covering paper edge")
+                    vertical++
+                } else {
+                    assertTrue(abs(a.second - b.second) < 1e-6)
+                    assertTrue(hasBelow && abs(a.second - (belowEdge - 0.1)) < 0.01, "horizontal guide at ${a.second} is on the lower page's paper edge")
+                    horizontal++
+                }
             }
+            if (hasRight) assertTrue(strokes.any { poly -> segments(poly).any { (a, b) -> abs(a.first - b.first) < 1e-6 && abs(a.first - (rightEdge - 0.1)) < 0.01 } }, "guides for the page on the right")
+            if (hasBelow) assertTrue(strokes.any { poly -> segments(poly).any { (a, b) -> abs(a.second - b.second) < 1e-6 && abs(a.second - (belowEdge - 0.1)) < 0.01 } }, "guides for the page below")
         }
-        val centre = marks.getValue(1 to 1)
-        assertTrue(centre.any { it.size == 3 }, "an interior page has Ls at its band crossings")
+        assertTrue(vertical > 0 && horizontal > 0)
     }
 
     @Test
-    fun aSinglePageHasNoMarksAndAPieceOfTwoHasMarksOnlyOnTheSeam() {
+    fun whereThreeOrFourPagesMeetEachCoveredPagePrintsGuidesForEveryPageThatCoversIt() {
+        val (plan, marks, _) = gridMarks(Paper.A4, false)
+        val p = plan.spec.printableWidthMm
+        // Page (0,1) is covered by (0,2), (1,0), (1,1) and (1,2): an L at the paper corner of (1,2) and one at the corner of (1,0).
+        val t = plan.tile(0, 1)
+        val l = marks.getValue(0 to 1).filter { it.size == 3 }
+        val corner = plan.tile(1, 2).clip.x0 - 3.0 - 0.1 to plan.tile(1, 1).clip.y0 - 3.0 - 0.1
+        assertTrue(l.any { abs(it[1].first - corner.first) < 0.01 && abs(it[1].second - corner.second) < 0.01 }, "L at the corner of the page below and to the right")
+        val dl = plan.tile(1, 0).clip.x0 + p + 3.0 + 0.1 to corner.second
+        assertTrue(l.any { abs(it[1].first - dl.first) < 0.01 && abs(it[1].second - dl.second) < 0.01 }, "L at the corner of the page below and to the left")
+        // The L's arms run along the covering pages' paper edges, 4 mm (clamped to the printed area).
+        for (poly in l) for ((a, b) in segments(poly)) assertTrue(abs(a.first - b.first) < 1e-6 || abs(a.second - b.second) < 1e-6)
+        assertTrue(t.clip.x0 >= 0.0)
+    }
+
+    @Test
+    fun aSinglePageHasNoMarksAndOnlyThePageUnderAnotherPrintsAny() {
         val one = parse(PrintPdf.make(stencil(40, 40) { _, _ -> true }, options(100.0)))
         val tile = one.contents.single { pageKind(it) == "tile" }
         assertTrue(interpret(tile).strokes.isEmpty(), "no marks on a single page")
@@ -394,39 +372,67 @@ class PrintPdfTest {
         assertEquals(2, plan.cols)
         assertEquals(1, plan.rows)
         val pdf = parse(PrintPdf.make(sep, o))
+        val under = marksOf(assertNotNull(tileContent(pdf, 0, 1, plan.tile(0, 0))), plan, plan.tile(0, 0), 279.4 * k)
+        assertEquals(2, under.size, "two ticks, one at each end of the covering paper edge")
+        for (poly in under) { assertEquals(2, poly.size); for (pt in poly) assertEquals(plan.tile(0, 1).clip.x0 - 3.0 - 0.1, pt.first, 0.01) }
+        val top = marksOf(assertNotNull(tileContent(pdf, 0, 1, plan.tile(0, 1))), plan, plan.tile(0, 1), 279.4 * k)
+        assertTrue(top.isEmpty(), "the top page prints nothing: its own margin lies on the guides")
+    }
+
+    @Test
+    fun visibleRegionsTileThePieceAndOnlyThreeMillimetreStripsAtJoinsAreUncovered() {
+        val page = Paper.US_LETTER.oriented(false)
+        val width = PrintSizing.widthMmForSheetsWide(3.0, page)
+        val height = PrintSizing.widthMmForSheetsHigh(2.0, 1.0, page) // 2 pages high at aspect 1: a square piece is not what we want; use the height directly
+        val aspect = ((2 - 1) * PrintPdf.stepHeightMm(page) + PrintPdf.printableHeightMm(page)) / width
+        val sep = stencil(300, (300 * aspect).roundToInt()) { _, _ -> true }
+        val o = PrintOptions(width, Paper.US_LETTER, false)
+        val plan = PrintPdf.plan(sep, o).grid
+        assertEquals(3, plan.cols); assertEquals(2, plan.rows)
+        val p = plan.spec.printableWidthMm
+        val ph = plan.spec.printableHeightMm
+        // Topmost page whose PAPER (window plus 3 mm all round) covers a point, later pages (row by row) lying on top.
+        fun top(x: Double, y: Double): Tile? = plan.tiles.lastOrNull { t ->
+            x >= t.clip.x0 - 3.0 && x <= t.clip.x0 + p + 3.0 && y >= t.clip.y0 - 3.0 && y <= t.clip.y0 + ph + 3.0
+        }
+        val step = 0.05
+        val pieceH = plan.heightMm
+        // Along a line through the middle of the first row: only the two joins' margins are blank, 3 mm each.
+        var blankAlong = 0.0
+        var x = 0.0
+        val y = ph / 2
+        while (x < plan.widthMm) {
+            val t = assertNotNull(top(x + step / 2, y))
+            val shown = x + step / 2 >= t.clip.x0 && x + step / 2 <= t.clip.x0 + p
+            if (!shown) blankAlong += step
+            x += step
+        }
+        val endGapX = maxOf(0.0, plan.widthMm - (plan.tile(0, plan.cols - 1).clip.x0 + p))
+        assertEquals(2 * 3.0 + endGapX, blankAlong, 0.15, "two joins across, a 3 mm blank strip at each (and any end of the piece past the last window)")
+        // And down the first column.
+        var blankDown = 0.0
+        var yy = 0.0
+        while (yy < pieceH) {
+            val t = assertNotNull(top(p / 2, yy + step / 2))
+            val shown = yy + step / 2 >= t.clip.y0 && yy + step / 2 <= t.clip.y0 + ph
+            if (!shown) blankDown += step
+            yy += step
+        }
+        val endGapY = maxOf(0.0, pieceH - (plan.tile(plan.rows - 1, 0).clip.y0 + ph))
+        assertEquals(1 * 3.0 + endGapY, blankDown, 0.15, "one join down")
+        assertTrue(height > 0.0)
+        // Artwork at true positions: every tile page translates the piece so finished x lands at paper x = 3 mm + (x - window left).
+        val pdf = parse(PrintPdf.make(sep, o))
         for (t in plan.tiles) {
-            val m = marksOf(assertNotNull(tileContent(pdf, 0, 1, t)), plan, t, 279.4 * k)
-            assertEquals(2, m.size, "two straight arms, one from each end of the seam")
-            for (poly in m) assertEquals(2, poly.size)
-            for (poly in m) for (p in poly) assertEquals(plan.spec.stepWidthMm + 0.5, p.first, 0.01)
+            val c = assertNotNull(tileContent(pdf, 0, 1, t))
+            val m = assertNotNull(Regex("(?m)^1 0 0 1 ([0-9.-]+) ([0-9.-]+) cm$").find(c))
+            assertEquals((3.0 - t.clip.x0) * k, m.groupValues[1].toDouble(), 0.01, "x translation of tile ${t.row},${t.col}")
+            assertEquals(279.4 * k - (3.0 - t.clip.y0 + plan.heightMm) * k, m.groupValues[2].toDouble(), 0.05, "y translation")
         }
     }
 
     @Test
-    fun markGeometryIsThreeAndAHalfMillimetresFromThePaperEdgeOnBandCentreLinesForEveryPaper() {
-        for (paper in Paper.PRESETS + Paper.custom(260.0, 200.0)) for (landscape in listOf(false, true)) {
-            val page = paper.oriented(landscape)
-            val (plan, marks, pageH) = gridMarks(paper, landscape)
-            val pageW = page.widthMm
-            val tile = plan.tile(1, 1)
-            // On the page (not finished) coordinates: a vertical arm sits 3.5 mm from the left or right paper edge.
-            for (poly in marks.getValue(tile.row to tile.col)) for ((a, b) in segments(poly)) {
-                val onPageX = a.first - tile.clip.x0 + 3.0
-                val onPageY = a.second - tile.clip.y0 + 3.0
-                if (abs(a.first - b.first) < 1e-6) {
-                    assertTrue(abs(onPageX - 3.5) < 0.01 || abs(onPageX - (pageW - 3.5)) < 0.01, "x $onPageX on $paper $landscape")
-                } else {
-                    assertTrue(abs(onPageY - 3.5) < 0.01 || abs(onPageY - (pageH / k - 3.5)) < 0.01, "y $onPageY on $paper $landscape")
-                }
-            }
-            // Arms are 4 mm long and the stroke is 0.2 mm.
-            val arms = marks.getValue(tile.row to tile.col).flatMap { segments(it) }
-            assertTrue(arms.all { (a, b) -> abs(abs(a.first - b.first) + abs(a.second - b.second) - 4.0) < 0.01 })
-        }
-    }
-
-    @Test
-    fun theStrokeIsNarrowerThanTheBandAndNothingIsDrawnOutsideThePrintableArea() {
+    fun theGuideStrokeIsThinAndNothingIsDrawnOutsideThePrintableArea() {
         val s = stencil(600, 600) { x, y -> (x / 80) % 2 == 0 || (x == 100 && y == 100) }
         for (landscape in listOf(false, true)) {
             val o = options(520.0, Paper.A4, landscape)
@@ -447,7 +453,7 @@ class PrintPdfTest {
                     assertTrue(w.x >= left - eps && w.x + width <= right + eps && w.y >= bottom - eps && w.y + w.size <= top + eps,
                         "word '${w.text}' at ${w.x},${w.y} width $width on ${pageKind(c)}")
                 }
-                if (pageKind(c) == "tile") for (p in d.strokes) assertTrue(p.width < 1.0 * k, "stroke ${p.width} fits the 1 mm band")
+                if (pageKind(c) == "tile") for (p in d.strokes) assertTrue(p.width < 1.0 * k, "stroke ${p.width} is thin")
             }
         }
     }
@@ -472,10 +478,12 @@ class PrintPdfTest {
     fun theInstructionsPageStatesTheConventionAndHasADiagram() {
         val pdf = parse(PrintPdf.make(stripes(), options(450.0)))
         val text = interpret(pdf.contents[0]).words.joinToString(" ") { it.text }
-        for (needle in listOf("PRINT AT 100%", "Actual size", "TRIM", "3 mm", "LEFT", "ABOVE", "Lay each new page OVER", "exactly on the mark beneath",
-            "only where two pages meet", "TAPE", "left to right, top to bottom", "REPEAT FOR EVERY SHEET", "CUT", "exactly 100 mm")) {
+        for (needle in listOf("PRINT AT 100%", "Actual size", "LAY THE PAGES", "Nothing is cut", "ON TOP", "guide", "touches the guide",
+            "only where two pages overlap", "TAPE", "left to right, top to bottom", "THE 3 MM STRIP", "3 mm strip of blank paper",
+            "Continue each cut line straight across it", "REPEAT FOR EVERY SHEET", "CUT", "exactly 100 mm")) {
             assertTrue(needle in text, "instructions mention '$needle'")
         }
+        assertFalse("trim" in text.lowercase(), "the instructions never ask for trimming: $text")
         // The diagram draws strokes (the pages and the marks) in virtual coordinates under a scale.
         assertTrue(interpret(pdf.contents[0]).strokes.size >= 6)
     }

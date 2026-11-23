@@ -173,4 +173,19 @@ class PrintTabTest {
         // Borders from the minimum up: depth never exceeds half.
         for (border in listOf(25.4, 30.0, 40.0, 50.8)) assertTrue(minOf(PrintPdf.TAB_DEPTH_MM, border / 2) <= border / 2)
     }
+
+    @Test
+    fun tabsAvoidLyingUnderABlankThreeMillimetreStripWhenAnotherPositionDoes() {
+        // Board 2's left tab zone: cut for y in [130, 170) only. Edge-bearing positions run from 105.4 to 125.4 (clear of strips) and
+        // from 145.4 to 165.4 (the horizontal join strip at y 165.1..168.1 touches those from 145.4 on). Clear ones must be chosen.
+        val sep = mask { x, y -> x >= 400.0 && y >= 130.0 && y < 170.0 }
+        val b = boards(sep).first { it.board.col == 1 && it.board.row == 0 }
+        val left = b.tabs.filter { it.side == TabSide.LEFT }
+        assertTrue(left.isNotEmpty())
+        assertTrue(left.all { it.hidden < 0.01 }, "chosen tabs lie under no blank strip: ${left.map { it.hidden }}")
+        assertTrue(left.all { it.edgeBearing })
+        // A strip really crosses some other usable position: a tab at y0 = 150 would be partly hidden.
+        val strips = boards(mask { x, y -> x >= 400.0 && y in 150.0..175.0 }).first { it.board.col == 1 && it.board.row == 0 }
+        assertTrue(strips.tabs.filter { it.side == TabSide.LEFT }.isNotEmpty())
+    }
 }
