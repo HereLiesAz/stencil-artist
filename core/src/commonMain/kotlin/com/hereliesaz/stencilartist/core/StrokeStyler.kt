@@ -38,7 +38,7 @@ object StrokeStyler {
         if (w < 16 || h < 16 || original.sheets.size <= 1 || original.sheets.size > 16 ||
             maximumRemovedFraction == 0.0) return original
         val n = w * h
-        val cuts = original.sheets.indices.map { original.mask(it) }
+        val cuts = original.sheets.indices.map { original.mask(it) }.toMutableList()
         val raw = IntArray(n) { p ->
             val c = source.pixels[p]
             ((c shr 16 and 255) * 299 + (c shr 8 and 255) * 587 +
