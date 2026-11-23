@@ -6,7 +6,7 @@ import kotlin.math.abs
  * A physically safe island repair result. [unresolved] counts stock islands that still need
  * cross-layer reconstruction or an explicit artistic bridge; none are silently dropped.
  */
-data class IslandPlan(val separation: Separation, val concealedBridges: Int, val unresolved: Int)
+data class IslandPlan(val separation: Separation, val concealedBridges: Int, val unresolved: Int, val skipped: Boolean = false)
 
 /**
  * Plans negative brushstroke bridges across paint openings. Only cuts that will be COMPLETELY
@@ -36,13 +36,12 @@ object IslandPlanner {
         if (w <= 0 || h <= 0 || original.sheets.isEmpty()) return IslandPlan(original, 0, 0)
         // The separate-cut representation is intended for a practical painting stack. Avoid
         // materialising thousands of full-frame masks for huge palette separations.
-        if (original.sheets.size > 16) return IslandPlan(original, 0, -1)
+        if (original.sheets.size > 16) return IslandPlan(original, 0, 0, skipped = true)
         val cuts = original.sheets.indices.map { original.mask(it) }
         val renderedBefore = original.render()
         var repaired = 0
         var unresolved = 0
         val n = w * h
-        val offsets = intArrayOf(-1, 1, -w, w)
         val radius = minimumBridgePixels / 2
 
         for (sheet in cuts.indices) {
