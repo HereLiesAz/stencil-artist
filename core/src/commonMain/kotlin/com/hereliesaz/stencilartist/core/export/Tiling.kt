@@ -99,11 +99,15 @@ data class TilePlan(val spec: TileSpec, val widthMm: Double, val heightMm: Doubl
 object Tiling {
     private const val EPS = 1e-9
 
+    /** The most tiles one plan may have, so a tiny page and a huge drawing fail fast instead of exhausting memory. */
+    const val MAX_TILES = 10_000
+
     /** The grid for a drawing [widthMm] by [heightMm] on [spec]. */
     fun plan(widthMm: Double, heightMm: Double, spec: TileSpec): TilePlan {
         require(widthMm > 0.0 && heightMm > 0.0) { "nothing to tile: ${widthMm}x$heightMm mm" }
         val cols = count(widthMm, spec.printableWidthMm, spec.overlapMm)
         val rows = if (spec.isRoll) 1 else count(heightMm, spec.printableHeightMm, spec.overlapMm)
+        require(cols.toLong() * rows <= MAX_TILES) { "$cols x $rows tiles is more than the $MAX_TILES allowed; use a larger page" }
         val stepX = spec.printableWidthMm - spec.overlapMm
         val stepY = spec.printableHeightMm - spec.overlapMm
         val tiles = ArrayList<Tile>(rows * cols)
@@ -122,6 +126,9 @@ object Tiling {
     /** The grid for [drawing] at [size] on [spec]. */
     fun plan(drawing: Drawing, size: PhysicalSize, spec: TileSpec): TilePlan = plan(size.widthMm, size.heightMm(drawing), spec)
 
-    private fun count(total: Double, printable: Double, overlap: Double): Int =
-        if (total <= printable + EPS) 1 else 1 + ceil((total - printable) / (printable - overlap) - EPS).toInt()
+    private fun count(total: Double, printable: Double, overlap: Double): Int {
+        if (total <= printable + EPS) return 1
+        val n = 1 + ceil((total - printable) / (printable - overlap) - EPS)
+        return if (n > Int.MAX_VALUE) Int.MAX_VALUE else n.toInt()
+    }
 }

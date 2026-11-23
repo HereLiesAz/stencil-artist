@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -303,17 +304,17 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
 
         Section("Cutter files") {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(CutterFormat.entries.size) { i ->
-                    val format = CutterFormat.entries[i]
+            // These rows wrap rather than scroll: a mouse cannot drag a row sideways, and a choice
+            // that is off the edge of the panel is a choice nobody finds.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (format in CutterFormat.entries) {
                     Choice(format.label, selected = cutterFormat == format) { cutterFormat = format }
                 }
             }
             // What the piece is split across: nothing, or a cutting mat or sheet of paper.
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { Choice("Whole", selected = cutterFit == null) { cutterFit = null } }
-                items(CUTTER_FITS.size) { i ->
-                    val fit = CUTTER_FITS[i]
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice("Whole", selected = cutterFit == null) { cutterFit = null }
+                for (fit in CUTTER_FITS) {
                     Choice(fit.name, selected = cutterFit == fit) { cutterFit = fit }
                 }
             }
