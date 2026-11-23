@@ -711,12 +711,14 @@ private fun CanPage(can: Can, state: StencilState, signed: Float, pageWidth: Dp,
         ?.let { MatchQuality.of(it.layer.distance) }
     val travel = pageWidth - 52.dp
     Box(modifier.fillMaxWidth().height(190.dp)) {
-        CanSide(
-            can.rgb, 44.dp, 120.dp,
-            Modifier.align(Alignment.CenterStart).graphicsLayer {
-                translationX = (-signed).coerceIn(0f, 1f) * travel.toPx()
-            },
-        )
+        val canImage = Modifier.align(Alignment.CenterStart).graphicsLayer {
+            translationX = (-signed).coerceIn(0f, 1f) * travel.toPx()
+        }
+        if (can.brand == "MTN (Montana Colors)" && can.line == "94") {
+            Mtn94Packshot(can.rgb, 44.dp, 120.dp, canImage)
+        } else {
+            CanSide(can.rgb, 44.dp, 120.dp, canImage)
+        }
         Column(
             Modifier.align(Alignment.CenterStart).padding(start = 52.dp).graphicsLayer { alpha = (1f - 2f * abs(signed)).coerceIn(0f, 1f) },
             verticalArrangement = Arrangement.spacedBy(2.dp),
