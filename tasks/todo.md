@@ -132,7 +132,8 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       keeps its own settings, "Order" in Colour mode, "Base" and "Tonal bias" in Tone mode only; the sheet strip's
       number is black or white by contrast. `StencilState.setSheetColor` and `ColorParams.colors` are ready;
       **done in follow-up: the Free Colour-mode editor now browses top views of all catalogue cans
-      with search/brand filters and the existing full-can swipe carousel (adjacent can edges peek).
+      in a bounded lazy grid with search/brand filters and the existing full-can swipe carousel
+      (adjacent can edges peek).
       A valid can colour calls `StencilState.setSheetColor`; hex/RGB editing, duplicate-colour
       rejection and reset to image-derived colours remain.**
       Verified: 26 new tests on JVM and Wasm (flat regions of 2/5/9/24 colours, determinism, given colours,
