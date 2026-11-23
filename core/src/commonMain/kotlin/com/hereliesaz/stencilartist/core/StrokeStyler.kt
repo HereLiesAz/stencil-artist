@@ -212,7 +212,6 @@ object StrokeStyler {
                     val initial = direction(seedY * w + seedX, fallbackX, fallbackY)
                     var vx = initial.first * sign
                     var vy = initial.second * sign
-                    var previous = -1
                     // Short intentional marks are easier to cut than long wandering paths;
                     // overlapping neighboring marks can still build a large folded surface.
                     for (step in 0 until 70) {
@@ -220,10 +219,9 @@ object StrokeStyler {
                         val sy = y.roundToInt()
                         if (sx !in 2 until w - 2 || sy !in 2 until h - 2) break
                         val p = sy * w + sx
-                        if (member[p] != component || p == previous) break
+                        if (member[p] != component) break
                         val size = if (step < 2 || distance[p] <= 1) 1 else strokeWidthPixels
                         mark(sx, sy, vx, vy, size)
-                        previous = p
                         val desired = direction(p, vx, vy)
                         // Low curvature avoids jitter and spiky contour-tracing artefacts.
                         val dx = vx * 0.82f + desired.first * 0.18f
