@@ -140,7 +140,7 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       sheets, one sheet, composite PNG, SVG: fills are the sheet colours). Separating a 1600 px cut-out takes
       about 0.6 s on the JVM at 4 to 100 sheets. **Not verified:** Android on a device or emulator, timing in a
       browser on a phone, Colour mode with depth lighting or on photographs other than the astronaut, a sheet
-      colour edited by hand (no UI).
+      colour edited by hand on a real device (the editor is now wired).
 - [x] **14. Paint catalogue (foundation)** — `models/paints.tsv` (134 kB, 3,479 cans of 12 brands, built by
       `tools/catalogue/build.py` from the research files in `tools/catalogue/source/`; deterministic, validates hex and
       GS1 check digits, prints counts) is packaged by the same route as the models (assets on Android, `models/` on the
