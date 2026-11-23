@@ -99,6 +99,14 @@ class StencilState(
     var userBarcodes: UserBarcodes by mutableStateOf(UserBarcodes.EMPTY)
         private set
 
+    /** The most recent unrecognized barcode; picker can associate it with a catalogue can. */
+    var unknownBarcode: String? by mutableStateOf(null)
+        private set
+
+    /** The last scan result, independent of stencil-generation messages. */
+    var barcodeNote: String? by mutableStateOf(null)
+        private set
+
     /** The paint catalogue, null until it is first needed and has loaded. */
     var catalogue: PaintCatalogue? by mutableStateOf(null)
         private set
@@ -150,6 +158,7 @@ class StencilState(
      */
     fun ensureCatalogue() {
         if (catalogue != null || catalogueJob?.isActive == true) return
+        val recoveringFromFailure = catalogueError != null
         catalogueLoading = true
         catalogueError = null
         catalogueJob = scope.launch {
@@ -160,6 +169,9 @@ class StencilState(
                 catalogue = loaded
                 pickMax = pickLimit(loaded, allowed)
                 pickCount = pickCount.coerceAtMost(pickMax)
+                // A failed load can leave a free-colour fallback, or one still being computed.
+                // A successful retry must replace either, even before a fallback has rendered.
+                if (recoveringFromFailure && snapped && source != null) remake(settle = false)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -254,41 +266,54 @@ class StencilState(
     fun shoppingFor(sheet: Int?): List<ShoppingItem> =
         if (!snapped) emptyList() else PaintPlan.shopping(paintLayers, sheet?.let(::listOf), keptUnused)
 
-    // --- Hooks for the barcode scanner (a later task; there is no camera or scanner UI yet) -----------
+    // --- Barcode scanner -------------------------------------------------------------------------
 
     /**
-     * HOOK FOR THE BARCODE SCANNER: call with each scanned barcode. It is looked up as the user
-     * taught it ([learnBarcode]) or else in the catalogue ([PaintCatalogue.resolve]), and the can it
-     * names is added to the chosen cans. An unknown barcode, or a can with no colour value, is said
-     * so in [message]; the scanner can then offer [learnBarcode]. Waits for the catalogue if it is still loading.
+     * Resolves a valid scanned or typed [gtin] through learned barcodes and the catalogue.
+     * Recognized cans are added, never toggled off by repeated scans. Unknown codes remain in
+     * [unknownBarcode] until identified in the can picker. Colourless cans cannot form layers.
      */
     fun addCanByBarcode(gtin: String) {
+        unknownBarcode = null
+        barcodeNote = "Looking up $gtin..."
         ensureCatalogue()
         scope.launch {
             catalogueJob?.join()
             val cat = catalogue ?: run {
-                message = catalogueError ?: "The paint catalogue isn't available."
+                barcodeNote = catalogueError ?: "The paint catalogue isn't available."
+                message = barcodeNote
                 return@launch
             }
             val can = cat.resolve(gtin, userBarcodes)
             when {
-                can == null -> message = "No can is known for barcode $gtin."
-                can in selected -> message = "${can.displayName} is already chosen."
-                else -> toggleCan(can)
+                can == null -> {
+                    unknownBarcode = gtin
+                    barcodeNote = "Barcode $gtin isn't in the catalogue. Find its can below to remember it."
+                }
+                can in selected -> barcodeNote = "${can.displayName} is already chosen."
+                can.rgb == null -> barcodeNote = "${can.displayName} has no colour value, so it can't be a layer."
+                else -> {
+                    changeSelected(selected + can)
+                    barcodeNote = "Added ${can.displayName}."
+                }
             }
+            message = barcodeNote
         }
     }
 
     /**
-     * HOOK FOR THE BARCODE SCANNER: teaches the app that barcode [gtin] is [can], kept across
-     * restarts and preferred to the catalogue. An invalid barcode is refused with a message.
+     * Stores [gtin] as belonging to [can], overriding a catalogue match on future reads.
+     * A successful association is immediately resolved again to select the can when possible.
      */
     fun learnBarcode(gtin: String, can: Can) {
         try {
             userBarcodes = userBarcodes.learn(gtin, can.canKey)
             store.put(KEY_BARCODES, userBarcodes.encode())
+            if (unknownBarcode == gtin) unknownBarcode = null
+            addCanByBarcode(gtin)
         } catch (refused: IllegalArgumentException) {
-            message = "That isn't a valid barcode."
+            barcodeNote = "That isn't a valid barcode."
+            message = barcodeNote
         }
     }
 
@@ -485,8 +510,6 @@ class StencilState(
         val wantedColor = colorParams
         val wantedLighting = lighting
         val wantedPaint = if (wantedMode == SeparationMode.COLOUR) paintMode else PaintMode.FREE
-        val wantedPick = pickCount
-        val wantedAllowed = allowed
         val remove = removeBackground
         val assist = depthAssistedBackground
         val request = ++generation
@@ -552,6 +575,10 @@ class StencilState(
                         notes += (catalogueError ?: "The paint catalogue isn't available.") + " Using free colours."
                         free = true
                     } else {
+                        // Catalogue loading restores restrictions and clamps pickCount.
+                        // Snapshot only after it completes, never before the await.
+                        val wantedPick = pickCount
+                        val wantedAllowed = allowed
                         val chosen = selected
                         val picked = withContext(Dispatchers.Default) {
                             PaintPlan.layersFor(wantedPaint, cat, lit, wantedPick, wantedAllowed, chosen)

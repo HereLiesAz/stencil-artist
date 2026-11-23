@@ -215,9 +215,27 @@ private fun CanPicker(state: StencilState) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        // The scanner exists only while My cans' picker is composed, releasing its camera on exit.
+        ScannerPanel(
+            onGtin = state::addCanByBarcode,
+            onClose = {},
+            resultNote = state.barcodeNote,
+        )
+        state.unknownBarcode?.let { gtin ->
+            Text(
+                "Unknown barcode $gtin. Search for the actual can and choose it to remember this code.",
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+            )
+        }
         val open = browsing
         if (open != null) {
-            CanCarousel(state, open.cans, open.start, readOnly = false, onBack = { browsing = null })
+            CanCarousel(
+                state, open.cans, open.start, readOnly = false, onBack = { browsing = null },
+                onAssign = state.unknownBarcode?.let { gtin ->
+                    { can: Can -> state.learnBarcode(gtin, can); browsing = null }
+                },
+            )
         } else {
             SearchField(query, onChange = { query = it; shown = TOPS })
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -308,9 +326,17 @@ private fun SelectedTop(can: Can, onRemove: () -> Unit) {
  * left and its maker, colour name, code, barcode and (where known) match quality at right, with a
  * Select toggle unless [readOnly]. Swipe by mouse drag or touch, press the arrow buttons or the
  * keyboard's left and right arrows. Only the pages near the centre are composed and drawn.
+ * [onAssign], when given for an unknown barcode, replaces selection with teaching its identity.
  */
 @Composable
-private fun CanCarousel(state: StencilState, cans: List<Can>, start: Int, readOnly: Boolean, onBack: () -> Unit) {
+private fun CanCarousel(
+    state: StencilState,
+    cans: List<Can>,
+    start: Int,
+    readOnly: Boolean,
+    onBack: () -> Unit,
+    onAssign: ((Can) -> Unit)? = null,
+) {
     val scheme = MaterialTheme.colorScheme
     val pager = rememberPagerState(initialPage = start.coerceIn(0, (cans.size - 1).coerceAtLeast(0))) { cans.size }
     val scope = rememberCoroutineScope()
@@ -379,22 +405,29 @@ private fun CanCarousel(state: StencilState, cans: List<Can>, start: Int, readOn
         }
         if (!readOnly) {
             val isSelected = current in state.selected
-            val selectable = current.rgb != null
+            val selectable = current.rgb != null || onAssign != null
             Box(
                 Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(6.dp))
-                    .background(if (isSelected) scheme.primary else scheme.surfaceVariant)
-                    .clickable(enabled = selectable, role = Role.Checkbox) { state.toggleCan(current) }
-                    .semantics { contentDescription = (if (isSelected) "Remove " else "Select ") + current.displayName },
+                    .background(if (isSelected && onAssign == null) scheme.primary else scheme.surfaceVariant)
+                    .clickable(enabled = selectable, role = if (onAssign != null) Role.Button else Role.Checkbox) {
+                        if (onAssign != null) onAssign(current) else state.toggleCan(current)
+                    }
+                    .semantics {
+                        contentDescription = (if (onAssign != null) "Associate barcode with " else if (isSelected) "Remove " else "Select ") +
+                            current.displayName
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     when {
+                        onAssign != null -> "Remember barcode for this can"
                         !selectable -> "No colour value: can't be a layer"
                         isSelected -> "Selected"
                         else -> "Select"
                     },
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (isSelected) scheme.onPrimary else if (selectable) scheme.onSurface else scheme.onSurfaceVariant,
+                    color = if (isSelected && onAssign == null) scheme.onPrimary
+                        else if (selectable) scheme.onSurface else scheme.onSurfaceVariant,
                 )
             }
         }

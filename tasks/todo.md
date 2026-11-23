@@ -198,8 +198,11 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       `PermissionDenied`, `NoCamera`, `DecoderUnavailable`, `Unsupported` (an http page has no camera API).
       Verified: `BarcodeScanTest` on JVM and Wasm; the web glue and the real Kotlin `ScannerView` in headless Chromium
       with a fake camera (EAN-13, UPC-A, UPC-E decoded, a corrupted check digit never reported, permission denied,
-      insecure origin, no device, camera tracks ended on dispose); service worker tests. **Not done:** wiring
-      `ScannerPanel` into `App.kt` (calls `addCanByBarcode`; `learnBarcode` for an unknown can), anything on an Android
+      insecure origin, no device, camera tracks ended on dispose); service worker tests. **Wired:** My cans embeds `ScannerPanel` through the Paint section in `App.kt`.
+      Known barcode scans add a colour-valued can without removing it on repeat; an unknown barcode can
+      be identified in the existing can search/carousel and saved with `learnBarcode`. The paint
+      catalogue restore/retry paths also now rebuild correctly (PR #9 feedback).
+      **Not verified:** anything on an Android
       device, a real `BarcodeDetector` (headless Chromium on Linux has none: the native path ran against a stand-in), a
       real camera, a real can, iPhone Safari.
 
