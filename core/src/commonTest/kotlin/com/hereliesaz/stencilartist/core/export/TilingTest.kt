@@ -1,7 +1,10 @@
 package com.hereliesaz.stencilartist.core.export
 
+import com.hereliesaz.stencilartist.core.vector.Drawing
 import com.hereliesaz.stencilartist.core.vector.Point
 import com.hereliesaz.stencilartist.core.vector.Ring
+import com.hereliesaz.stencilartist.core.vector.Shape
+import com.hereliesaz.stencilartist.core.vector.SheetOutline
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -135,6 +138,72 @@ class TilingTest {
         assertTrue(Clip.ring(sq, RectMm(20.0, 20.0, 30.0, 30.0)).size < 3, "fully outside is nothing")
         val around = Clip.ring(sq, RectMm(-1.0, -1.0, 1.0, 1.0))
         assertEquals(4.0, Ring(around, false).area, 1e-9, "a ring around the rectangle becomes the rectangle")
+    }
+
+    @Test
+    fun aConcaveCutIntersectingOneTileInTwoPiecesProducesTwoIndependentLoops() {
+        // The U has a 4 mm high horizontal top bar and two 3 mm wide legs.
+        // The lower part of the tile contains only two 3 x 4 mm legs: 12 + 12 mm².
+        val u = listOf(
+            Point(0.0, 0.0), Point(10.0, 0.0), Point(10.0, 10.0), Point(7.0, 10.0),
+            Point(7.0, 3.0), Point(3.0, 3.0), Point(3.0, 10.0), Point(0.0, 10.0),
+        )
+        val rect = RectMm(0.0, 6.0, 10.0, 10.0)
+        val loops = Clip.shape(u, emptyList(), rect)
+        assertEquals(2, loops.size, "two physical pieces, never a single self-retracing ring")
+        val expected = setOf(
+            setOf(Point(0.0, 6.0), Point(3.0, 6.0), Point(3.0, 10.0), Point(0.0, 10.0)),
+            setOf(Point(7.0, 6.0), Point(10.0, 6.0), Point(10.0, 10.0), Point(7.0, 10.0)),
+        )
+        assertEquals(expected, loops.map { it.toSet() }.toSet())
+        assertEquals(listOf(12.0, 12.0), loops.map { Ring(it, false).signedArea }.sorted())
+        val segments = loops.flatMap { points ->
+            points.indices.map { i -> setOf(points[i], points[(i + 1) % points.size]) }
+        }
+        assertEquals(segments.size, segments.toSet().size, "no boundary segment is cut twice")
+        assertFailsWith<IllegalArgumentException> { Clip.ring(u, rect) }
+    }
+
+    @Test
+    fun aHoleCrossingTileBordersCreatesSeparateCutAreasRatherThanDuplicateBorders() {
+        val outer = listOf(Point(0.0, 0.0), Point(12.0, 0.0), Point(12.0, 12.0), Point(0.0, 12.0))
+        val hole = listOf(Point(3.0, 3.0), Point(3.0, 9.0), Point(9.0, 9.0), Point(9.0, 3.0))
+        val clipped = Clip.shape(outer, listOf(hole), RectMm(4.0, 0.0, 8.0, 12.0))
+        assertEquals(2, clipped.size)
+        assertEquals(setOf(
+            setOf(Point(4.0, 0.0), Point(8.0, 0.0), Point(8.0, 3.0), Point(4.0, 3.0)),
+            setOf(Point(4.0, 9.0), Point(8.0, 9.0), Point(8.0, 12.0), Point(4.0, 12.0)),
+        ), clipped.map { it.toSet() }.toSet())
+        assertEquals(24.0, clipped.sumOf { Ring(it, false).signedArea })
+        assertTrue(Clip.shape(outer, listOf(hole), RectMm(4.0, 4.0, 8.0, 8.0)).isEmpty(),
+            "a tile entirely within the hole must not produce a rectangle cut")
+        assertEquals(listOf(outer, hole), Clip.shape(outer, listOf(hole), RectMm(-1.0, -1.0, 13.0, 13.0)),
+            "a fully contained shape must preserve its original rings")
+    }
+
+    @Test
+    fun tiledSvgDxfHpglAndGcodeAllConsumeTheSeparatedLoops() {
+        val u = listOf(
+            Point(0.0, 0.0), Point(10.0, 0.0), Point(10.0, 10.0), Point(7.0, 10.0),
+            Point(7.0, 3.0), Point(3.0, 3.0), Point(3.0, 10.0), Point(0.0, 10.0),
+        )
+        val drawing = Drawing(10.0, 10.0, listOf(SheetOutline(
+            0xFF223344.toInt(), listOf(Shape(Ring(u, false))),
+        )))
+        val tile = Tile(0, 0, RectMm(0.0, 6.0, 10.0, 10.0))
+        val frameRings = Frame(drawing, PhysicalSize(10.0), tile).shapes(drawing.sheets.single()).single()
+        assertEquals(2, frameRings.size)
+        assertEquals(24.0, frameRings.sumOf { Ring(it, false).signedArea })
+        val svg = SvgExporter.export(drawing, PhysicalSize(10.0), tile = tile, options = SvgOptions(cutLines = true))
+        assertEquals(2, Regex(" M ").findAll(svg).count() + Regex("d=\\\"M ").findAll(svg).count())
+        val dxf = DxfExporter.export(drawing, PhysicalSize(10.0), tile = tile)
+        assertEquals(2, Regex("(?m)^POLYLINE$").findAll(dxf).count())
+        val hpgl = HpglExporter.export(drawing, PhysicalSize(10.0), tile = tile)
+        assertEquals(2, Regex("(?m)^PD").findAll(hpgl).count())
+        val gcode = GcodeExporter.export(drawing, PhysicalSize(10.0), tile = tile)
+        assertEquals(2, Regex("(?m)^G0 X").findAll(gcode).count())
+        assertEquals(8, Regex("(?m)^G1 X").findAll(gcode).count(),
+            "each rectangular component needs exactly four cutting moves")
     }
 
     @Test
