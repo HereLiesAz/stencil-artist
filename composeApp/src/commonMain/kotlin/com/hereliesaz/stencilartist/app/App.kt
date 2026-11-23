@@ -51,6 +51,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.stencilartist.core.Base
+import com.hereliesaz.stencilartist.core.export.TileSpec
+import com.hereliesaz.stencilartist.core.export.Tiling
 import com.hereliesaz.stencilartist.core.Sheet
 import com.hereliesaz.stencilartist.core.StencilPrintPdf
 import com.hereliesaz.stencilartist.core.StencilPrintOptions
@@ -60,6 +62,15 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** The mats and papers a cutter file can be split across. */
+private val CUTTER_FITS = listOf(TileSpec.MAT_12X12, TileSpec.MAT_12X24, TileSpec.US_LETTER, TileSpec.A4, TileSpec.A3)
+
+/** [value] with one decimal place; common Kotlin has no String.format. */
+private fun oneDecimal(value: Float): String {
+    val tenths = (value * 10).roundToInt()
+    return "${tenths / 10}.${tenths % 10}"
+}
 
 /** Below this width the controls go under the preview instead of beside it. */
 private val WIDE_LAYOUT = 720.dp
@@ -125,6 +136,9 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     val exportScope = rememberCoroutineScope()
     var printWidthMm by remember { mutableFloatStateOf(203.2f) }
     var exporting by remember { mutableStateOf<String?>(null) }
+    var cutterFormat by remember { mutableStateOf(CutterFormat.SVG) }
+    var cutterFit by remember { mutableStateOf<TileSpec?>(null) }
+    var cutterCutLines by remember { mutableStateOf(true) }
 
     // The Android picker completes asynchronously. Keep every export control locked until the
     // result callback, not merely until the file bytes have been passed to the picker.
@@ -274,9 +288,71 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             )
         }
 
-        Section("Print") {
-            LabelledSlider("Physical width", printWidthMm.roundToInt().toString() + " mm",
+        Section("Physical size") {
+            LabelledSlider("Width", printWidthMm.roundToInt().toString() + " mm",
                 printWidthMm, 50f..1000f) { printWidthMm = it }
+            state.separation?.let { stencil ->
+                val heightMm = printWidthMm * stencil.height / stencil.width
+                Text(
+                    "${printWidthMm.roundToInt()} × ${heightMm.roundToInt()} mm · " +
+                        "${oneDecimal(printWidthMm / 25.4f)} × ${oneDecimal(heightMm / 25.4f)} in",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Section("Cutter files") {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(CutterFormat.entries.size) { i ->
+                    val format = CutterFormat.entries[i]
+                    Choice(format.label, selected = cutterFormat == format) { cutterFormat = format }
+                }
+            }
+            // What the piece is split across: nothing, or a cutting mat or sheet of paper.
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item { Choice("Whole", selected = cutterFit == null) { cutterFit = null } }
+                items(CUTTER_FITS.size) { i ->
+                    val fit = CUTTER_FITS[i]
+                    Choice(fit.name, selected = cutterFit == fit) { cutterFit = fit }
+                }
+            }
+            state.separation?.let { stencil ->
+                cutterFit?.let { fit ->
+                    val plan = Tiling.plan(printWidthMm.toDouble(), printWidthMm.toDouble() * stencil.height / stencil.width, fit)
+                    Text(
+                        "${plan.tiles.size} ${fit.name} piece" + (if (plan.tiles.size == 1) "" else "s") +
+                            " per sheet (${plan.rows} × ${plan.cols})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (cutterFormat == CutterFormat.SVG) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Choice("Cut lines", selected = cutterCutLines, modifier = Modifier.weight(1f)) { cutterCutLines = true }
+                    Choice("Filled", selected = !cutterCutLines, modifier = Modifier.weight(1f)) { cutterCutLines = false }
+                }
+            }
+            val format = cutterFormat
+            val fit = cutterFit
+            val lines = cutterCutLines
+            val width = printWidthMm.toDouble()
+            state.shownSheet?.let { sheet ->
+                OutlinedButton(
+                    onClick = { startExport("Sheet ${sheet + 1} ${format.label}") { CutterExports.make(it, format, width, sheet, fit, lines) } },
+                    enabled = canExport,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Download sheet ${sheet + 1} ${format.label}") }
+            }
+            OutlinedButton(
+                onClick = { startExport("All sheets ${format.label}") { CutterExports.make(it, format, width, null, fit, lines) } },
+                enabled = canExport,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Download all sheets ${format.label}") }
+        }
+
+        Section("Print with cutting tips") {
             OutlinedButton(
                 onClick = {
                     val width = printWidthMm.toDouble()
