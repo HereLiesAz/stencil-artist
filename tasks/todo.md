@@ -246,6 +246,10 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
    a later layer fully conceals the changed pixels. Exposed islands remain flagged,
    not silently deleted. Full stroke-based generation, grey/white collaborative
    reconstruction, physical-width checking and real-world validation remain.
+   An opt-in flow-stroke prototype now forms supported narrow negative tongues
+   in wide later-layer openings while leaving Classic geometry available.
+   Full additive expressive strokes, context-sensitive repair and hardware
+   validation remain.
    GraffitiXR originally assumed overpaint and never bridged; a *cut* sheet still
    drops any region fully enclosed by a cut. See `docs/STROKE_ISLANDS.md`.
 2. **Depth model.** Depth Anything V2 Small (quantised, on demand) selected and benchmarked

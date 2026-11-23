@@ -82,9 +82,10 @@ Island planning: independent layer cut masks now permit overpainting deliberate 
 The app automatically makes a bridge only when a later sheet already hides its entire footprint;
 anything it cannot repair remains an island warning, never an omitted detail. It also locates
 soft source-image gradients on cut edges and labels the appropriate edge for controlled
-stencil lifting in the print PDF, with scrap-test guidance. These are early, conservative
-steps; expressive brushstroke separation and semantic reconstruction of exposed islands are
-still to come. See [the implementation and limitations](docs/STROKE_ISLANDS.md).
+stencil lifting in the print PDF, with scrap-test guidance. **Stroke construction** offers
+Classic (the original masks) and opt-in Brush strokes (small contour-guided negative marks
+from supported stencil material into broad later-layer paint areas). This prototype does
+not yet fully reconstruct expressive additive brush strokes or exposed islands. See [the implementation and limitations](docs/STROKE_ISLANDS.md).
 
 ## Cutter files
 

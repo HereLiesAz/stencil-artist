@@ -345,6 +345,21 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         LabelledSlider("Edge closing", "${state.closing} px", state.closing.toFloat(), 1f..25f) {
             state.setClosing(it.roundToInt())
         }
+        Section("Stroke construction") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice("Classic", selected = !state.strokeBased, modifier = Modifier.weight(1f)) {
+                    state.useStrokeBased(false)
+                }
+                Choice("Brush strokes", selected = state.strokeBased, modifier = Modifier.weight(1f)) {
+                    state.useStrokeBased(true)
+                }
+            }
+            Text(
+                "Fine, flow-aligned negative strokes shape large regions. The original cuts remain available in Classic mode.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (state.mode == SeparationMode.TONE) {
             LabelledSlider("Tonal bias", tone.bias.let { if (it > 0) "+$it" else "$it" }, tone.bias.toFloat(), -100f..100f) {
                 state.update(tone.copy(bias = it.roundToInt()))

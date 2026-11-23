@@ -45,6 +45,15 @@ pixel-width connection does not prove a millimetre-width connection.
   exactly afterward. Exposed bridge routes remain unresolved and are annotated by
   the existing PDF island tips. The current path follows short connections with
   luminance-flow tie-breaking, not full semantic stroke reconstruction.
+- The optional **Brush strokes** mode now uses `StrokeStyler` to cut narrow,
+  contour-guided **negative tongues** into broad grey/white or other upper-sheet
+  paint openings. Every tongue starts at border-connected stock, so it is itself
+  a supported material connection. Tiny marks are left unmodified, the base
+  remains unchanged, and the changed area is bounded. Direction blends inward
+  geometry with the source's luminance-contour tangent. This is an early
+  textured-stroke treatment, **not** a full semantic reconstruction or proof
+  that the exact reference brushwork has been reproduced. Classic mode restores
+  the former cuts immediately.
 - `SoftGradientZones.locate` inspects gradual source-luminance transitions beside
   actual cut edges. It rejects sharp steps and regions with insufficient source
   alpha. One representative zone per local cell becomes a `SOFT GRADIENT` tip.
@@ -59,9 +68,10 @@ pixel-width connection does not prove a millimetre-width connection.
 
 ## Still required
 
-- True stroke-based grey/white layer synthesis, with form-aware curved paths and
-  controlled end-of-scribble hatching. Merely tracing a blob as a smoothed outline
-  does not supply this.
+- More complete stroke-based grey/white synthesis: explicit additive ribbons,
+  form-aware curved paths, tapered end-of-scribble hatching, and learned stroke
+  grouping. Today's supported negative tongues only articulate existing broad
+  paint masses; they do not yet replace all blob-based region generation.
 - Joint across-layer design for cases where **no existing later cut** conceals a
   bridge, including explicit grey/white reconstruction and black-base repairs.
 - Confidence/saliency checks around pupils, letters, hands and silhouettes.
