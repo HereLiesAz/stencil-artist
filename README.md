@@ -28,7 +28,9 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
 - Shows the improved base image, the finished piece, or any one sheet alone.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
-  transparent PNG; or every sheet plus the composite in one ZIP. Every PNG uses the same paint
+  transparent PNG; or every sheet plus the composite in one ZIP. Also exports a versioned
+  [StencilPack](docs/STENCILPACK_V1.md) with individually named, aligned PNG sheets for
+  Graffux and GraffitiXR. Every PNG uses the same paint
   order, sheet colours and alpha as the preview, at the current working-image pixel dimensions.
 - Downloads one actual-size print PDF for the shown sheet or every sheet: a single instructions page,
   then per sheet an assembly map and the tiled pages. Nothing is trimmed: pages are laid left to right, top to

@@ -46,6 +46,17 @@ private object DownloadSaver : FileSaver {
     }
 }
 
+@Composable
+actual fun rememberStencilPackSharer(): StencilPackSharer = remember {
+    object : StencilPackSharer {
+        override suspend fun share(file: ExportFile) {
+            DownloadSaver.save(file) { saved ->
+                check(saved) { "Browser blocked StencilPack download" }
+            }
+        }
+    }
+}
+
 actual fun encodePng(pixels: IntArray, width: Int, height: Int): ByteArray {
     // An ARGB int, least significant byte first, is B,G,R,A: Skia's BGRA_8888.
     val bytes = ByteArray(pixels.size * 4)
