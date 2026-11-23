@@ -1397,7 +1397,11 @@ object PrintPdf {
                 com.hereliesaz.stencilartist.core.paint.MatchQuality.CLOSE -> "close match"
                 com.hereliesaz.stencilartist.core.paint.MatchQuality.APPROXIMATE -> "approximate match"
             }
-            return if (item.sampled) "$q (colour sampled, approximate)" else q
+            return when {
+                item.userColour -> "$q (user-entered colour, approximate)"
+                item.sampled -> "$q (colour sampled, approximate)"
+                else -> q
+            }
         }
 
         private fun canName(can: com.hereliesaz.stencilartist.core.paint.Can): String =
