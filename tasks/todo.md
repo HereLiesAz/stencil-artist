@@ -242,10 +242,13 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 1. **Islands and stroke synthesis.** In progress: Az's black-base/grey/white
    references establish that essential details must be reproducible from the supplied
    cuts, even if the painter previously reconstructed them by hand. The first stage
-   adds independently overpainted cuts and automatic negative-stroke bridges only where
-   a later layer fully conceals the changed pixels. Exposed islands remain flagged,
-   not silently deleted. Full stroke-based generation, grey/white collaborative
-   reconstruction, physical-width checking and real-world validation remain.
+   adds independently overpainted cuts, exact island removal when already-placed
+   later layers restore the entire detail (black to white or black to grey and
+   white), and negative-stroke bridges only where later paint fully conceals them.
+   Exposed islands remain flagged, not silently deleted. Newly composed
+   grey/white corrections where existing cuts cannot restore a detail, full
+   semantic stroke-based generation, physical-width checking and real-world
+   validation remain.
    The opt-in Brush strokes mode now reconstructs wide later-layer regions as
    narrow additive, flow-guided paint ribbons (with bounded deviation and a
    retained-stock island check), leaving thin details and Classic available.
