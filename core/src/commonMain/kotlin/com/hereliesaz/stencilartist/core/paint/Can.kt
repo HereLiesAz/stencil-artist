@@ -7,6 +7,9 @@ enum class HexSource {
 
     /** We sampled it from the maker's swatch image, so it is our own measurement, not a published figure. */
     SAMPLED,
+
+    /** The user entered this approximate RGB locally; not a maker or app-supplied value. */
+    USER,
 }
 
 /**
