@@ -815,8 +815,14 @@ private fun NumberField(
     var text by remember { mutableStateOf(fixedDecimals(value, decimals)) }
     LaunchedEffect(value) {
         val typed = text.replace(',', '.').toDoubleOrNull()
-        if (typed == null || abs(typed - value) > 0.5 / 10.0.pow(decimals)) text = fixedDecimals(value, decimals)
+        if (typed == null || abs(typed - value) > 0.5 / 10.0.pow(decimals)) {
+            text = fixedDecimals(value, decimals)
+            onDraft?.invoke(text)
+        }
     }
+    // Hidden fields are disposed when switching formats. On return their text is recreated
+    // from the last valid value, so invalidate no export based on a stale prior draft.
+    LaunchedEffect(Unit) { onDraft?.invoke(text) }
     Column(modifier) {
         Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
         BasicTextField(
@@ -824,7 +830,9 @@ private fun NumberField(
             onValueChange = { next ->
                 text = next
                 onDraft?.invoke(next)
-                next.replace(',', '.').toDoubleOrNull()?.let(onValue)
+                // Kotlin parses NaN and Infinity; storing either would crash fixedDecimals
+                // when this field is recreated and could leak invalid machine parameters.
+                next.replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }?.let(onValue)
             },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
