@@ -74,19 +74,30 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Traces every sheet into vector outlines and writes cutter files at a real physical size: SVG,
   DXF (R12), HPGL and G-code, whole or split across a cutting mat or sheet of paper.
 
-Not yet: bridges for islands and custom mat sizes in the UI. See the roadmap.
+Not yet: bridges for islands. See the roadmap.
 
 ## Cutter files
 
-Set **Physical size**, then in **Cutter files** pick a format and, if the piece is larger than
-the machine takes, a mat or paper size to split it across. Download the shown sheet or all of them.
+Set **Physical size**, then in **Cutter files** pick a format and choose **Whole**, a preset mat
+or sheet, **Custom mat**, or **Roll**. Custom mats accept width, height, edge margin and tile
+overlap in millimetres. Rolls accept width, edge and overlap; length is unlimited, so tiled
+roll exports produce full-length strips. The panel reports the number of tiles and disables
+downloads if a size/overlap is invalid or the plan exceeds its tile limit. Download the shown
+sheet or all sheets.
+
+For **G-code**, select **Laser** or **Router** and set cutting feed, travel feed (mm/min),
+controller-specific power/spindle S value, and passes. Router mode also exposes safe and
+cut Z positions in millimetres. These settings are passed into actual exported G-code,
+including every tile in ZIP exports. Confirm your machine's S range, cut depth and travel
+motion; simulate or dry-run the output before enabling the tool. No machine is controlled
+directly by the app.
 
 | Format | For |
 |---|---|
 | SVG | Cricut Design Space, Brother CanvasWorkspace, Silhouette Studio (paid tiers), LightBurn, Inkscape |
 | DXF (R12, millimetres) | Silhouette Studio's free tier, CAD/CAM |
 | HPGL (`.plt`) | Roll plotters and vinyl cutters |
-| G-code | GRBL lasers and routers (outline only; default feed and power, edit before running) |
+| G-code | GRBL lasers and routers (outline only; configurable feed, power, passes and router Z) |
 
 Printing on paper is the separate **Print PDF** section (see below), not a cutter format.
 
