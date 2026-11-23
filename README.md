@@ -78,7 +78,13 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Traces every sheet into vector outlines and writes cutter files at a real physical size: SVG,
   DXF (R12), HPGL and G-code, whole or split across a cutting mat or sheet of paper.
 
-Not yet: bridges for islands. See the roadmap.
+Island planning: independent layer cut masks now permit overpainting deliberate negative-stroke bridges.
+The app automatically makes a bridge only when a later sheet already hides its entire footprint;
+anything it cannot repair remains an island warning, never an omitted detail. It also locates
+soft source-image gradients on cut edges and labels the appropriate edge for controlled
+stencil lifting in the print PDF, with scrap-test guidance. These are early, conservative
+steps; expressive brushstroke separation and semantic reconstruction of exposed islands are
+still to come. See [the implementation and limitations](docs/STROKE_ISLANDS.md).
 
 ## Cutter files
 
