@@ -76,6 +76,7 @@ object IslandPlanner {
             }
             val visitedIsland = BooleanArray(n)
             val visitedPath = IntArray(n)
+            val pathQueue = IntArray(n)
             val parent = IntArray(n)
             val depth = IntArray(n)
             var generation = 0
@@ -144,13 +145,13 @@ object IslandPlanner {
                             visitedPath[q] = generation
                             parent[q] = -1
                             depth[q] = 1
-                            queue[searchTail++] = q
+                            pathQueue[searchTail++] = q
                         }
                     }
                 }
                 var destination = -1
                 while (searchHead < searchTail && destination < 0) {
-                    val p = queue[searchHead++]
+                    val p = pathQueue[searchHead++]
                     if (depth[p] > maxPathPixels) break
                     val options = ArrayList<Int>(4)
                     neighbours(p) { q -> options.add(q) }
@@ -164,7 +165,7 @@ object IslandPlanner {
                             visitedPath[q] = generation
                             parent[q] = p
                             depth[q] = depth[p] + 1
-                            queue[searchTail++] = q
+                            pathQueue[searchTail++] = q
                         }
                     }
                 }
