@@ -23,19 +23,27 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   as there are sheets, up to 1024, and sprayed in an order of your choice: auto (dark base for a
   dark subject, light for a light one), light to dark, dark to light, or largest area first.
   An image with fewer distinct colours than sheets asked for makes that many sheets, not duplicates.
-  Free Colour mode has a palette editor: select a sheet swatch, enter a six-digit hex colour or
-  adjust RGB channels, then Apply. It regenerates the separation and all subsequent exports
-  with that palette (including reassigning pixels to the nearest paint); duplicate colours are
-  refused. Use **Use image colours again** to reset to the image-derived palette. The underlying
-  setting is `ColorParams.colors`. Switching to canned-paint modes ignores manual palette edits.
+  Free Colour mode has a palette editor: select a sheet swatch and browse the full paint catalogue
+  as a grid of uncapped, top-view spray cans. A tap opens a swipeable carousel with the whole can,
+  the maker and colour name alongside it, and the edges of adjacent cans visible as navigation cues.
+  The colour can be applied to that sheet, regenerating the stencil and subsequent exports. Brand
+  filters and search narrow the gallery; the grid displays more on demand, while the carousel can
+  traverse every result. Exact hex and RGB sliders are available underneath for custom colours;
+  duplicate colours are refused. **Use image colours again** restores the image-derived palette.
+  The setting is `ColorParams.colors`. Can-based paint modes keep their own selections.
 - Paints a stencil from real spray cans. In Colour mode, **Paint** is *Free* (any colours), *Pick for me*
   (you set the layer count and which brands or lines are allowed; the app matches the image's colours to
-  distinct cans) or *My cans* (a can picker: search, brand chips, a grid of can tops and a swipeable carousel of whole cans, with a selected strip; the layers are
+  distinct cans) or *My cans* (the same can-top grid and swipeable full-can carousel, plus a selected strip; the layers are
   exactly the chosen cans' distinct colours, and two cans of one colour make one layer). A **Paint list**
   shows each layer's can, code and how near it is (Exact, Close, Approximate); a can no pixel uses is
   noted as not needed and left off the lists unless you keep it. The print PDF is given a shopping list
   of the cans for the sheets it prints. Chosen cans, allowed brands and learned barcodes are kept on the
   device (SharedPreferences, `localStorage`).
+- Can-top artwork is drawn in-app with an uncapped central valve, neutral metal and a coloured
+  shoulder ring. No retailer image is embedded. Catalogue entries lacking colour values remain
+  visible with hatched rings, but cannot be applied as paint colours. Retailer swatches (including
+  [Spray Planet's MTN 94 selection](https://www.sprayplanet.com/collections/mtn-94)) are approximate
+  references, not licensed source artwork or automatically imported colour measurements.
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
 - Shows the improved base image, the finished piece, or any one sheet alone.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
