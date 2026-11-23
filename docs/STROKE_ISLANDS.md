@@ -45,15 +45,30 @@ pixel-width connection does not prove a millimetre-width connection.
   exactly afterward. Exposed bridge routes remain unresolved and are annotated by
   the existing PDF island tips. The current path follows short connections with
   luminance-flow tie-breaking, not full semantic stroke reconstruction.
-- The optional **Brush strokes** mode now uses `StrokeStyler` to cut narrow,
-  contour-guided **negative tongues** into broad grey/white or other upper-sheet
-  paint openings. Every tongue starts at border-connected stock, so it is itself
-  a supported material connection. Tiny marks are left unmodified, the base
-  remains unchanged, and the changed area is bounded. Direction blends inward
-  geometry with the source's luminance-contour tangent. This is an early
-  textured-stroke treatment, **not** a full semantic reconstruction or proof
-  that the exact reference brushwork has been reproduced. Classic mode restores
-  the former cuts immediately.
+- The optional **Brush strokes** mode now uses `StrokeStyler` to **construct
+  additive paint ribbons** inside broad grey/white or other later-layer openings.
+  It does not merely make decorative notches in existing blobs. The smallest
+  configured brush width is used for the centre paths, with tapered starts and
+  turns guided by smoothed source luminance contours. When the photograph is flat,
+  ribbons follow the shape's distance-contour field. Broad connected paint
+  components are remade from these small strokes; thin and small components,
+  including distinctive eye and lens marks, remain unchanged. Attached thin
+  extensions are protected by local width checks on horizontal, vertical and
+  diagonal axes, rather than by component size alone. Protected detail is
+  **excluded** from the reconstruction quota so a long narrow line cannot
+  substitute for painting its attached broad region. Ribbons never paint
+  outside their original coverage, and a maximum loss budget prevents excessive
+  missing paint. Some of that allowance is reserved for narrow **negative
+  brushstrokes** starting only at **border-connected retained material**.
+  They follow the same local form and tonal direction, providing physical
+  connections and leaving safe, intentional gaps between positive paint
+  ribbons. Protected thin features remain painted throughout, including where
+  a negative stroke turns diagonally. Newly removed paint that cannot connect
+  to the sheet border is painted back in, even when it touches a pre-existing
+  unsupported island, so the island is never enlarged.
+  The black base remains unchanged. This is a procedural stroke treatment,
+  **not** semantic recognition or proof that it matches the supplied reference
+  artwork. Classic mode restores the original cut geometry.
 - `SoftGradientZones.locate` inspects gradual source-luminance transitions beside
   actual cut edges. It rejects sharp steps and regions with insufficient source
   alpha. One representative zone per local cell becomes a `SOFT GRADIENT` tip.
@@ -68,10 +83,10 @@ pixel-width connection does not prove a millimetre-width connection.
 
 ## Still required
 
-- More complete stroke-based grey/white synthesis: explicit additive ribbons,
-  form-aware curved paths, tapered end-of-scribble hatching, and learned stroke
-  grouping. Today's supported negative tongues only articulate existing broad
-  paint masses; they do not yet replace all blob-based region generation.
+- More complete stroke synthesis: semantic grouping of strokes by object,
+  perspective and anatomy; multi-stroke scribbles whose tapered ends describe
+  broad gradients; and physically calibrated brush widths. The new additive
+  ribbon generator is source-gradient-guided but still procedural, not semantic.
 - Joint across-layer design for cases where **no existing later cut** conceals a
   bridge, including explicit grey/white reconstruction and black-base repairs.
 - Confidence/saliency checks around pupils, letters, hands and silhouettes.
