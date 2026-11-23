@@ -182,6 +182,22 @@ class TilingTest {
     }
 
     @Test
+    fun clippingKeepsExactSourceEndpointsEvenWithFractionalCoordinates() {
+        // Independent polygon-intersection area for this partially clipped quadrilateral is
+        // 607.9150792169817 mm². Recomputing a kept source vertex as a + 1*(b-a) used to
+        // introduce a few ULPs of drift, causing an open path with no matching next vertex.
+        val polygon = listOf(
+            Point(49.2368, 10.8057), Point(57.7128, 27.7437),
+            Point(65.0, 50.0), Point(30.0, 50.0),
+        )
+        val loops = Clip.shape(polygon, emptyList(), RectMm(40.0, 15.0, 80.0, 70.0))
+        assertEquals(1, loops.size)
+        assertEquals(607.9150792169817, Ring(loops.single(), false).signedArea, 1e-6)
+        assertTrue(Point(57.7128, 27.7437) in loops.single(),
+            "retained vertices must match exactly, without floating-point reconstruction")
+    }
+
+    @Test
     fun tiledSvgDxfHpglAndGcodeAllConsumeTheSeparatedLoops() {
         val u = listOf(
             Point(0.0, 0.0), Point(10.0, 0.0), Point(10.0, 10.0), Point(7.0, 10.0),
