@@ -75,7 +75,38 @@ object StrokeStyler {
                 ))
             }
 
+            // Only original stock connected to the page border can anchor a
+            // new negative stroke. Adjacency to a pre-existing unsupported
+            // island must never be mistaken for a physical connection.
+            val supported = BooleanArray(n)
+            val stockQueue = IntArray(n)
+            var stockTail = 0
+            fun addSupported(p: Int) {
+                if (!mask[p] && !supported[p]) {
+                    supported[p] = true
+                    stockQueue[stockTail++] = p
+                }
+            }
+            for (x in 0 until w) {
+                addSupported(x)
+                addSupported((h - 1) * w + x)
+            }
+            for (y in 0 until h) {
+                addSupported(y * w)
+                addSupported(y * w + w - 1)
+            }
+            var stockHead = 0
+            while (stockHead < stockTail) {
+                val p = stockQueue[stockHead++]
+                val x = p % w
+                if (x > 0) addSupported(p - 1)
+                if (x + 1 < w) addSupported(p + 1)
+                if (p >= w) addSupported(p - w)
+                if (p + w < n) addSupported(p + w)
+            }
+
             val rebuilt = mask.copyOf()
+            val protected = BooleanArray(n)
             val member = IntArray(n)
             val queue = IntArray(n)
             var component = 0
@@ -148,8 +179,29 @@ object StrokeStyler {
                         return length
                     }
                     if (minOf(chord(1, 0), chord(0, 1), chord(1, 1), chord(1, -1)) <= 5) {
-                        rebuilt[p] = true
-                        painted++
+                        // A broad blob's boundary is thin along one axis too. If
+                        // substantial painted interior lies nearby, this is a
+                        // broad edge, not a separate delicate mark. Actual narrow
+                        // extensions have no nearby core in any direction.
+                        var nearBroadCore = false
+                        for (dy in -5..5) {
+                            if (nearBroadCore) break
+                            for (dx in -5..5) {
+                                if (abs(dx) + abs(dy) > 5) continue
+                                val xx = x + dx
+                                val yy = y + dy
+                                if (xx in 0 until w && yy in 0 until h &&
+                                    distance[yy * w + xx] >= 6) {
+                                    nearBroadCore = true
+                                    break
+                                }
+                            }
+                        }
+                        if (!nearBroadCore) {
+                            protected[p] = true
+                            rebuilt[p] = true
+                            painted++
+                        }
                     }
                 }
                 // The broad-area quota MUST exclude already protected fine details.
@@ -281,8 +333,9 @@ object StrokeStyler {
                         val p = seedY * w + x
                         // The first pixel is adjacent to retained material, and a
                         // substantial body of paint extends inward from that edge.
-                        if (member[p] == component && member[p - 1] != component &&
-                            member[p + 8] == component && distance[p + 8] >= 5) {
+                        if (member[p] == component && supported[p - 1] &&
+                            !protected[p] && member[p + 8] == component &&
+                            distance[p + 8] >= 5) {
                             seedX = x
                             break
                         }
@@ -300,14 +353,17 @@ object StrokeStyler {
                             val y = py.roundToInt()
                             if (x !in 2 until w - 2 || y !in 2 until h - 2) break
                             val p = y * w + x
-                            if (member[p] != component ||
+                            if (member[p] != component || protected[p] ||
                                 (step > 8 && distance[p] <= 3)) break
                             // Preserve four-connected stock even across a diagonal
                             // rounding step, as an artist would keep a scribble joined.
                             if (step > 0 && x != lastX && y != lastY) {
                                 val corner = lastY * w + x
-                                if (member[corner] == component && rebuilt[corner] &&
-                                    unpainted < allowedMissing) {
+                                // A diagonal jump without this connecting pixel
+                                // would detach the new stock stroke. Never cut a
+                                // protected detail just to complete the jump.
+                                if (member[corner] != component || protected[corner]) break
+                                if (rebuilt[corner] && unpainted < allowedMissing) {
                                     rebuilt[corner] = false
                                     unpainted++
                                 }
@@ -321,8 +377,8 @@ object StrokeStyler {
                                 val yy = (y + ny * offset).roundToInt()
                                 if (xx !in 0 until w || yy !in 0 until h) continue
                                 val q = yy * w + xx
-                                if (member[q] == component && rebuilt[q] &&
-                                    unpainted < allowedMissing) {
+                                if (member[q] == component && !protected[q] &&
+                                    rebuilt[q] && unpainted < allowedMissing) {
                                     rebuilt[q] = false
                                     unpainted++
                                 }
@@ -382,12 +438,10 @@ object StrokeStyler {
                 if (rebuilt[p] || seen[p]) continue
                 head = 0
                 tail = 0
-                var newlyCreated = true
                 q[tail++] = p
                 seen[p] = true
                 while (head < tail) {
                     val current = q[head++]
-                    if (!mask[current]) newlyCreated = false
                     val x = current % w
                     fun visitIsland(next: Int) {
                         if (!rebuilt[next] && !seen[next]) {
@@ -400,7 +454,10 @@ object StrokeStyler {
                     if (current >= w) visitIsland(current - w)
                     if (current + w < n) visitIsland(current + w)
                 }
-                if (newlyCreated) for (i in 0 until tail) rebuilt[q[i]] = true
+                // This component is NOT border-connected. Restore only newly
+                // removed paint. Preserve every original uncut pixel, including
+                // pre-existing islands, but never let new ribbons enlarge them.
+                for (i in 0 until tail) if (mask[q[i]]) rebuilt[q[i]] = true
             }
             cuts[sheet] = rebuilt
         }
