@@ -115,6 +115,54 @@ class StrokeStylerTest {
     }
 
     @Test
+    fun negativeBrushstrokesCannotEraseAnAttachedSinglePixelHighlight() {
+        val w = 120
+        val h = 90
+        val paint = BooleanArray(w * h) { p ->
+            val x = p % w
+            val y = p / w
+            (x in 25..95 && y in 10..70) || (x in 20..24 && y == 17)
+        }
+        val image = RgbaImage(w, h, IntArray(w * h) { 0xFF777777.toInt() })
+        val source = Separation.fromMasks(w, h, listOf(black, white),
+            listOf(BooleanArray(w * h) { true }, paint))
+        val styled = StrokeStyler.stylize(image, source).mask(1)
+        for (x in 20..24) {
+            assertTrue(styled[17 * w + x],
+                "single-pixel highlight at ($x,17) must not be carved as a negative stroke")
+        }
+        assertTrue((24..81).any { y -> (35..82).any { x -> !styled[y * w + x] } },
+            "wide coat or face areas must still show connected stroke texture")
+    }
+
+    @Test
+    fun negativeGapsDoNotEnlargeAlreadyUnsupportedMaterial() {
+        // A narrow paint ring encloses unsupported stock. A separate large painted
+        // patch inside that ring cannot safely carve negative marks into the stock:
+        // there is NO route from that stock to the sheet's outside edge.
+        val w = 160
+        val h = 160
+        val paint = BooleanArray(w * h) { p ->
+            val x = p % w
+            val y = p / w
+            val ring = x in 10..145 && y in 10..145 &&
+                (x !in 13..142 || y !in 13..142)
+            val inner = x in 40..110 && y in 40..110
+            ring || inner
+        }
+        val image = RgbaImage(w, h, IntArray(w * h) { 0xFF888888.toInt() })
+        val source = Separation.fromMasks(w, h, listOf(black, gray),
+            listOf(BooleanArray(w * h) { true }, paint))
+        val actual = StrokeStyler.stylize(image, source).mask(1)
+        for (y in 40..110) for (x in 40..110) {
+            assertTrue(actual[y * w + x],
+                "unsupported retained material must not grow into the inner painted patch")
+        }
+        assertFalse(actual[20 * w + 20], "the original uncut material must remain unpainted")
+        assertContentEquals(paint, source.mask(1), "the source stencil stays unchanged")
+    }
+
+    @Test
     fun attachedDiagonalHighlightsRemainFullyPainted() {
         // A 5-row-wide diagonal branch is visually thinner than its horizontal
         // bounding runs. Check the geometry itself, not a calculation reproduced
