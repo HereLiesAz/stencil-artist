@@ -126,7 +126,7 @@ object StrokeStyler {
                 for (i in 0 until tail) {
                     val p = queue[i]
                     // A pixel at least five pixels from every 4-neighbour boundary
-                    // cannot belong to a stroke whose cross-section is four pixels.
+                    // cannot belong to a stroke whose local cross-section is five pixels.
                     // Skip expensive directional checks in the broad interior.
                     if (distance[p] > 4) continue
                     val x = p % w
@@ -147,7 +147,7 @@ object StrokeStyler {
                         }
                         return length
                     }
-                    if (minOf(chord(1, 0), chord(0, 1), chord(1, 1), chord(1, -1)) <= 4) {
+                    if (minOf(chord(1, 0), chord(0, 1), chord(1, 1), chord(1, -1)) <= 5) {
                         rebuilt[p] = true
                         painted++
                     }
