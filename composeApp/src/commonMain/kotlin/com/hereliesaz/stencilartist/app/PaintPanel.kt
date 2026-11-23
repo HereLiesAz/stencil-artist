@@ -34,6 +34,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -347,9 +350,6 @@ private const val SWIPE_PX = 40f
 /** A set of cans being looked through in the carousel, from [start]. */
 private class Browsing(val cans: List<Can>, val start: Int)
 
-/** How many can tops show at first, and how many more each "Show more" tile adds. */
-private const val TOPS = 60
-
 /**
  * My cans adds the scanner and selected-can strip to the same can browser used by Free Colour.
  * Scanning never changes a free-colour palette or its selected sheet.
@@ -400,9 +400,9 @@ private fun CanPicker(state: StencilState) {
 
 /**
  * Shared catalogue browser: a top-view grid, search and brand filters, and a full-can carousel.
- * The grid initially shows [TOPS] of the *complete* catalogue, adding more in batches. Opening
- * any can navigates over the complete filtered results, not just the visible batch. This allows
- * swiping to a neighbouring can even before its grid tile is shown.
+ * The grid lazily scrolls through every catalogue entry in a fixed-height viewport, so several
+ * thousand cans are navigable without inflating the outer controls panel or rendering them all.
+ * Opening any can navigates over the complete filtered results, including currently unseen rows.
  *
  * [onPick] applies a can colour to a Free sheet or learns a barcode; null means My cans'
  * usual selection toggle. [requireColour] prevents selecting an entry without an RGB value.
@@ -419,8 +419,9 @@ private fun CanBrowser(
     val scheme = MaterialTheme.colorScheme
     var query by remember { mutableStateOf("") }
     var brand by remember { mutableStateOf<String?>(null) }
-    var shown by remember { mutableStateOf(TOPS) }
+    val gridState = rememberLazyGridState()
     var browsing by remember { mutableStateOf<Browsing?>(null) }
+    LaunchedEffect(query, brand) { gridState.scrollToItem(0) }
     val open = browsing
 
     if (open != null) {
@@ -433,10 +434,10 @@ private fun CanBrowser(
             requireColour = requireColour,
         )
     } else {
-        SearchField(query, onChange = { query = it; shown = TOPS })
+        SearchField(query, onChange = { query = it })
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SmallChoice("All brands", selected = brand == null) { brand = null; shown = TOPS }
-            for (b in catalogue.brands) SmallChoice(b, selected = brand == b) { brand = b; shown = TOPS }
+            SmallChoice("All brands", selected = brand == null) { brand = null }
+            for (b in catalogue.brands) SmallChoice(b, selected = brand == b) { brand = b }
         }
         val results = remember(query, brand, catalogue) {
             val b = brand
@@ -452,24 +453,25 @@ private fun CanBrowser(
             Text("No can matches.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         } else {
             Text(
-                "${results.size} cans · showing ${minOf(shown, results.size)} tops",
+                "${results.size} cans · scroll to browse",
                 style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
             )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                for (i in 0 until minOf(shown, results.size)) {
+            // The parent control panel is vertically scrollable; the grid must have a finite
+            // viewport to remain lazy and avoid infinite-height nested-scroll exceptions.
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 68.dp),
+                modifier = Modifier.fillMaxWidth().height(320.dp),
+                state = gridState,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(results.size) { i ->
                     val can = results[i]
                     CanTile(
                         can,
                         selected = if (onPick == null) can in state.selected
                             else selectedColour != null && can.rgb == selectedColour,
                     ) { browsing = Browsing(results, i) }
-                }
-                if (results.size > shown) {
-                    Box(
-                        Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(scheme.surfaceVariant)
-                            .clickable(role = Role.Button) { shown += TOPS },
-                        contentAlignment = Alignment.Center,
-                    ) { Text("Show more", style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center) }
                 }
             }
             Text(
