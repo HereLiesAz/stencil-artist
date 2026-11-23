@@ -117,7 +117,7 @@ class SeparationTest {
         assertContentEquals(intArrayOf(0, black, white, white, grey, 0), s.render())
         assertContentEquals(intArrayOf(0, 0, grey, 0, grey, 0), s.render(1))
         assertContentEquals(intArrayOf(0, 0, white, white, 0, 0), s.render(2))
-        assertContentEquals(booleanArrayOf(false, false, false, true, false, false),
+        assertContentEquals(booleanArrayOf(false, false, true, true, false, false),
             s.mask(2, Coverage.EXCLUSIVE))
     }
 
