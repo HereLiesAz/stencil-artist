@@ -158,6 +158,7 @@ class StencilState(
      */
     fun ensureCatalogue() {
         if (catalogue != null || catalogueJob?.isActive == true) return
+        val recoveringFromFailure = catalogueError != null
         catalogueLoading = true
         catalogueError = null
         catalogueJob = scope.launch {
@@ -168,8 +169,9 @@ class StencilState(
                 catalogue = loaded
                 pickMax = pickLimit(loaded, allowed)
                 pickCount = pickCount.coerceAtMost(pickMax)
-                // A failed load can leave free-colour fallback artwork; retry must replace it.
-                if (snapped && separation != null) remake(settle = false)
+                // A failed load can leave a free-colour fallback, or one still being computed.
+                // A successful retry must replace either, even before a fallback has rendered.
+                if (recoveringFromFailure && snapped && source != null) remake(settle = false)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
