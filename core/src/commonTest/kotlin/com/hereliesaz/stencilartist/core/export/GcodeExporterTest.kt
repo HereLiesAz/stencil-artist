@@ -134,6 +134,34 @@ class GcodeExporterTest {
     }
 
     @Test
+    fun customRollTilesUseTheConfiguredFeedTravelPowerAndPasses() {
+        // 140 mm roll less 5 mm on each side = 130 mm usable, step 120 mm with 10 mm overlap.
+        // A 200 mm drawing therefore has two full-height strips. These values are independent
+        // fixed expectations, not calculations copied from the implementation.
+        val roll = TileSpec.roll(140.0, edgeMm = 5.0, overlapMm = 10.0)
+        val plan = Tiling.plan(sampleDrawing(), sampleSize, roll)
+        assertEquals(1, plan.rows)
+        assertEquals(2, plan.cols)
+        assertEquals(RectMm(120.0, 0.0, 200.0, 120.0), plan.tile(0, 1).clip)
+        val options = GcodeOptions(
+            feedMmPerMin = 730.0,
+            travelMmPerMin = 4500.0,
+            power = 240.0,
+            passes = 2,
+        )
+        val output = GcodeExporter.export(
+            sampleDrawing(), sampleSize, sheet = 1, tile = plan.tile(0, 1), options = options,
+        )
+        assertTrue("M4 S0" in output)
+        assertTrue("F4500 S0" in output)
+        assertTrue("F730 S240" in output)
+        val rings = laserRings(output)
+        assertEquals(1, rings.size)
+        assertEquals(7, rings.single().points.size, "one triangle start plus three cuts in each pass")
+        assertTrue(rings.single().points.all { it.x in -1e-9..80.0 + 1e-9 })
+    }
+
+    @Test
     fun optionsAreValidated() {
         assertFailsWith<IllegalArgumentException> { GcodeOptions(feedMmPerMin = 0.0) }
         assertFailsWith<IllegalArgumentException> { GcodeOptions(passes = 0) }
