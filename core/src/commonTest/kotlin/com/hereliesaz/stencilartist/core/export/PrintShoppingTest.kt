@@ -252,6 +252,19 @@ class PrintShoppingTest {
     }
 
     @Test
+    fun userEnteredCanColourIsIdentifiedAsApproximateInThePdf() {
+        val userCan = can("MTN", "94", "Custom Red", "R-1", 0xFFAA2233.toInt(), src = HexSource.USER)
+        val item = ShoppingList.of(listOf(PaintLayer(0xFFAA2233.toInt(), listOf(userCan)))).single()
+        assertFalse(item.sampled)
+        assertTrue(item.userColour)
+        val words = PrintPdf.make(stripes(), PrintOptions(450.0, shopping = listOf(item)))
+            .let { parse(it).contents }.joinToString(" ") { textOf(it) }
+        assertTrue("user-entered colour, approximate" in words)
+        assertFalse("colour sampled" in words)
+        assertTrue("Custom Red" in words)
+    }
+
+    @Test
     fun aLongListContinuesOnExtraPagesWithLegibleTextInsideThePrintableArea() {
         val items = (1..40).map { fake(it, equivalents = if (it % 5 == 0) 4 else 0, sampled = it % 7 == 0) }
         for ((paper, landscape) in listOf(Paper.US_LETTER to false, Paper.A4 to true, Paper.A3 to false, Paper("Narrow", 130.0, 400.0) to false)) {

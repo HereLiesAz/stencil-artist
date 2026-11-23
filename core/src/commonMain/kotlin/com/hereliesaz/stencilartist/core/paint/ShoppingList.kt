@@ -39,8 +39,9 @@ enum class MatchQuality {
  * @property equivalents other cans of exactly the same colour value that would do as well.
  * @property distance Oklab distance from [can]'s colour to the colour it stands in for.
  * @property quality [distance] as a word.
- * @property sampled true if the can's colour value is our own sampling rather than the maker's, so
- *   the list should say the colour is less certain.
+ * @property sampled true if the app sampled a swatch rather than the maker publishing RGB.
+ * @property userColour true if this device's user supplied an approximate colour; never present
+ *   that as an official or app-measured value.
  */
 data class ShoppingItem(
     val layerNumber: Int,
@@ -49,6 +50,7 @@ data class ShoppingItem(
     val distance: Double,
     val quality: MatchQuality,
     val sampled: Boolean,
+    val userColour: Boolean = false,
 ) {
     val brand: String get() = can.brand
     val line: String get() = can.line
@@ -69,6 +71,7 @@ object ShoppingList {
             distance = distance,
             quality = MatchQuality.of(distance),
             sampled = layer.primary.hexSource == HexSource.SAMPLED,
+            userColour = layer.primary.hexSource == HexSource.USER,
         )
     }
 }

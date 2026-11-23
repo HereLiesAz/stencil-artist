@@ -288,7 +288,11 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 - Island bridging (deferred by Az). Free Colour sheets have a can-top palette browser using
   the same full-can peeking carousel as My cans, with fallback hex/RGB editing through
   `ColorParams.colors` and `StencilState.setSheetColor`. The can grid includes entries with no
-  colour value (hatched rings, not selectable as paint colours); MTN values remain unavailable.
+  colour value (hatched rings until the user supplies a colour). An MTN can or any other can
+  without RGB can be assigned, edited or cleared with a locally saved #RRGGBB approximation in
+  the full-can carousel. That value updates the can grid, barcode/key lookup, can selections,
+  Pick for me matching, and shopping lists without editing the bundled catalogue. The PDF
+  marks user-entered values as approximate. MTN maker RGB values are still unavailable.
   A live site/reference is not a redistribution license for its imagery or swatch database.
   Visual/touch checks on actual devices remain outstanding.
 - Custom mat and roll sizes, and G-code feed/power, are in core but have no UI yet.

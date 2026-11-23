@@ -114,7 +114,7 @@ internal fun PaintSection(state: StencilState) {
             else -> MyCans(state)
         }
         Text(
-            "Colour values are on-screen approximations; cans marked sampled are approximate; some makers have no colour value yet.",
+            "Can colours are approximate. Sampled and personally entered values are not verified paint measurements.",
             style = MaterialTheme.typography.bodySmall, color = subdued,
         )
     }
@@ -425,8 +425,13 @@ private fun CanBrowser(
     val open = browsing
 
     if (open != null) {
+        // Catalogue colours can be edited while the carousel is open. Refresh each visible
+        // can from its stable key, otherwise a saved colour leaves its action disabled until Back.
+        val currentCans = remember(open, catalogue) {
+            open.cans.map { catalogue.byKey(it.canKey) ?: it }
+        }
         CanCarousel(
-            state, open.cans, open.start, readOnly = false, onBack = { browsing = null },
+            state, currentCans, open.start, readOnly = false, onBack = { browsing = null },
             onAssign = onPick?.let { pick ->
                 { can: Can -> if (pick(can)) browsing = null }
             },
@@ -518,7 +523,8 @@ private fun SelectedTop(can: Can, onRemove: () -> Unit) {
  * Select toggle unless [readOnly]. Swipe by mouse drag or touch, press the arrow buttons or the
  * keyboard's left and right arrows. Only the pages near the centre are composed and drawn.
  * [onAssign] replaces My cans' selection action with applying a can's colour to a free sheet
- * or teaching an unknown barcode. Both workflows share the same peeking carousel.
+ * or teaching an unknown barcode. A colourless can offers a local user swatch entry first,
+ * then may participate in either action. Both workflows share the same peeking carousel.
  */
 @Composable
 private fun CanCarousel(
@@ -598,6 +604,57 @@ private fun CanCarousel(
             ArrowButton("›", "Next can", enabled = pager.currentPage < cans.size - 1) { go(1) }
         }
         if (!readOnly) {
+            // MTN and other cans without published RGB stay visible. Users may enter an
+            // approximation here, kept only on this device and never mistaken for maker data.
+            // Previously entered values can be corrected or cleared back to the original entry.
+            if (current.rgb == null || current.hexSource == HexSource.USER) {
+                var hexDraft by remember(current.canKey, current.rgb) {
+                    mutableStateOf(current.rgb?.let(PaletteColor::hex).orEmpty())
+                }
+                val candidate = PaletteColor.parseHex(hexDraft)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        if (current.rgb == null) "ADD YOUR COLOUR TO THIS CAN"
+                        else "EDIT YOUR SAVED CAN COLOUR",
+                        style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant,
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (candidate != null) Swatch(candidate, 36.dp)
+                        BasicTextField(
+                            value = hexDraft,
+                            onValueChange = { hexDraft = it },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                            textStyle = TextStyle(color = scheme.onSurface, fontSize = 14.sp),
+                            cursorBrush = SolidColor(scheme.primary),
+                            modifier = Modifier.weight(1f).fieldBox("Can colour hex"),
+                            decorationBox = { inner ->
+                                Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+                                    if (hexDraft.isEmpty()) Text("#RRGGBB", color = scheme.onSurfaceVariant)
+                                    inner()
+                                }
+                            },
+                        )
+                        OutlinedButton(
+                            onClick = { candidate?.let { state.saveCanColour(current, it) } },
+                            enabled = candidate != null && candidate != current.rgb,
+                        ) { Text("Save") }
+                    }
+                    if (hexDraft.isNotEmpty() && candidate == null) {
+                        Text("Use six RGB hex digits.", style = MaterialTheme.typography.bodySmall, color = scheme.error)
+                    }
+                    if (current.hexSource == HexSource.USER) {
+                        OutlinedButton(onClick = { state.clearCanColour(current) }) { Text("Clear my colour") }
+                    }
+                    Text(
+                        "Your approximation stays on this device, not in the manufacturer's catalogue.",
+                        style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                    )
+                }
+            }
             val isSelected = current in state.selected
             val selectable = if (onAssign != null) (!requireColour || current.rgb != null) else current.rgb != null
             Box(
@@ -677,6 +734,7 @@ private fun CanPage(can: Can, state: StencilState, signed: Float, pageWidth: Dp,
             }
             when {
                 can.rgb == null -> Text("no colour value", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+                can.hexSource == HexSource.USER -> Text("your colour · approximate", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
                 can.hexSource == HexSource.SAMPLED -> Text("colour sampled", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             }
         }
@@ -770,6 +828,7 @@ internal fun PaintListSection(state: StencilState) {
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             listOfNotNull(item.code, if (item.sampled) "sampled" else null,
+                                if (item.userColour) "your colour" else null,
                                 if (item.equivalents.isNotEmpty()) "+${item.equivalents.size} same colour" else null).joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,

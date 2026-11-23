@@ -37,6 +37,15 @@ class PaintCatalogue private constructor(
     /** For each brand, the hosts its data came from. */
     val sources: Map<String, List<String>>,
 ) {
+    /**
+     * Apply device-local user swatches without altering the bundled, provenance-tracked catalogue.
+     * Every index (key, GTIN, search, RGB, equivalence and matching) is rebuilt from the resulting
+     * cans. Call on the unmodified catalogue when clearing an override.
+     */
+    fun withUserColours(colours: UserCanColours): PaintCatalogue =
+        if (colours.size == 0) this
+        else PaintCatalogue(cans.map(colours::applyTo), brandNames, lineNames, sources)
+
     /** The brands, in file order. */
     val brands: List<String> get() = brandNames
 

@@ -40,8 +40,12 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   of the cans for the sheets it prints. Chosen cans, allowed brands and learned barcodes are kept on the
   device (SharedPreferences, `localStorage`).
 - Can-top artwork is drawn in-app with an uncapped central valve, neutral metal and a coloured
-  shoulder ring. No retailer image is embedded. Catalogue entries lacking colour values remain
-  visible with hatched rings, but cannot be applied as paint colours. Retailer swatches (including
+  shoulder ring. No retailer image is embedded. Catalogue entries lacking RGB values stay visible
+  with hatched rings. Open one in the carousel and enter your own #RRGGBB approximation; that
+  specific can gains a coloured ring and becomes available to Free Colour, My cans and Pick for me.
+  Your colour stays in SharedPreferences (Android) or localStorage (web), keyed by the stable can
+  identity, and may be corrected or cleared without changing the bundled catalogue. Saved colours
+  are identified as user-entered and approximate, including in the print PDF. Retailer swatches (including
   [Spray Planet's MTN 94 selection](https://www.sprayplanet.com/collections/mtn-94)) are approximate
   references, not licensed source artwork or automatically imported colour measurements.
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
