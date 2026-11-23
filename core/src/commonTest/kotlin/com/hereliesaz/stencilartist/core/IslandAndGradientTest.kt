@@ -63,7 +63,16 @@ class IslandAndGradientTest {
         for (y in 3..5) for (x in 3..5) whiteCentre[y * width + x] = true
 
         val original = Separation.fromMasks(width, width, listOf(black, white), listOf(baseRing, whiteCentre))
-        val expected = original.render()
+        val expected = IntArray(width * width) { pixel ->
+            val x = pixel % width
+            val y = pixel / width
+            when {
+                x in 3..5 && y in 3..5 -> white.color
+                x in 2..6 && y in 2..6 && (x == 2 || x == 6 || y == 2 || y == 6) -> black.color
+                else -> 0
+            }
+        }
+        assertContentEquals(expected, original.render())
         val plan = IslandPlanner.repair(original)
         assertEquals(1, plan.reconstructedIslands)
         assertEquals(0, plan.concealedBridges)
@@ -93,7 +102,16 @@ class IslandAndGradientTest {
         val original = Separation.fromMasks(
             width, width, listOf(black, grey, white), listOf(baseRing, greyCentre, whiteCentre),
         )
-        val expected = original.render()
+        val expected = IntArray(width * width) { pixel ->
+            val x = pixel % width
+            val y = pixel / width
+            when {
+                x in 3..5 && y in 3..5 -> if (x <= 4) grey.color else white.color
+                x in 2..6 && y in 2..6 && (x == 2 || x == 6 || y == 2 || y == 6) -> black.color
+                else -> 0
+            }
+        }
+        assertContentEquals(expected, original.render())
         val plan = IslandPlanner.repair(original)
         assertEquals(1, plan.reconstructedIslands)
         assertEquals(0, plan.unresolved)
@@ -118,7 +136,17 @@ class IslandAndGradientTest {
         assertEquals(0, plan.concealedBridges)
         assertEquals(1, plan.unresolved)
         assertContentEquals(baseRing, plan.separation.mask(0))
-        assertContentEquals(original.render(), plan.separation.render())
+        val expected = IntArray(width * width) { pixel ->
+            val x = pixel % width
+            val y = pixel / width
+            when {
+                x in 3..5 && y in 3..5 && (x != 3 || y != 3) -> white.color
+                x in 2..6 && y in 2..6 && (x == 2 || x == 6 || y == 2 || y == 6) -> black.color
+                else -> 0
+            }
+        }
+        assertContentEquals(expected, original.render())
+        assertContentEquals(expected, plan.separation.render())
     }
 
     @Test
