@@ -59,11 +59,13 @@ pixel-width connection does not prove a millimetre-width connection.
   substitute for painting its attached broad region. Ribbons never paint
   outside their original coverage, and a maximum loss budget prevents excessive
   missing paint. Some of that allowance is reserved for narrow **negative
-  brushstrokes** starting at supported stock around broad painted regions. They
-  follow the same local form and tonal direction, providing physical connections
-  and leaving safe, intentional gaps between positive paint ribbons. Any
-  **new enclosed stock gap** composed solely of previously painted pixels is
-  painted back in, rather than leaving a detached piece of stencil material.
+  brushstrokes** starting only at **border-connected retained material**.
+  They follow the same local form and tonal direction, providing physical
+  connections and leaving safe, intentional gaps between positive paint
+  ribbons. Protected thin features remain painted throughout, including where
+  a negative stroke turns diagonally. Newly removed paint that cannot connect
+  to the sheet border is painted back in, even when it touches a pre-existing
+  unsupported island, so the island is never enlarged.
   The black base remains unchanged. This is a procedural stroke treatment,
   **not** semantic recognition or proof that it matches the supplied reference
   artwork. Classic mode restores the original cut geometry.
