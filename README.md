@@ -167,7 +167,8 @@ colours of an image to the nearest cans. Regenerate it with `python3 tools/catal
   own sampling of the maker's swatch and are flagged so.
 - **Not for public release yet.** No licence to redistribute the data was found; `models/paints.NOTICE.txt`
   says where each brand's data came from. Check the makers' terms before shipping it.
-- Built so far: the data, its loading, and the logic in `core`. The picker screen is built (above); next: the barcode scanner.
+- The scanner is wired into the My cans picker. Unknown barcodes can be linked to a known can in
+  the same search/carousel, with that mapping persisted locally.
 
 ## Barcode scanner
 
@@ -193,6 +194,9 @@ again for two seconds while it stays in view. A barcode can also be typed.
 - **Android decoding.** CameraX and ML Kit's on-device barcode scanner, the bundled model (no Play services download,
   works offline). It adds about 13.6 MB to the release APK (arm64 and armeabi-v7a, not minified), most of it ML Kit's
   native library.
+- **Integrated:** The My cans picker scans and accepts manually typed barcodes, adds known cans
+  without toggling off already-selected ones, and offers catalogue search to identify unknown codes.
+  A recognized can without a colour value cannot form a stencil layer.
 - **Tested** with a fake camera (a generated EAN-13, UPC-A and UPC-E picture played as video) in headless Chromium,
   on both decoders' paths as far as that browser allows, and in unit tests. **Not tested:** a real camera or can, an
   Android device, iPhone Safari, or a real `BarcodeDetector`.
