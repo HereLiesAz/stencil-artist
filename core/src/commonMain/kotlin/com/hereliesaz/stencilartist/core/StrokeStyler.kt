@@ -130,7 +130,7 @@ object StrokeStyler {
                     val magnitude = sqrt((gx * gx + gy * gy).toFloat())
                     var tx: Float
                     var ty: Float
-                    if (magnitude >= 12f) {
+                    if (magnitude >= 3f) {
                         tx = -gy / magnitude
                         ty = gx / magnitude
                     } else {
