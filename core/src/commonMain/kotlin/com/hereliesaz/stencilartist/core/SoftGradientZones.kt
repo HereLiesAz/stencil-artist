@@ -20,7 +20,8 @@ data class LiftZone(val sheet: Int, val x: Int, val y: Int, val towards: LiftDir
  * This distinguishes a photograph's soft shadow from a crisp silhouette or printed lettering.
  *
  * One highest-contrast example is marked per local grid cell, with no artificial global
- * truncation. The PDF's normal full-sheet cutting-note machinery places these on safe stock or
+ * truncation. Stacks larger than sixteen sheets are left unannotated: scanning every cut
+ * edge for hundreds of full-resolution layers would freeze the browser. The PDF's normal full-sheet cutting-note machinery places these on safe stock or
  * on adjacent reference pages; it must never put instructions over the cutting geometry.
  *
  * Only supplied source pixels with substantial alpha are examined. The tool does not infer
@@ -32,7 +33,7 @@ object SoftGradientZones {
         require(cellSize >= 8)
         val width = source.width
         val height = source.height
-        if (width < 11 || height < 11) return emptyList()
+        if (width < 11 || height < 11 || stencil.sheets.size > 16) return emptyList()
         val samples = IntArray(source.pixels.size)
         val visible = BooleanArray(samples.size)
         for (i in samples.indices) {
