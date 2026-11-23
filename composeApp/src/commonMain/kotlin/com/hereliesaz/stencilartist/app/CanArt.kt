@@ -27,49 +27,48 @@ private fun lighter(rgb: Int, by: Double) = Color(CanColours.lighten(rgb, by))
 private fun darker(rgb: Int, by: Double) = Color(CanColours.darken(rgb, by))
 
 /**
- * A can seen from above, [size] square: a grey rim, a disc of [colour] (the cap), a soft highlight arc
- * and the nozzle. [colour] null draws a hatched grey disc, for a can with no colour value. [selected]
- * adds a thick white ring and a check; [sampled] adds a small dot, for a colour that is our own sampling.
+ * An uncapped can seen from directly above: grey metal rim, coloured shoulder donut and a centred
+ * silver valve/nozzle. Only the donut is painted; the metal and nozzle stay neutral. [colour] null
+ * draws a hatched donut because no RGB value is known. [selected] adds a ring and check; [sampled]
+ * adds a small dot for a colour sampled from the maker's image.
  */
 @Composable
 internal fun CanTop(colour: Int?, selected: Boolean, sampled: Boolean, size: Dp, modifier: Modifier = Modifier) {
     Canvas(modifier.size(size)) {
         val c = Offset(this.size.width / 2, this.size.height / 2)
         val r = this.size.minDimension / 2 * (if (selected) 0.86f else 0.92f)
-        // Rim: two greys, so the edge of the can has a lip.
+        // Flat, centred metal shoulder: unlike a cap, the colour occupies only the outer donut.
         drawCircle(Color(0xFF9A9A9A), r, c)
-        drawCircle(Color(0xFF4A4A4A), r * 0.93f, c)
-        val disc = r * 0.80f
+        drawCircle(Color(0xFF484848), r * 0.94f, c)
+        val ring = r * 0.87f
         if (colour == null) {
-            drawCircle(Color(0xFF2A2A2A), disc, c)
-            val clip = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, disc)) }
+            drawCircle(Color(0xFF303030), ring, c)
+            val clip = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, ring)) }
             clipPath(clip) {
-                val step = disc / 3.2f
-                var x = c.x - disc * 2
-                while (x < c.x + disc * 2) {
-                    drawLine(Color(0xFF6A6A6A), Offset(x, c.y + disc), Offset(x + disc * 2, c.y - disc), strokeWidth = r * 0.07f)
+                val step = ring / 3.2f
+                var x = c.x - ring * 2
+                while (x < c.x + ring * 2) {
+                    drawLine(Color(0xFF737373), Offset(x, c.y + ring), Offset(x + ring * 2, c.y - ring), strokeWidth = r * 0.07f)
                     x += step
                 }
             }
         } else {
-            drawCircle(tone(colour), disc, c)
-            // The cap's own shading: darker towards the lower right, a soft highlight arc at the upper left.
-            drawCircle(
-                Brush.radialGradient(
-                    listOf(Color.Transparent, Color.Black.copy(alpha = 0.28f)),
-                    center = Offset(c.x - disc * 0.3f, c.y - disc * 0.3f), radius = disc * 1.5f,
-                ),
-                disc, c,
-            )
+            drawCircle(tone(colour), ring, c)
             drawArc(
-                Color.White.copy(alpha = 0.45f), startAngle = 195f, sweepAngle = 70f, useCenter = false,
-                topLeft = Offset(c.x - disc * 0.62f, c.y - disc * 0.62f), size = Size(disc * 1.24f, disc * 1.24f),
-                style = Stroke(r * 0.1f, cap = StrokeCap.Round),
+                Color.White.copy(alpha = 0.28f), startAngle = 204f, sweepAngle = 66f,
+                useCenter = false, topLeft = Offset(c.x - ring * 0.88f, c.y - ring * 0.88f),
+                size = Size(ring * 1.76f, ring * 1.76f),
+                style = Stroke(r * 0.055f, cap = StrokeCap.Round),
             )
-            // The nozzle: a small dark-rimmed button in the middle.
-            drawCircle(darker(colour, 0.55), r * 0.2f, c)
-            drawCircle(lighter(colour, 0.35), r * 0.12f, Offset(c.x - r * 0.02f, c.y - r * 0.02f))
         }
+        drawCircle(Color(0xFFB7B7B7), r * 0.59f, c)
+        drawCircle(Color(0xFFE3E3E3), r * 0.53f, c)
+        drawCircle(Color(0xFF8A8A8A), r * 0.38f, c)
+        drawCircle(Color(0xFFD2D2D2), r * 0.31f, c)
+        // Every circle uses exactly c: there is no off-centre actuator or cap.
+        drawCircle(Color(0xFF343434), r * 0.20f, c)
+        drawCircle(Color(0xFF7D7D7D), r * 0.15f, c)
+        drawCircle(Color(0xFF252525), r * 0.057f, c)
         if (selected) {
             drawCircle(Color.White, this.size.minDimension / 2 - 1.5f, c, style = Stroke(this.size.minDimension * 0.07f))
             val badge = this.size.minDimension * 0.17f

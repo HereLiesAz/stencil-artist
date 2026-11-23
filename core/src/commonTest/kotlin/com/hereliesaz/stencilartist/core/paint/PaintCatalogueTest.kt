@@ -213,6 +213,26 @@ class PaintCatalogueTest {
     }
 
     @Test
+    fun fullGalleryIncludesColourlessCansAndUnpaginatedFilteredResults() {
+        // The new picker starts from the complete list and opens the full filtered result in
+        // its carousel. Neither path may silently omit entries without a published colour.
+        assertEquals(9, catalogue.cans.size)
+        assertEquals(
+            listOf("Shock Pink", "Rouge Écarlate", "Pink Panther", "Moss", "Black",
+                "Marble Silver", "Pink Fantasy", "Rouge", "Blue Sky"),
+            names(catalogue.cans),
+        )
+        assertEquals(6, catalogue.cans("Montana Cans").size)
+        assertNull(catalogue.cans("Montana Cans").last().rgb)
+        assertEquals(
+            setOf("Shock Pink", "Pink Panther", "Pink Fantasy"),
+            names(catalogue.search("pink", catalogue.cans.size)).toSet(),
+        )
+        assertEquals(3, catalogue.search("pink", catalogue.cans.size).size)
+        assertEquals(listOf("Pink Fantasy"), names(catalogue.search("pink", catalogue.cans.size, setOf("Loop Colors"))))
+    }
+
+    @Test
     fun emptyCatalogueWorks() {
         assertEquals(0, PaintCatalogue.EMPTY.cans.size)
         assertEquals(emptyList(), PaintCatalogue.EMPTY.search("anything"))

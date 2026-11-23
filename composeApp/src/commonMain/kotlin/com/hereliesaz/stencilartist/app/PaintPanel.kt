@@ -34,6 +34,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -123,7 +126,10 @@ internal fun PaintSection(state: StencilState) {
  * Only one layer is edited at a time. The local hex/RGB draft is applied on demand rather than on
  * every slider tick: a colour change regenerates and may reorder the sheets, so an in-flight drag
  * must not keep changing a different sheet. All exporters then consume that completed separation.
- * A palette can be restored to the image-derived colours without changing the requested sheet count.
+ * An additional catalogue browser lets the user select a real can's recorded colour, with the
+ * same can-top grid and full-can carousel as My cans. Uncoloured cans are shown but cannot be applied.
+ * Custom hex/RGB editing remains available. A palette can be restored to the image-derived colours
+ * without changing the requested sheet count.
  */
 @Composable
 private fun FreePaletteEditor(state: StencilState) {
@@ -143,7 +149,10 @@ private fun FreePaletteEditor(state: StencilState) {
                     Modifier.size(44.dp).clip(RoundedCornerShape(6.dp))
                         .border(if (editing == index) 3.dp else 1.dp,
                             if (editing == index) scheme.primary else scheme.outline, RoundedCornerShape(6.dp))
-                        .clickable(role = Role.Button) { editing = if (editing == index) null else index }
+                        .clickable(role = Role.Button) {
+                            editing = if (editing == index) null else index
+                            if (editing != null) state.ensureCatalogue()
+                        }
                         .semantics { contentDescription = "Edit sheet ${index + 1} colour ${PaletteColor.hex(rgb)}" },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -177,6 +186,40 @@ private fun FreePaletteEditor(state: StencilState) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text("SHEET ${index + 1} COLOUR", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            Text("SPRAY CAN COLOURS", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            if (state.catalogue != null) {
+                CanBrowser(
+                    state = state,
+                    selectedColour = current,
+                    requireColour = true,
+                    assignLabel = "Use this can's colour",
+                    onPick = { can ->
+                        val rgb = can.rgb
+                        when {
+                            rgb == null -> false
+                            sheets.indices.any { it != index && (sheets[it].color and 0xFFFFFF) == (rgb and 0xFFFFFF) } -> {
+                                state.fail("Another sheet already has that colour.")
+                                false
+                            }
+                            else -> {
+                                state.setSheetColor(index, rgb)
+                                editing = null
+                                true
+                            }
+                        }
+                    },
+                )
+            } else {
+                Text(
+                    if (state.catalogueLoading) "Loading spray can colours..."
+                    else state.catalogueError ?: "Spray can catalogue unavailable.",
+                    style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                )
+                if (!state.catalogueLoading) {
+                    OutlinedButton(onClick = state::ensureCatalogue, modifier = Modifier.fillMaxWidth()) { Text("Try again") }
+                }
+            }
+            Text("CUSTOM RGB COLOUR", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Swatch(draft, 52.dp)
                 BasicTextField(
@@ -307,83 +350,34 @@ private const val SWIPE_PX = 40f
 /** A set of cans being looked through in the carousel, from [start]. */
 private class Browsing(val cans: List<Can>, val start: Int)
 
-/** How many can tops show at first, and how many more each "Show more" tile adds. */
-private const val TOPS = 60
-
 /**
- * The can picker, inline in the panel: a search box and brand chips over a wrapping grid of can tops.
- * Tapping a top opens the carousel at that can, over the same results; the selected cans are a row of
- * small tops below.
+ * My cans adds the scanner and selected-can strip to the same can browser used by Free Colour.
+ * Scanning never changes a free-colour palette or its selected sheet.
  */
 @Composable
 private fun CanPicker(state: StencilState) {
-    val catalogue = state.catalogue ?: return
     val scheme = MaterialTheme.colorScheme
-    var query by remember { mutableStateOf("") }
-    var brand by remember { mutableStateOf<String?>(null) }
-    var shown by remember { mutableStateOf(TOPS) }
-    var browsing by remember { mutableStateOf<Browsing?>(null) }
     val chosen = state.selected
-
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+            .border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // The scanner exists only while My cans' picker is composed, releasing its camera on exit.
-        ScannerPanel(
-            onGtin = state::addCanByBarcode,
-            onClose = {},
-            resultNote = state.barcodeNote,
-        )
-        state.unknownBarcode?.let { gtin ->
+        ScannerPanel(onGtin = state::addCanByBarcode, onClose = {}, resultNote = state.barcodeNote)
+        val unknown = state.unknownBarcode
+        unknown?.let { gtin ->
             Text(
-                "Unknown barcode $gtin. Search for the actual can and choose it to remember this code.",
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant,
+                "Unknown barcode $gtin. Find its can and choose it to remember this code.",
+                style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
             )
         }
-        val open = browsing
-        if (open != null) {
-            CanCarousel(
-                state, open.cans, open.start, readOnly = false, onBack = { browsing = null },
-                onAssign = state.unknownBarcode?.let { gtin ->
-                    { can: Can -> state.learnBarcode(gtin, can); browsing = null }
-                },
-            )
-        } else {
-            SearchField(query, onChange = { query = it; shown = TOPS })
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SmallChoice("All brands", selected = brand == null) { brand = null; shown = TOPS }
-                for (b in catalogue.brands) SmallChoice(b, selected = brand == b) { brand = b; shown = TOPS }
-            }
-            val results = remember(query, brand, shown, catalogue) {
-                val b = brand
-                when {
-                    query.isNotBlank() -> catalogue.search(query, shown + 1, if (b == null) emptySet() else setOf(b))
-                    b != null -> catalogue.cans(b).take(shown + 1)
-                    else -> emptyList()
-                }
-            }
-            if (query.isBlank() && brand == null) {
-                Text("Search by name, code or brand, or pick a brand.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-            } else if (results.isEmpty()) {
-                Text("No can matches.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-            } else {
-                val list = results.take(shown)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((i, can) in list.withIndex()) CanTile(can, can in chosen) { browsing = Browsing(list, i) }
-                    if (results.size > shown) {
-                        Box(
-                            Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(scheme.surfaceVariant)
-                                .clickable(role = Role.Button) { shown += TOPS },
-                            contentAlignment = Alignment.Center,
-                        ) { Text("Show more", style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center) }
-                    }
-                }
-                Text("Tap a can to see it.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-            }
-        }
-
+        CanBrowser(
+            state = state,
+            onPick = unknown?.let { gtin ->
+                { can: Can -> state.learnBarcode(gtin, can); true }
+            },
+            assignLabel = "Remember barcode for this can",
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("SELECTED (${chosen.size})", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             Spacer(Modifier.weight(1f))
@@ -395,12 +389,95 @@ private fun CanPicker(state: StencilState) {
         if (chosen.isEmpty()) {
             Text("Nothing selected.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         } else {
-            // Bounded and scrolling, so thirty cans do not push the rest of the panel away.
             Column(Modifier.heightIn(max = 130.dp).verticalScroll(rememberScrollState())) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (can in chosen) SelectedTop(can) { state.removeCan(can) }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Shared catalogue browser: a top-view grid, search and brand filters, and a full-can carousel.
+ * The grid lazily scrolls through every catalogue entry in a fixed-height viewport, so several
+ * thousand cans are navigable without inflating the outer controls panel or rendering them all.
+ * Opening any can navigates over the complete filtered results, including currently unseen rows.
+ *
+ * [onPick] applies a can colour to a Free sheet or learns a barcode; null means My cans'
+ * usual selection toggle. [requireColour] prevents selecting an entry without an RGB value.
+ */
+@Composable
+private fun CanBrowser(
+    state: StencilState,
+    onPick: ((Can) -> Boolean)? = null,
+    assignLabel: String = "Select can",
+    requireColour: Boolean = false,
+    selectedColour: Int? = null,
+) {
+    val catalogue = state.catalogue ?: return
+    val scheme = MaterialTheme.colorScheme
+    var query by remember { mutableStateOf("") }
+    var brand by remember { mutableStateOf<String?>(null) }
+    val gridState = rememberLazyGridState()
+    var browsing by remember { mutableStateOf<Browsing?>(null) }
+    LaunchedEffect(query, brand) { gridState.scrollToItem(0) }
+    val open = browsing
+
+    if (open != null) {
+        CanCarousel(
+            state, open.cans, open.start, readOnly = false, onBack = { browsing = null },
+            onAssign = onPick?.let { pick ->
+                { can: Can -> if (pick(can)) browsing = null }
+            },
+            assignLabel = assignLabel,
+            requireColour = requireColour,
+        )
+    } else {
+        SearchField(query, onChange = { query = it })
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SmallChoice("All brands", selected = brand == null) { brand = null }
+            for (b in catalogue.brands) SmallChoice(b, selected = brand == b) { brand = b }
+        }
+        val results = remember(query, brand, catalogue) {
+            val b = brand
+            when {
+                query.isNotBlank() -> catalogue.search(
+                    query, catalogue.cans.size, if (b == null) emptySet() else setOf(b),
+                )
+                b != null -> catalogue.cans(b)
+                else -> catalogue.cans
+            }
+        }
+        if (results.isEmpty()) {
+            Text("No can matches.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+        } else {
+            Text(
+                "${results.size} cans · scroll to browse",
+                style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+            )
+            // The parent control panel is vertically scrollable; the grid must have a finite
+            // viewport to remain lazy and avoid infinite-height nested-scroll exceptions.
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 68.dp),
+                modifier = Modifier.fillMaxWidth().height(320.dp),
+                state = gridState,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(results.size) { i ->
+                    val can = results[i]
+                    CanTile(
+                        can,
+                        selected = if (onPick == null) can in state.selected
+                            else selectedColour != null && can.rgb == selectedColour,
+                    ) { browsing = Browsing(results, i) }
+                }
+            }
+            Text(
+                "Tap a can top to view the whole can. Swipe or use the arrows to browse.",
+                style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -440,7 +517,8 @@ private fun SelectedTop(can: Can, onRemove: () -> Unit) {
  * left and its maker, colour name, code, barcode and (where known) match quality at right, with a
  * Select toggle unless [readOnly]. Swipe by mouse drag or touch, press the arrow buttons or the
  * keyboard's left and right arrows. Only the pages near the centre are composed and drawn.
- * [onAssign], when given for an unknown barcode, replaces selection with teaching its identity.
+ * [onAssign] replaces My cans' selection action with applying a can's colour to a free sheet
+ * or teaching an unknown barcode. Both workflows share the same peeking carousel.
  */
 @Composable
 private fun CanCarousel(
@@ -450,6 +528,8 @@ private fun CanCarousel(
     readOnly: Boolean,
     onBack: () -> Unit,
     onAssign: ((Can) -> Unit)? = null,
+    assignLabel: String = "Remember barcode for this can",
+    requireColour: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val pager = rememberPagerState(initialPage = start.coerceIn(0, (cans.size - 1).coerceAtLeast(0))) { cans.size }
@@ -519,7 +599,7 @@ private fun CanCarousel(
         }
         if (!readOnly) {
             val isSelected = current in state.selected
-            val selectable = current.rgb != null || onAssign != null
+            val selectable = if (onAssign != null) (!requireColour || current.rgb != null) else current.rgb != null
             Box(
                 Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(6.dp))
                     .background(if (isSelected && onAssign == null) scheme.primary else scheme.surfaceVariant)
@@ -527,14 +607,15 @@ private fun CanCarousel(
                         if (onAssign != null) onAssign(current) else state.toggleCan(current)
                     }
                     .semantics {
-                        contentDescription = (if (onAssign != null) "Associate barcode with " else if (isSelected) "Remove " else "Select ") +
+                        contentDescription = (if (onAssign != null) "$assignLabel: " else if (isSelected) "Remove " else "Select ") +
                             current.displayName
                     },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     when {
-                        onAssign != null -> "Remember barcode for this can"
+                        onAssign != null && !selectable -> "No colour value available"
+                        onAssign != null -> assignLabel
                         !selectable -> "No colour value: can't be a layer"
                         isSelected -> "Selected"
                         else -> "Select"
