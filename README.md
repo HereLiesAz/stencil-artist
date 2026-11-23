@@ -62,7 +62,7 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Traces every sheet into vector outlines and writes cutter files at a real physical size: SVG,
   DXF (R12), HPGL and G-code, whole or split across a cutting mat or sheet of paper.
 
-Not yet: bridges for islands, a free colour picker for colour sheets, custom mat sizes in the UI. See the roadmap.
+Not yet: bridges for islands and custom mat sizes in the UI. See the roadmap.
 
 ## Cutter files
 
