@@ -58,8 +58,12 @@ pixel-width connection does not prove a millimetre-width connection.
   **excluded** from the reconstruction quota so a long narrow line cannot
   substitute for painting its attached broad region. Ribbons never paint
   outside their original coverage, and a maximum loss budget prevents excessive
-  missing paint. Any **new enclosed stock gap** composed solely of previously
-  painted pixels is painted back in to avoid newly introduced stencil islands.
+  missing paint. Some of that allowance is reserved for narrow **negative
+  brushstrokes** starting at supported stock around broad painted regions. They
+  follow the same local form and tonal direction, providing physical connections
+  and leaving safe, intentional gaps between positive paint ribbons. Any
+  **new enclosed stock gap** composed solely of previously painted pixels is
+  painted back in, rather than leaving a detached piece of stencil material.
   The black base remains unchanged. This is a procedural stroke treatment,
   **not** semantic recognition or proof that it matches the supplied reference
   artwork. Classic mode restores the original cut geometry.
