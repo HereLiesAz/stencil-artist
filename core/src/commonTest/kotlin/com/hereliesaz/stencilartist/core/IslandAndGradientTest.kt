@@ -110,7 +110,7 @@ class IslandAndGradientTest {
             if (x == 2 || x == 6 || y == 2 || y == 6) baseRing[y * width + x] = true
         }
         for (y in 3..5) for (x in 3..5) {
-            if (x != 4 || y != 4) whiteCentre[y * width + x] = true
+            if (x != 3 || y != 3) whiteCentre[y * width + x] = true
         }
         val original = Separation.fromMasks(width, width, listOf(black, white), listOf(baseRing, whiteCentre))
         val plan = IslandPlanner.repair(original)
