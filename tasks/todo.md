@@ -299,7 +299,9 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
   (feed, travel, power, passes, safe/cut Z) are now exposed in the Cutter files UI. Invalid
   entries and oversized tiling plans block downloads; settings flow into the exporter.
   The resulting machine files still require dry-run verification on hardware.
-- Tiled text formats clip with Sutherland-Hodgman: a concave shape cut by a mat edge gets doubled
-  edges along that edge, which a cutter traces twice. The PDF clips properly and has none.
+- Fixed tiled cutter clipping: SVG, DXF, HPGL and G-code now clip each shape's outer
+  ring and holes as one region, emitting disconnected pieces as separate closed paths
+  rather than retracing tile-boundary edges. Full-shape paths remain unchanged.
+  Physical cutter validation is still outstanding.
 - The web pipeline still runs on the page's only thread.
 
