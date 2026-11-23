@@ -20,7 +20,7 @@ class StrokeStylerTest {
     )
 
     @Test
-    fun broadUpperToneBecomesFineConnectedNegativeBrushstrokes() {
+    fun broadUpperToneIsReconstructedFromPositiveRibbonsWithoutNewIslands() {
         val w = 100
         val h = 90
         val base = BooleanArray(w * h) { true }
@@ -34,13 +34,58 @@ class StrokeStylerTest {
         val styled = StrokeStyler.stylize(image(w, h), input)
         val cut = styled.mask(1)
         val changed = original.indices.count { original[it] && !cut[it] }
-        assertTrue(changed > 0, "a broad uniform region should develop some inward negative strokes")
-        assertTrue(changed <= (original.count { it } * 0.085).toInt(), "texture cannot erase an arbitrary share of the layer")
+        assertTrue(changed > 0, "a broad uniform region should be reconstructed with gaps between paint ribbons")
+        assertTrue(changed <= (original.count { it } * 0.20).toInt(), "texture cannot erase an arbitrary share of the layer")
         assertContentEquals(input.mask(0), styled.mask(0), "the black silhouette is never stylized")
         assertTrue(StencilPrintTips.detect(styled.mask(1), w, h, 100.0)
-            .none { it.kind == PrintTipKind.ISLAND }, "every negative stroke starts at supported stock")
+            .none { it.kind == PrintTipKind.ISLAND }, "no new retained-stock islands may be introduced by ribbon reconstruction")
         assertContentEquals(styled.render(), StrokeStyler.stylize(image(w, h), input).render(),
             "the same source must generate identical brushstroke geometry")
+    }
+
+    @Test
+    fun strokesRespondToTheSourceGradientInsteadOfBeingFixedGeometricStripes() {
+        val w = 96
+        val h = 96
+        val broad = BooleanArray(w * h) { i ->
+            (i % w) in 12..83 && (i / w) in 12..83
+        }
+        val input = Separation.fromMasks(w, h, listOf(black, gray),
+            listOf(BooleanArray(w * h) { true }, broad))
+        val horizontalRamp = image(w, h)
+        val verticalRamp = RgbaImage(w, h, IntArray(w * h) { i ->
+            val v = (45 + (i / w) * 2).coerceAtMost(245)
+            (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+        })
+        val alongVertical = StrokeStyler.stylize(horizontalRamp, input).mask(1)
+        val alongHorizontal = StrokeStyler.stylize(verticalRamp, input).mask(1)
+        assertFalse(alongVertical.contentEquals(alongHorizontal),
+            "rotating a strong luminance gradient must change the ribbon paths")
+        assertTrue(StencilPrintTips.detect(alongVertical, w, h, 96.0)
+            .none { it.kind == PrintTipKind.ISLAND })
+        assertTrue(StencilPrintTips.detect(alongHorizontal, w, h, 96.0)
+            .none { it.kind == PrintTipKind.ISLAND })
+    }
+
+    @Test
+    fun darkUncutDetailsAndUnrelatedOpeningsAreNotErasedToMakeTexture() {
+        val w = 110
+        val h = 92
+        val base = BooleanArray(w * h) { true }
+        val grayMask = BooleanArray(w * h) { i ->
+            val x = i % w
+            val y = i / w
+            (x in 10..95 && y in 10..79) && !(x in 48..52 && y in 39..43)
+        }
+        val input = Separation.fromMasks(w, h, listOf(black, gray), listOf(base, grayMask))
+        val styled = StrokeStyler.stylize(image(w, h), input)
+        val result = styled.mask(1)
+        for (y in 39..43) for (x in 48..52) {
+            assertFalse(result[y * w + x], "the dark eye/detail exclusion must remain unpainted")
+        }
+        assertTrue(result.indices.all { !result[it] || grayMask[it] },
+            "painting must never leak outside the original stencil openings")
+        assertContentEquals(input.mask(0), styled.mask(0))
     }
 
     @Test
