@@ -92,9 +92,17 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       PDF safeguards: single-sheet mask/clearance lifetime; real component-pixel tip anchors;
       unique component identities across overlap pages; preflight tip-capacity rejection instead
       of exhausted-memory failures or silently discarded warnings.
-- [ ] **10. PWA** — manifest, icons, service worker (app shell + model cache), offline, installable.
-- [ ] **11. Release wiring** — bind existing catalog workflows: `github-pages-deploy`,
-      `android-github-release`; local CI with `ci-report`.
+- [x] **10. PWA** — manifest, icons, service worker (shell network-first; WebAssembly, ONNX runtime
+      and models cache-first on first use), offline start, installable. Deployed at
+      https://hereliesaz.com/stencil-artist/ and checked there in headless Chromium: worker
+      active, a photo isolated and stencilled, a fresh page starting offline from cache.
+      Not checked: the install prompt on a real phone.
+- [x] **11. Release wiring** — `github-pages-deploy` bound and deploying (file identical to
+      photo-unroll's, so no catalog change). CI runs here with `ci-report`. Android: trigger file
+      added and a profile proposed in HereLiesAz/workflows#216 (`raw-jks`, as camera-unroll);
+      **merge that first**. The app version comes from `-PversionName`/`-PversionCode`, else
+      `version.properties`. Release APKs are ARM-only (72 MB; all four ABIs was 153 MB).
+      Not exercised: the central signing/publishing run, which happens only after merge.
 - [ ] **12. Review** — results section below, docs pass.
 
 ## Verification
@@ -119,8 +127,8 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
   is the fix if it proves slow on phones (phase 10).
 - The web ONNX runtime is a 14.8 MB WebAssembly file (plus the 4.6 MB model), fetched only when a
   background is first removed. The service worker should cache both (phase 10).
-- The debug APK carries ONNX Runtime for four ABIs (~140 MB of native libraries uncompressed).
-  Release builds should split by ABI or ship an App Bundle (phase 11).
+- The release APK is still 72 MB, nearly all of it ONNX Runtime's two ARM libraries. An App Bundle
+  (one ABI per device) would halve that again if it goes to Play.
 - Kotlin's Wasm tooling pulls Karma from a GitHub tarball; the root build pins the npm release
   instead (unused either way).
 
