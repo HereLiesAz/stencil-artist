@@ -23,7 +23,11 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   as there are sheets, up to 1024, and sprayed in an order of your choice: auto (dark base for a
   dark subject, light for a light one), light to dark, dark to light, or largest area first.
   An image with fewer distinct colours than sheets asked for makes that many sheets, not duplicates.
-  The core also takes the user's own paint colours instead of finding them (`ColorParams.colors`).
+  Free Colour mode has a palette editor: select a sheet swatch, enter a six-digit hex colour or
+  adjust RGB channels, then Apply. It regenerates the separation and all subsequent exports
+  with that palette (including reassigning pixels to the nearest paint); duplicate colours are
+  refused. Use **Use image colours again** to reset to the image-derived palette. The underlying
+  setting is `ColorParams.colors`. Switching to canned-paint modes ignores manual palette edits.
 - Paints a stencil from real spray cans. In Colour mode, **Paint** is *Free* (any colours), *Pick for me*
   (you set the layer count and which brands or lines are allowed; the app matches the image's colours to
   distinct cans) or *My cans* (a can picker: search, brand chips, a grid of can tops and a swipeable carousel of whole cans, with a selected strip; the layers are
