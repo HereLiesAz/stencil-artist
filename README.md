@@ -11,35 +11,44 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 ## What it does today
 
 - Opens an image, removes its background on the device (U²-Net), and separates the subject into
-  sheets by tone.
-- Any number of sheets, each with its own colour (a grey ramp by default).
+  sheets, **by tone** (a grey ramp) or **by colour** (the picture's own paint colours).
+- Any number of sheets, each with its own colour: greys by default in Tone mode, the colours found
+  in the image in Colour mode.
 - Depth-assisted background removal combines U²-Net saliency and relative depth around uncertain
   subject edges, preserving confident segmentation and falling back if depth is unavailable.
 - Optional depth-based Lambert lighting (azimuth, elevation, intensity, ambient and depth strength)
   relights the **base image before any stencil sheets are generated**, with a base-image preview.
-- Smoothing, edge closing, tonal bias, and a forced dark or light base.
+- Colour separation: the subject's colours are clustered (k-means in Oklab, deterministic, on a
+  colour histogram so a 1600 px photo takes about half a second) into as many flat paint colours
+  as there are sheets, up to 1024, and sprayed in an order of your choice: auto (dark base for a
+  dark subject, light for a light one), light to dark, dark to light, or largest area first.
+  An image with fewer distinct colours than sheets asked for makes that many sheets, not duplicates.
+  The core also takes the user's own paint colours instead of finding them (`ColorParams.colors`);
+  the app has no screen for that yet.
+- Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
 - Shows the improved base image, the finished piece, or any one sheet alone.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
   transparent PNG; or every sheet plus the composite in one ZIP. Every PNG uses the same paint
   order, sheet colours and alpha as the preview, at the current working-image pixel dimensions.
 - Downloads one actual-size print PDF for the shown sheet or every sheet: a single instructions page,
-  then per sheet an assembly map and the tiled pages. Pages are used edge to edge except a fixed
-  3 mm border the printer cannot print; neighbouring pages overlap by a fixed 1 mm, and that band
-  carries thin L and tick alignment marks, identical on both pages. Printouts label trapped islands,
+  then per sheet an assembly map and the tiled pages. Nothing is trimmed: pages are laid left to right, top to
+  bottom, each on top of the earlier ones, with the paper edge on thin guide marks the page underneath prints. A fixed
+  3 mm border is unprintable, so at every join there is a 3 mm strip of blank paper (the top page's margin);
+  the artwork either side is at its true place and cut lines simply continue across the strip. Printouts label trapped islands,
   delicate openings and tile codes inside uncut material; a note that cannot safely fit goes to a
   non-cutting reference page beside the affected detail. Pages with nothing to cut are skipped and
   shown as blank on the map.
 - Optionally mounts the print on poster board (22 x 28 in, or a custom board of at least 18 in a side) with an
   uncut border of at least 1 in (default 2 in) on every side: the piece is divided into boards that butt exactly,
-  each board is tiled with its own pages from the board's top-left corner, so page A1's paper edges lie on the board's top
-  and left edges, and the stencil starts the border distance in from the board's edges.
+  each board's pages are fitted to it, so the outermost pages' paper edges lie on the board's edges on every side, and the
+  stencil starts the border distance in from the board's edges.
 - PDF export bounds pathological detail counts, diagnoses actual surviving components, and handles
   one stencil sheet at a time to keep memory use predictable.
 
 - Traces every sheet into vector outlines and writes cutter files at a real physical size: SVG,
   DXF (R12), HPGL and G-code, whole or split across a cutting mat or sheet of paper.
 
-Not yet: bridges for islands, colour separation, custom mat sizes in the UI. See the roadmap.
+Not yet: bridges for islands, a palette editor for colour sheets, custom mat sizes in the UI. See the roadmap.
 
 ## Cutter files
 
@@ -71,11 +80,11 @@ pages a sheet takes and how many are skipped as blank.
 **Mount on** chooses *Paper only*, *Poster board 22 x 28* or a *Custom board* (width and height in inches, at
 least 18 each) with a *Border* in inches (default 2, at least 1). The piece is divided into boards whose cut
 areas (the board less the border; 18 x 24 in for poster board at 2 in) butt exactly, in the orientation that
-needs fewer boards (portrait on a tie). Each board's pages are tiled from its own top-left, so no page spans two
-boards and page marks only join pages of one board. Page A1 of each board is its corner page and is always printed
-when the board has any page. Glue the assembled pages on with A1's top and left paper edges flush with the board's
-top and left edges (square corners make that easy to see), then cut through paper and board together. Pages in the
-last column or row may run past the board's right or bottom edge; a dashed line marks the board edge to trim along.
+needs fewer boards (portrait on a tie). Each board's pages are fitted to it (the fewest pages whose paper spans the board with at least 4 mm of paper
+overlap, equal across the board), so no page spans two boards, no page overhangs, and the outermost pages' paper
+edges lie on the board's edges on every side: any outer page can be squared against the board's corner or edge.
+Page A1 of each board is always printed when the board has any page. Glue the assembled pages on, then cut through
+paper and board together.
 Painting goes left to right, top to bottom, so a board carries registration **tabs** only on its left and top
 border, where it faces a board already painted: one or two 1 in wide, at most 0.5 in deep (never more than half the
 border) windows cut to the neighbouring board's artwork for that sheet. Slide the board until the paint on the wall
@@ -84,11 +93,13 @@ hold an edge of the artwork are preferred, since an edge gives something to line
 position gets no tab and the map says so. A board with nothing to cut on a sheet is skipped and shown as blank on the map. Use heavyweight poster board or
 4-ply or 6-ply railroad board; thin poster board tears. Foam board and tri-fold boards are not offered.
 
-Print at 100% / actual size. Each page keeps a fixed 3 mm border unprinted; after trimming the left and
-top border of every page that has a neighbour there, lay each page over its neighbour so the 1 mm
-bands coincide and the marks sit on the marks beneath, then tape. The first page of the PDF says so,
-with a diagram and a 100 mm check bar. Checked here with pypdf (strict), PyMuPDF renders and an overlay
-of two neighbouring pages; **not printed on a real printer.**
+Print at 100% / actual size. Nothing is trimmed. Lay the pages left to right, top to bottom, each later page on top of
+the earlier ones, and slide it until its paper edge touches the guide marks the page underneath prints (ticks along
+the edge, an L where a paper corner lands). Paper-only, sheets advance by the paper size less 4 mm: the top page's
+paper edge lies 1 mm inside the under page's printed area, where the guide is. The top page's unprinted 3 mm margin
+hides what lies under it, so each join has a 3 mm blank strip; nothing is shifted to hide it. The first page of the
+PDF says so, with a diagram and a 100 mm check bar. Checked here with pypdf (strict), PyMuPDF renders and an
+overlay of every page in stacking order; **not printed on a real printer.**
 
 ## PNG exports
 
@@ -113,8 +124,8 @@ model using its service worker. The model is not included in the app bundle. Dep
 enabled for background removal; lighting is opt-in. If the model cannot load, the standard U²-Net
 mask and original unlit source remain available.
 
-Processing order: **source image → depth-assisted background removal → relit base image → tonal
-separator → stencil sheets**. Changing the light always regenerates the sheets from the new base.
+Processing order: **source image → depth-assisted background removal → relit base image → separator
+(by tone or by colour) → stencil sheets**. Changing the light always regenerates the sheets from the new base.
 
 
 ## Layout
