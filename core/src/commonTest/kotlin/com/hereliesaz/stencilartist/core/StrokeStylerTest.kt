@@ -89,6 +89,30 @@ class StrokeStylerTest {
     }
 
     @Test
+    fun attachedFineHighlightRemainsIntactWhileItsBroadRegionBecomesStrokes() {
+        // The attached 3 px tail was erased by the first ribbon generator because the
+        // connected blob as a whole was broad. This is a required detail, not filler.
+        val w = 140
+        val h = 92
+        val opening = BooleanArray(w * h) { i ->
+            val x = i % w
+            val y = i / w
+            (x in 15..85 && y in 15..75) || (x in 85..115 && y in 44..46)
+        }
+        val original = Separation.fromMasks(w, h, listOf(black, white),
+            listOf(BooleanArray(w * h) { true }, opening))
+        val flat = RgbaImage(w, h, IntArray(w * h) { 0xFF888888.toInt() })
+        val result = StrokeStyler.stylize(flat, original).mask(1)
+        for (y in 44..46) for (x in 88..115) {
+            assertTrue(result[y * w + x], "the attached narrow stroke at ($x,$y) must survive")
+        }
+        assertTrue((25..75).any { y -> (25..75).any { x -> !result[y * w + x] } },
+            "the broad area must still have reconstructed paint-ribbon gaps")
+        assertTrue(StencilPrintTips.detect(result, w, h, 140.0)
+            .none { it.kind == PrintTipKind.ISLAND })
+    }
+
+    @Test
     fun tinyRequiredDetailsStayUnchanged() {
         val w = 100
         val h = 90
