@@ -3,7 +3,7 @@
 Source: GraffitiXR `StencilTones.kt`, `StencilProcessor.kt`, `SubjectIsolator.kt`, `StencilTonesTest.kt`
 (copied; GraffitiXR is not modified).
 
-Status: **in progress.** Phases 0-5 implemented; device-level runtime verification remains in phase 12.
+Status: **all planned phases implemented.** What has not been verified on real hardware is listed under Review.
 
 ## Decisions (answered)
 
@@ -39,8 +39,9 @@ stencil-artist/
 - **`Separation` is the seam.** It is a list of `Sheet(color: ARGB)` in paint order plus a
   per-pixel sheet index. Preview, PNG, vectoriser and every exporter read only that. How it was
   made is the separator's business: `TonalSeparator` today, a colour separator later, sharing
-  nothing but the output type. The only numeric cap anywhere is `TonalSeparator`'s 256, which is
-  how many levels 8-bit brightness has, not a stencil limit.
+  nothing but the output type. The numeric caps are `TonalSeparator`'s 256 (the levels 8-bit
+  brightness has) and `ColorSeparator`'s 1024 (a guard on memory and time, not a stencil limit).
+  `ColorSeparator` exists now and the claim held: see phase 13.
 - `core` targets `jvm` (consumed by Android, fastest tests) and `wasmJs`.
 
 ## Phases
@@ -79,23 +80,66 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       bounded at 32 MiB; individual PNGs are always available. Existing geometry/alpha render
       tests are extended with opaque and semi-transparent, non-grey and non-three-sheet fixtures.
       Export is disabled while separation regeneration is pending or a save chooser is open.
-- [ ] **7. Vectorise** — contour tracing with holes, Douglas-Peucker simplify, min-feature filter.
-- [ ] **8. Cutter export** — SVG, DXF (R12 polylines), HPGL/PLT, vector PDF, G-code. Physical size
-      in mm/in drives all of them; tiled per mat/roll. See Resolved > Cutting machines.
-- [ ] **9. Tiled PDF** — physical size -> Letter/A4/custom pages, overlap, registration marks,
-      row/column labels, assembly map page. Vector, from phase 7 paths.
-      **Partial:** a true-size raster-mask PDF exporter now supports Letter/A4 in core (Letter
-      in the UI), per-sheet tiled pages, crop ticks, and contextual print tips. Notes sit inside
-      surviving uncut material with a cut-free buffer. Unplaceable tips get adjacent cut-detail
-      references on separate, clearly marked non-cutting pages; no tips are silently dropped. Final
-      vector paths, custom paper and assembly map remain to finish this phase.
-      PDF safeguards: single-sheet mask/clearance lifetime; real component-pixel tip anchors;
-      unique component identities across overlap pages; preflight tip-capacity rejection instead
-      of exhausted-memory failures or silently discarded warnings.
-- [ ] **10. PWA** — manifest, icons, service worker (app shell + model cache), offline, installable.
-- [ ] **11. Release wiring** — bind existing catalog workflows: `github-pages-deploy`,
-      `android-github-release`; local CI with `ci-report`.
-- [ ] **12. Review** — results section below, docs pass.
+- [x] **7. Vectorise** — `core/vector`: exact pixel-edge tracing with holes and nested islands,
+      Douglas-Peucker simplify, speck filter, Chaikin smoothing. Tracing round-trips masks exactly.
+- [x] **8. Cutter export** — `core/export`: SVG (filled or dark cut lines), DXF R12, HPGL, G-code;
+      true physical size (PDF is the single Print PDF, phase 9); split across 12x12/12x24 mats, Letter, A4, A3 (custom and
+      roll exist in core, not in the UI). Each text format is parsed back in tests; DXF opened
+      with ezdxf, PDF with pypdf, SVG rendered in Chromium. Downloaded from the running web app
+      and re-validated. **Not loaded into any cutter application or run on a machine.**
+- [x] **9. Print PDF** — one exporter (`PrintPdf`) for the whole set: an instructions page, then per
+      sheet an assembly map, true-size vector tile pages and reference pages for cutting tips that
+      cannot be placed. Fixed 3 mm printer border. Nothing is trimmed: later pages lie on top of earlier
+      ones (left to right, top to bottom), sheets advancing by paper size less 4 mm so the top page's paper
+      edge is 1 mm inside the under page's printed area, where the under page prints guide marks (ticks and
+      Ls) just outside the edge; each join has a 3 mm blank strip (the top page's margin), artwork stays at
+      its true place; blank tiles are skipped. Sizing by width, sheets wide or sheets
+      high, with a sliver snap. The raster "Print with cutting tips" exporter and the old vector PDF
+      (single-page whole-piece and tiled) are gone; the tip detection lives on.
+- [x] **9b. Mount on board** — `PrintOptions.mount` (`MountOptions(Board, borderMm)`): the piece is split
+      into boards (cut area = board less the border; poster board 22 x 28 in at 2 in gives 18 x 24 in; board at
+      least 18 in a side, border at least 1 in), in the orientation needing fewer boards. A sheet's boards laid
+      edge to edge form one rectangle covered by ONE page grid from board 1's top-left corner, at the normal
+      step (paper less 4 mm, later pages on top, untrimmed). A page crossing a board edge prints a dotted cut
+      line exactly on the edge (dark, or white clipped to dark fills by sheet luminance); the user glues, cuts
+      the paper along it and reuses the offcut on the next board; outer right/bottom edges are waste. Blank
+      skipping is over the whole rectangle; the top-left page is always printed. Labels read
+      "Sheet 2 of 5 - Boards 1+2 - C1"; the map shows the rectangle, grid and dotted lines; the instructions
+      add board, glue and cut steps with a board diagram. `PrintSizing` gained boards wide/high and a board-aware
+      snap. Boards register against each other on the wall by tabs: each board has up to two small windows in its left
+      and top border (only where a board already painted lies that way), cut to the neighbour's artwork for the
+      sheet, edge-bearing positions preferred; pages holding a tab are printed. Not tested on a real board or wall.
+- [x] **10. PWA** — manifest, icons, service worker (shell network-first; WebAssembly, ONNX runtime
+      and models cache-first on first use), offline start, installable. Deployed at
+      https://hereliesaz.com/stencil-artist/ and checked there in headless Chromium: worker
+      active, a photo isolated and stencilled, a fresh page starting offline from cache.
+      Not checked: the install prompt on a real phone.
+- [x] **11. Release wiring** — `github-pages-deploy` bound and deploying (file identical to
+      photo-unroll's, so no catalog change). CI runs here with `ci-report`. Android: trigger file
+      added and a profile proposed in HereLiesAz/workflows#216 (`raw-jks`, as camera-unroll);
+      **merge that first**. The app version comes from `-PversionName`/`-PversionCode`, else
+      `version.properties`. Release APKs are ARM-only (72 MB; all four ABIs was 153 MB).
+      Not exercised: the central signing/publishing run, which happens only after merge.
+- [x] **12. Review** — see Review below.
+- [x] **13. Colour separation** — `ColorSeparator` (`core`) makes the same `Separation` as `TonalSeparator`.
+      `ColorParams(sheets, smoothing, closing, order, colors)`: 1..1024 sheets, `ColorOrder` AUTO / LIGHT_TO_DARK /
+      DARK_TO_LIGHT / LARGEST_FIRST, optional exact `colors` (nearest-colour assignment, no clustering). Same
+      silhouette as the tonal stencil (shared `Subject`); per-channel median of the straight colour; weighted
+      k-means in Oklab (own arithmetic-only conversion, so JVM and Wasm agree) on a 5-bit colour histogram with
+      deterministic greedy seeding; every pixel assigned exactly; all sheets closed at once as a grey-scale closing
+      of the index (proved equal to `Raster.close` per sheet in a test). `Raster.medianBlur` now tracks its median
+      instead of scanning (same output, held by the OpenCV fixtures). App: "Separate by" Tone / Colour, each mode
+      keeps its own settings, "Order" in Colour mode, "Base" and "Tonal bias" in Tone mode only; the sheet strip's
+      number is black or white by contrast. `StencilState.setSheetColor` and `ColorParams.colors` are ready;
+      **next step: a colour picker / palette editor (no UI yet).**
+      Verified: 26 new tests on JVM and Wasm (flat regions of 2/5/9/24 colours, determinism, given colours,
+      every order, invariants for 1..60 sheets on dark and light subjects, fewer colours than sheets, null cases,
+      Oklab round trip, and a colour separation through the vectoriser, SVG/DXF/HPGL/G-code and `PrintPdf` with
+      and without mounting). The web build was driven in headless Chromium on the astronaut photo (4 and 8
+      sheets, one sheet, composite PNG, SVG: fills are the sheet colours). Separating a 1600 px cut-out takes
+      about 0.6 s on the JVM at 4 to 100 sheets. **Not verified:** Android on a device or emulator, timing in a
+      browser on a phone, Colour mode with depth lighting or on photographs other than the astronaut, a sheet
+      colour edited by hand (no UI).
 
 ## Verification
 
@@ -103,8 +147,8 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
   `tools/depth/benchmark.py` and `.github/workflows/depth-model-comparison.yml`. On-device
   model loading and visual quality still require hands-on Android and PWA checks.
 - `commonTest` on JVM and Wasm for everything in `core`.
-- Exporters: parse-back tests (SVG/DXF/HPGL/G-code round-trip to the same polylines; PDF page
-  count and media boxes).
+- Exporters: parse-back tests (SVG/DXF/HPGL/G-code round-trip to the same polylines; print PDF page
+  count, media boxes, marks and content bounds).
 - Wasm build driven in headless Chromium (Playwright): load image, cycle sheets, export, screenshots.
 - Android: `assembleDebug` + unit tests. No emulator in this container — on-device behaviour is
   **not** verifiable here and will be reported as such.
@@ -119,8 +163,8 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
   is the fix if it proves slow on phones (phase 10).
 - The web ONNX runtime is a 14.8 MB WebAssembly file (plus the 4.6 MB model), fetched only when a
   background is first removed. The service worker should cache both (phase 10).
-- The debug APK carries ONNX Runtime for four ABIs (~140 MB of native libraries uncompressed).
-  Release builds should split by ABI or ship an App Bundle (phase 11).
+- The release APK is still 72 MB, nearly all of it ONNX Runtime's two ARM libraries. An App Bundle
+  (one ABI per device) would halve that again if it goes to Play.
 - Kotlin's Wasm tooling pulls Karma from a GitHub tarball; the root build pins the npm release
   instead (unused either way).
 
@@ -146,7 +190,7 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
     the above.
   - Cutter-aware output: closed paths only, min feature size and min bridge width in mm,
     knife-offset-safe corner handling, **mat/roll tiling** (12x12, 12x24, A4, A3, custom, roll
-    width) with registration marks — the vector twin of the tiled PDF in phase 9.
+    width) with registration marks — the vector twin of the print PDF in phase 9.
 - **Pages deploy.** `github-pages-deploy.yml` already exists in `HereLiesAz/workflows` (profile:
   `build_command`, `site_dir`, `java_version`, `node_version`, `pages_branch`). No new workflow
   needed. Also reused: `android-github-release`, `multi-platform-app-release`. CI runs in this
@@ -154,4 +198,27 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 ## Review
 
-_(filled in at the end)_
+**Verified here**
+
+- Print PDF tests pass on JVM and on Wasm (see the last report for counts) (`:core:jvmTest`, `:core:wasmJsNodeTest`).
+- Raster ops and resampling match fixtures generated by OpenCV; default tonal output matches a
+  transcription of GraffitiXR's `StencilProcessor` running on OpenCV, pixel for pixel.
+- Web: local build and the deployed site driven in headless Chromium: open a photo, remove the
+  background, stencil, change sheets, download every cutter format whole and tiled, and the print PDF, start offline.
+- Android: debug and release APKs build, lint passes, version comes from the release arguments.
+
+**Not verified (needs hardware or a person)**
+
+- Anything on an Android device: image picking, model loading and inference, saving files.
+- Depth + lighting in a browser beyond what phase 5's own checks covered.
+- Cutter files in real cutter software or on a machine; the print PDF on a real printer (the 3 mm border and the marks are assumed, not measured); the PWA install prompt on a phone.
+- The central Android release run (after HereLiesAz/workflows#216 merges).
+
+**Left open by decision or for later**
+
+- Island bridging (deferred by Az). A palette editor / colour picker for colour sheets (phase 13 left `ColorParams.colors` and `StencilState.setSheetColor` ready, with no UI).
+- Custom mat and roll sizes, and G-code feed/power, are in core but have no UI yet.
+- Tiled text formats clip with Sutherland-Hodgman: a concave shape cut by a mat edge gets doubled
+  edges along that edge, which a cutter traces twice. The PDF clips properly and has none.
+- The web pipeline still runs on the page's only thread.
+

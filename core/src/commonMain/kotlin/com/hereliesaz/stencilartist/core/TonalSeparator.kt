@@ -85,18 +85,14 @@ object TonalSeparator {
         // edge pixel counted as darker than its colour. Kept, so the split is the same.
         val value = ByteArray(size)
         val observed = BooleanArray(size)
-        val lumaHistogram = IntArray(256)
         for (i in 0 until size) {
             val p = image.pixels[i]
             val a = p ushr 24
-            val r = premultiply((p shr 16) and 0xFF, a)
-            val g = premultiply((p shr 8) and 0xFF, a)
-            val b = premultiply(p and 0xFF, a)
+            val r = Subject.premultiply((p shr 16) and 0xFF, a)
+            val g = Subject.premultiply((p shr 8) and 0xFF, a)
+            val b = Subject.premultiply(p and 0xFF, a)
             value[i] = maxOf(r, g, b).toByte()
-            if (a > 0) {
-                observed[i] = true
-                lumaHistogram[(Tones.luma(r, g, b) * 255.0).toInt().coerceIn(0, 255)]++
-            }
+            if (a > 0) observed[i] = true
         }
         val smooth = Raster.medianBlur(value, w, h, params.smoothing)
 
@@ -106,14 +102,14 @@ object TonalSeparator {
         for (i in thresholds.indices) thresholds[i] = (thresholds[i] + params.bias).coerceIn(0, 255)
 
         val dark = when (params.base) {
-            Base.AUTO -> Tones.isDarkByArea(lumaHistogram)
+            Base.AUTO -> Tones.isDarkByArea(Subject.lumaHistogram(image))
             Base.DARK -> true
             Base.LIGHT -> false
         }
 
         // The base is the complete silhouette: every pixel the cut-out kept, its gaps closed and its
         // enclosed holes filled.
-        val silhouette = Raster.fillHoles(Raster.close(observed, w, h, GAP_CLOSING), w, h)
+        val silhouette = Subject.silhouette(observed, w, h)
 
         // Sheet s (s >= 1) is open where the image is beyond its threshold, moving away from the
         // base: lighter and lighter for a dark image, darker and darker for a light one. A pixel
@@ -132,15 +128,5 @@ object TonalSeparator {
 
         val sheets = params.colors?.map { Sheet(it) } ?: Tones.ramp(params.sheets, dark)
         return TonalResult(Separation(w, h, sheets, index), dark)
-    }
-
-    /** Side of the square that closes gaps in the cut-out before its holes are filled. */
-    private const val GAP_CLOSING = 5
-
-    /** A channel multiplied by its alpha, rounded as Android's bitmaps round it. */
-    private fun premultiply(channel: Int, alpha: Int): Int {
-        if (alpha == 255) return channel
-        val product = channel * alpha + 128
-        return (product + (product shr 8)) shr 8
     }
 }
