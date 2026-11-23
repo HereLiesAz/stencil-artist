@@ -183,7 +183,7 @@ object PrintPdf {
      * to the piece's outer edge. Marks lie only on the centre lines of shared bands, 0.5 mm in from the
      * page's printable edge; a side with no neighbour has none, and a single page has none at all.
      */
-    internal fun marks(grid: TilePlan, tile: Tile): List<List<Point>> {
+    internal fun marks(grid: TilePlan, tile: Tile, bounded: Boolean = false): List<List<Point>> {
         val spec = grid.spec
         val x0 = tile.clip.x0
         val y0 = tile.clip.y0
@@ -197,20 +197,26 @@ object PrintPdf {
         val right = tile.col < grid.cols - 1
         val top = tile.row > 0
         val bottom = tile.row < grid.rows - 1
+        // Where a band runs out at the edge of the tiled region (a board's), its arm stops there, not at the page's edge.
+        val xe = if (bounded && !right) min(xr, grid.widthMm - h) else xr
+        val ye = if (bounded && !bottom) min(yb, grid.heightMm - h) else yb
         val out = ArrayList<List<Point>>()
         // Vertical bands: an arm from each end, an L where a horizontal band crosses there.
         for ((x, dx, present) in listOf(Triple(xl, 1, left), Triple(xr, -1, right))) {
             if (!present) continue
-            for ((y, dy, crossed) in listOf(Triple(yt, 1, top), Triple(yb, -1, bottom))) {
-                out += if (crossed) listOf(Point(x + dx * a, y), Point(x, y), Point(x, y + dy * a))
-                else listOf(Point(x, y), Point(x, y + dy * a))
+            for ((y, dy, crossed) in listOf(Triple(yt, 1, top), Triple(ye, -1, bottom))) {
+                val av = min(a, ye - yt)
+                val ah = min(a, xe - xl)
+                out += if (crossed) listOf(Point(x + dx * ah, y), Point(x, y), Point(x, y + dy * av))
+                else listOf(Point(x, y), Point(x, y + dy * av))
             }
         }
         // Horizontal bands: an arm from each end that no vertical band covers.
         for ((y, present) in listOf(yt to top, yb to bottom)) {
             if (!present) continue
-            if (!left) out += listOf(Point(xl, y), Point(xl + a, y))
-            if (!right) out += listOf(Point(xr, y), Point(xr - a, y))
+            val ah = min(a, xe - xl)
+            if (!left) out += listOf(Point(xl, y), Point(xl + ah, y))
+            if (!right) out += listOf(Point(xe, y), Point(xe - ah, y))
         }
         return out
     }
@@ -584,7 +590,10 @@ object PrintPdf {
             val cx1 = min(x1, art?.x1 ?: x1)
             val cy1 = min(y1, art?.y1 ?: y1)
             sb.append("q\n")
-            if (cx1 > cx0 && cy1 > cy0) {
+            if (cx1 <= cx0 || cy1 <= cy0) {
+                // Nothing of the piece falls on this page (it holds only a board target): an empty clip draws nothing.
+                sb.append(num(left)).append(' ').append(num(bottom)).append(" 0 0 re W n\n")
+            } else {
                 sb.append(num(px(tile, cx0))).append(' ').append(num(py(tile, cy1))).append(' ').append(num((cx1 - cx0) * K)).append(' ')
                     .append(num((cy1 - cy0) * K)).append(" re W n\n")
                 sb.append("1 0 0 1 ").append(num((MARGIN_MM - x0) * K)).append(' ')
@@ -598,7 +607,7 @@ object PrintPdf {
 
             // The marks: finished-piece geometry, so neighbours print the same ones.
             sb.append("q\n0 G\n").append(num(MARK_WIDTH_MM * K)).append(" w\n0 J\n0 j\n")
-            for (m in marks(grid, tile)) {
+            for (m in marks(grid, tile, board != null)) {
                 for ((i, pt) in m.withIndex()) {
                     sb.append(num(px(tile, pt.x + ox))).append(' ').append(num(py(tile, pt.y + oy))).append(if (i == 0) " m " else " l ")
                 }

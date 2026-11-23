@@ -60,6 +60,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hereliesaz.stencilartist.core.Base
+import com.hereliesaz.stencilartist.core.export.Board
+import com.hereliesaz.stencilartist.core.export.BoardGrid
+import com.hereliesaz.stencilartist.core.export.MountOptions
 import com.hereliesaz.stencilartist.core.export.Paper
 import com.hereliesaz.stencilartist.core.export.PrintOptions
 import com.hereliesaz.stencilartist.core.export.PrintPdf
@@ -153,11 +156,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     var cutterFormat by remember { mutableStateOf(CutterFormat.SVG) }
     var cutterFit by remember { mutableStateOf<TileSpec?>(null) }
     var cutterCutLines by remember { mutableStateOf(true) }
-    // The print PDF's page: a preset or a custom size, portrait or landscape.
-    var printPaper by remember { mutableStateOf<Paper?>(Paper.US_LETTER) } // null is Custom
-    var customWidthMm by remember { mutableStateOf(200.0) }
-    var customHeightMm by remember { mutableStateOf(300.0) }
-    var printLandscape by remember { mutableStateOf(false) }
+    val print = remember { PrintSettings() }
 
     // The Android picker completes asynchronously. Keep every export control locked until the
     // result callback, not merely until the file bytes have been passed to the picker.
@@ -373,71 +372,91 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
 
         PrintSection(
             state = state,
-            paper = printPaper ?: Paper.custom(customWidthMm, customHeightMm),
-            isCustom = printPaper == null,
-            landscape = printLandscape,
+            settings = print,
             widthMm = printWidthMm.toDouble(),
-            customWidthMm = customWidthMm,
-            customHeightMm = customHeightMm,
             canExport = canExport,
             exporting = exporting,
-            onPaper = { printPaper = it },
-            onCustomWidth = { customWidthMm = it },
-            onCustomHeight = { customHeightMm = it },
-            onLandscape = { printLandscape = it },
             onWidth = { printWidthMm = it.toFloat() },
-            onExport = { label, sheets -> startExport(label) { stencil -> printPdfFile(stencil, printWidthMm.toDouble(), printPaper ?: Paper.custom(customWidthMm, customHeightMm), printLandscape, sheets) } },
+            onExport = { label, sheet ->
+                val wanted = print.options(printWidthMm.toDouble()).getOrNull()
+                if (wanted != null) startExport(label) { stencil -> printPdfFile(stencil, wanted, sheet) }
+            },
         )
     }
 }
 
 /** The one print PDF as a downloadable file: one sheet, or all of them. */
-private fun printPdfFile(stencil: Separation, widthMm: Double, paper: Paper, landscape: Boolean, sheet: Int?): ExportFile {
-    val bytes = PrintPdf.make(stencil, PrintOptions(widthMm, paper, landscape), if (sheet == null) stencil.sheets.indices.toList() else listOf(sheet))
+private fun printPdfFile(stencil: Separation, options: PrintOptions, sheet: Int?): ExportFile {
+    val bytes = PrintPdf.make(stencil, options, if (sheet == null) stencil.sheets.indices.toList() else listOf(sheet))
     val name = if (sheet == null) "stencil-print.pdf" else "stencil-print-sheet-${(sheet + 1).toString().padStart(2, '0')}.pdf"
     return ExportFile(name, "application/pdf", bytes)
 }
 
+/** What the Print PDF section has been set to: paper, orientation and, optionally, the boards to mount on. */
+private class PrintSettings {
+    /** The paper preset, or null for Custom. */
+    var paper by mutableStateOf<Paper?>(Paper.US_LETTER)
+    var customWidthMm by mutableStateOf(200.0)
+    var customHeightMm by mutableStateOf(300.0)
+    var landscape by mutableStateOf(false)
+
+    /** 0 is paper only, 1 is the poster board preset, 2 is a custom board. */
+    var mountMode by mutableStateOf(0)
+    var boardWidthIn by mutableStateOf(22.0)
+    var boardHeightIn by mutableStateOf(28.0)
+    var borderIn by mutableStateOf(MountOptions.DEFAULT_BORDER_MM / 25.4)
+
+    val page: Paper get() = (paper ?: Paper.custom(customWidthMm, customHeightMm)).oriented(landscape)
+
+    /** The mounting asked for, or the reason it cannot be (a board or border below the limits). */
+    fun mount(): Result<MountOptions?> = runCatching {
+        when (mountMode) {
+            0 -> null
+            1 -> MountOptions(Board.POSTER_22X28, borderIn * 25.4)
+            else -> MountOptions(Board.custom(boardWidthIn * 25.4, boardHeightIn * 25.4), borderIn * 25.4)
+        }
+    }
+
+    /** The print options at [widthMm], or the reason they cannot be. */
+    fun options(widthMm: Double): Result<PrintOptions> = runCatching {
+        PrintOptions(widthMm, paper ?: Paper.custom(customWidthMm, customHeightMm), landscape, mount().getOrThrow())
+    }
+}
+
 /**
- * Everything about the print PDF in one section: paper, orientation, size by sheets, the page readout
- * (from the same planning code the exporter uses) and the download.
+ * Everything about the print PDF in one section: paper, orientation, mounting on board, size by sheets or boards,
+ * the readout (from the same planning code the exporter uses) and the download.
  */
 @Composable
 private fun PrintSection(
     state: StencilState,
-    paper: Paper,
-    isCustom: Boolean,
-    landscape: Boolean,
+    settings: PrintSettings,
     widthMm: Double,
-    customWidthMm: Double,
-    customHeightMm: Double,
     canExport: Boolean,
     exporting: String?,
-    onPaper: (Paper?) -> Unit,
-    onCustomWidth: (Double) -> Unit,
-    onCustomHeight: (Double) -> Unit,
-    onLandscape: (Boolean) -> Unit,
     onWidth: (Double) -> Unit,
     onExport: (String, Int?) -> Unit,
 ) {
     val stencil = state.separation
-    val options = remember(widthMm, paper, landscape) { runCatching { PrintOptions(widthMm, paper, landscape) } }
-    val page = paper.oriented(landscape)
+    val options = settings.options(widthMm)
+    val mountResult = settings.mount()
+    val mount = mountResult.getOrNull()
+    val page = settings.page
     val aspect = stencil?.let { it.height.toDouble() / it.width }
     val subdued = MaterialTheme.colorScheme.onSurfaceVariant
     Section("Print PDF") {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (preset in Paper.PRESETS) Choice(preset.name, selected = !isCustom && paper.name == preset.name) { onPaper(preset) }
-            Choice("Custom", selected = isCustom) { onPaper(null) }
+            for (preset in Paper.PRESETS) Choice(preset.name, selected = settings.paper?.name == preset.name) { settings.paper = preset }
+            Choice("Custom", selected = settings.paper == null) { settings.paper = null }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("Portrait", selected = !landscape, modifier = Modifier.weight(1f)) { onLandscape(false) }
-            Choice("Landscape", selected = landscape, modifier = Modifier.weight(1f)) { onLandscape(true) }
+            Choice("Portrait", selected = !settings.landscape, modifier = Modifier.weight(1f)) { settings.landscape = false }
+            Choice("Landscape", selected = settings.landscape, modifier = Modifier.weight(1f)) { settings.landscape = true }
         }
-        if (isCustom) {
+        if (settings.paper == null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NumberField("Paper width (mm)", customWidthMm, 1, { if (it > 0) onCustomWidth(it) }, Modifier.weight(1f))
-                NumberField("Paper height (mm)", customHeightMm, 1, { if (it > 0) onCustomHeight(it) }, Modifier.weight(1f))
+                NumberField("Paper width (mm)", settings.customWidthMm, 1, { if (it > 0) settings.customWidthMm = it }, Modifier.weight(1f))
+                NumberField("Paper height (mm)", settings.customHeightMm, 1, { if (it > 0) settings.customHeightMm = it }, Modifier.weight(1f))
             }
         }
         Text(
@@ -445,24 +464,59 @@ private fun PrintSection(
                 "${PrintPdf.OVERLAP_MM.roundToInt()} mm, where the alignment marks are.",
             style = MaterialTheme.typography.bodySmall, color = subdued,
         )
-        if (stencil != null && aspect != null && options.isSuccess) {
+
+        Text("MOUNT ON", style = MaterialTheme.typography.labelSmall, color = subdued)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Paper only", selected = settings.mountMode == 0) { settings.mountMode = 0 }
+            Choice("Poster board 22 x 28", selected = settings.mountMode == 1) { settings.mountMode = 1 }
+            Choice("Custom board", selected = settings.mountMode == 2) { settings.mountMode = 2 }
+        }
+        if (settings.mountMode == 2) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NumberField("Sheets wide", PrintSizing.sheetsWide(widthMm, page), 2, {
-                    if (it > 0) onWidth(PrintSizing.widthMmForSheetsWide(it, page))
-                }, Modifier.weight(1f))
-                NumberField("Sheets high", PrintSizing.sheetsHigh(widthMm, aspect, page), 2, {
-                    if (it > 0) onWidth(PrintSizing.widthMmForSheetsHigh(it, aspect, page))
-                }, Modifier.weight(1f))
+                NumberField("Board width (in)", settings.boardWidthIn, 2, { if (it > 0) settings.boardWidthIn = it }, Modifier.weight(1f))
+                NumberField("Board height (in)", settings.boardHeightIn, 2, { if (it > 0) settings.boardHeightIn = it }, Modifier.weight(1f))
+            }
+        }
+        if (settings.mountMode != 0) {
+            NumberField("Border (in)", settings.borderIn, 2, { if (it > 0) settings.borderIn = it }, Modifier.fillMaxWidth())
+            mountResult.exceptionOrNull()?.let { Text(it.message ?: "These board settings do not work.", style = MaterialTheme.typography.bodySmall) }
+            Text(
+                "Glue the pages onto the board, each corner target the border in from the edges, and cut through both. " +
+                    "Heavyweight poster board or 4-ply railroad board; thin board tears.",
+                style = MaterialTheme.typography.bodySmall, color = subdued,
+            )
+        }
+
+        if (stencil != null && aspect != null && options.isSuccess) {
+            if (mount == null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField("Sheets wide", PrintSizing.sheetsWide(widthMm, page), 2, {
+                        if (it > 0) onWidth(PrintSizing.widthMmForSheetsWide(it, page))
+                    }, Modifier.weight(1f))
+                    NumberField("Sheets high", PrintSizing.sheetsHigh(widthMm, aspect, page), 2, {
+                        if (it > 0) onWidth(PrintSizing.widthMmForSheetsHigh(it, aspect, page))
+                    }, Modifier.weight(1f))
+                }
+            } else {
+                val landscape = BoardGrid.of(widthMm, widthMm * aspect, mount).landscape
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField("Boards wide", PrintSizing.boardsWide(widthMm, mount, landscape), 2, {
+                        if (it > 0) onWidth(PrintSizing.widthMmForBoardsWide(it, mount, landscape))
+                    }, Modifier.weight(1f))
+                    NumberField("Boards high", PrintSizing.boardsHigh(widthMm, aspect, mount, landscape), 2, {
+                        if (it > 0) onWidth(PrintSizing.widthMmForBoardsHigh(it, aspect, mount, landscape))
+                    }, Modifier.weight(1f))
+                }
             }
             OutlinedButton(
-                onClick = { onWidth(PrintSizing.snapToWholePages(widthMm, aspect, page)) },
-                enabled = PrintSizing.hasSliver(widthMm, aspect, page),
+                onClick = { onWidth(PrintSizing.snapToWholePages(widthMm, aspect, page, mount)) },
+                enabled = PrintSizing.hasSliver(widthMm, aspect, page, mount),
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Fit to whole pages") }
+            ) { Text(if (mount == null) "Fit to whole pages" else "Fit to whole boards") }
         }
         val failure = options.exceptionOrNull()
-        if (failure != null) Text(failure.message ?: "These print settings do not work.", style = MaterialTheme.typography.bodySmall)
-        val plan by produceState<Result<PrintPlan>?>(null, stencil, options) {
+        if (failure != null && mountResult.isSuccess) Text(failure.message ?: "These print settings do not work.", style = MaterialTheme.typography.bodySmall)
+        val plan by produceState<Result<PrintPlan>?>(null, stencil, options.getOrNull()) {
             value = null
             val wanted = options.getOrNull()
             if (stencil != null && wanted != null) {
@@ -475,7 +529,16 @@ private fun PrintSection(
                 Text(result.exceptionOrNull()?.message ?: "This cannot be printed.", style = MaterialTheme.typography.bodySmall)
             } else {
                 val shown = state.shownSheet?.let { sheet -> ready.sheets.firstOrNull { it.sheet == sheet } }
-                val line = if (shown != null) {
+                val boards = ready.boards
+                val line = if (boards != null) {
+                    val where = "${boards.cols} across, ${boards.rows} down, ${if (boards.landscape) "landscape" else "portrait"}"
+                    if (shown != null) {
+                        "${boards.count} boards on sheet ${shown.sheet + 1} ($where), ${shown.boards.count { it.blank }} blank; ${shown.printed.size} pages"
+                    } else {
+                        "${boards.count} boards per sheet ($where), ${boards.count * ready.sheets.size} boards in all, " +
+                            "${ready.blankBoards} blank; ${ready.printedPages} pages"
+                    }
+                } else if (shown != null) {
                     "${shown.printed.size} pages on sheet ${shown.sheet + 1} (${ready.grid.cols} across, ${ready.grid.rows} down), " +
                         "${shown.blank.size} skipped as blank"
                 } else {
