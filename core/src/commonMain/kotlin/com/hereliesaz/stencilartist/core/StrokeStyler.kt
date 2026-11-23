@@ -125,6 +125,10 @@ object StrokeStyler {
                 // perimeter edge; thin strokes can be attached at any orientation.
                 for (i in 0 until tail) {
                     val p = queue[i]
+                    // A pixel at least five pixels from every 4-neighbour boundary
+                    // cannot belong to a stroke whose cross-section is four pixels.
+                    // Skip expensive directional checks in the broad interior.
+                    if (distance[p] > 4) continue
                     val x = p % w
                     val y = p / w
                     // Check four axes, including both diagonals. A thin diagonal
