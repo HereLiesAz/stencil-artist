@@ -44,6 +44,13 @@ object SoftGradientZones {
         val columns = (width + cellSize - 1) / cellSize
         val rows = (height + cellSize - 1) / cellSize
         val zones = ArrayList<LiftZone>()
+        // One immutable set of edge directions; no per-pixel object allocations.
+        val edges = arrayOf(
+            Triple(1, 0, LiftDirection.RIGHT),
+            Triple(-1, 0, LiftDirection.LEFT),
+            Triple(0, 1, LiftDirection.DOWN),
+            Triple(0, -1, LiftDirection.UP),
+        )
         // A representative from each spatial region is more useful than a label on each
         // pixel along a long gradient. There is no dependence on the number of colours.
         for (sheet in 0 until stencil.sheets.size) {
@@ -54,12 +61,6 @@ object SoftGradientZones {
                 for (x in 5 until width - 5) {
                     val p = y * width + x
                     if (!mask[p]) continue
-                    val edges = arrayOf(
-                        Triple(1, 0, LiftDirection.RIGHT),
-                        Triple(-1, 0, LiftDirection.LEFT),
-                        Triple(0, 1, LiftDirection.DOWN),
-                        Triple(0, -1, LiftDirection.UP),
-                    )
                     for ((dx, dy, dir) in edges) {
                         if (mask[p + dy * width + dx]) continue
                         var lo = 255
