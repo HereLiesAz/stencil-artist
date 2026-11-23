@@ -510,8 +510,9 @@ private fun PrintSection(
             NumberField("Border (in)", settings.borderIn, 2, { if (it > 0) settings.borderIn = it }, Modifier.fillMaxWidth())
             mountResult.exceptionOrNull()?.let { Text(it.message ?: "These board settings do not work.", style = MaterialTheme.typography.bodySmall) }
             Text(
-                "The pages are fitted to the board, so the outer pages' paper edges lie on the board's edges on every side. " +
-                    "Glue them down flush with the board's edges, then cut through both. " +
+                "Pages continue across the boards, laid edge to edge. Start with page A1's paper edges on board 1's top and left edges. " +
+                    "Where a page crosses a board edge, cut it on the dotted line and use the offcut to start the next board; " +
+                    "that is the only paper you cut. Then cut through paper and board together. " +
                     "Heavyweight poster board or 4-ply railroad board; thin board tears.",
                 style = MaterialTheme.typography.bodySmall, color = subdued,
             )

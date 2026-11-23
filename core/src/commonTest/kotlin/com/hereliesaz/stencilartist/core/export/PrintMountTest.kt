@@ -21,6 +21,9 @@ class PrintMountTest {
         Separation(width, height, listOf(ink), IntArray(width * height) { i -> if (cut(i % width, i / width)) 0 else Separation.NONE })
 
     /** 400 x 400 px, 60 mm stripes of cut at 1 m wide (2.5 mm a pixel): every board has cut and clear stock for labels. */
+    /** A fully cut 100 x 100 pixel piece: every board has cut everywhere. */
+    private fun allCut() = stencil(100, 100) { _, _ -> true }
+
     private fun stripes() = stencil(400, 400) { x, _ -> (x / 24) % 2 == 0 }
 
     private fun options(width: Double = 1000.0, mount: MountOptions? = poster, paper: Paper = Paper.US_LETTER) =
@@ -151,24 +154,6 @@ class PrintMountTest {
         return out
     }
 
-    /** A tile page's board number, tile column and row (0-based), from its label. */
-    private class Where(val board: Int, val col: Int, val row: Int)
-
-    private fun whereIs(d: Drawn): Where? {
-        val label = d.words.map { it.third }.firstOrNull { Regex("Sheet \\d+ of \\d+ - Board \\d+ of \\d+ - [A-Z]+\\d+").matches(it) } ?: return null
-        val m = Regex("Board (\\d+) of \\d+ - ([A-Z]+)(\\d+)").find(label)!!
-        return Where(m.groupValues[1].toInt(), m.groupValues[2][0] - 'A', m.groupValues[3].toInt() - 1)
-    }
-
-    /** How far Letter pages advance on 22 x 28 in poster board: fitted so the paper reaches both edges (3 pages across and down). */
-    private val step = (558.8 - 215.9) / 2
-    private val stepY = (711.2 - 279.4) / 2
-
-    /** Page points to finished-piece mm for a page of [w] at region origin ([ox], [oy]) and tile ([col], [row]). */
-    private fun finished(p: Pair<Double, Double>, pageH: Double, ox: Double, oy: Double, w: Where) =
-        ((p.first / k - 3.0) + ox + w.col * step) to (((pageH - p.second) / k - 3.0) + oy + w.row * stepY)
-
-
     // ---- Boards and options.
 
     @Test
@@ -225,273 +210,308 @@ class PrintMountTest {
         assertTrue(plan.sheets.single().boards.isEmpty())
     }
 
-    // ---- Plan.
+    // ---- Pages, boards and the single grid.
+
+    private val pw = 215.9
+    private val ph = 279.4
+    private val stepX = pw - 4.0
+    private val stepY = ph - 4.0
+    private val bw = 558.8
+    private val bh = 711.2
+
+    /** A tile page's boards, and its column and row (0-based) in the one grid, from its label. */
+    private class Where(val boards: List<Int>, val col: Int, val row: Int)
+
+    private fun whereIs(d: Drawn): Where? {
+        val label = d.words.map { it.third }.firstOrNull { Regex("Sheet \\d+ of \\d+ - (Board \\d+ of \\d+|Boards [0-9+]+) - [A-Z]+\\d+").matches(it) } ?: return null
+        val m = Regex("- (Board (\\d+) of \\d+|Boards ([0-9+]+)) - ([A-Z]+)(\\d+)$").find(label)!!
+        val boards = if (m.groupValues[2].isNotEmpty()) listOf(m.groupValues[2].toInt()) else m.groupValues[3].split("+").map { it.toInt() }
+        return Where(boards, m.groupValues[4][0] - 'A', m.groupValues[5].toInt() - 1)
+    }
+
+    private fun windowLeft(w: Where) = 3.0 + w.col * stepX
+    private fun windowTop(w: Where) = 3.0 + w.row * stepY
+
+    /** Page points to grid (board rectangle) mm for the page at [w]. */
+    private fun grid(p: Pair<Double, Double>, w: Where, pageH: Double = ph * k) =
+        (p.first / k - 3.0 + windowLeft(w)) to ((pageH - p.second) / k - 3.0 + windowTop(w))
+
+    private fun plan(sep: Separation, o: PrintOptions) = PrintPdf.plan(sep, o)
+
+    @Test
+    fun theMountedStepIsThePaperOnlyStepAndOneGridSpansTheBoardRectangleFromTheOrigin() {
+        val sep = allCut()
+        val opts = options(1000.0)
+        val p = plan(sep, opts)
+        val g = p.grid
+        // 3 x 2 boards of 558.8 x 711.2 mm: a 1676.4 x 1422.4 mm rectangle.
+        assertEquals(3 * bw, g.widthMm, 1e-9)
+        assertEquals(2 * bh, g.heightMm, 1e-9)
+        // The step is exactly the paper-only one: paper size less 4 mm, and the first window is the paper's own 3 mm margin in.
+        assertEquals(3.0, g.tile(0, 0).clip.x0, 1e-9)
+        assertEquals(3.0, g.tile(0, 0).clip.y0, 1e-9)
+        for (c in 1 until g.cols) assertEquals(stepX, g.tile(0, c).clip.x0 - g.tile(0, c - 1).clip.x0, 1e-9)
+        for (r in 1 until g.rows) assertEquals(stepY, g.tile(r, 0).clip.y0 - g.tile(r - 1, 0).clip.y0, 1e-9)
+        assertEquals(PrintPdf.stepWidthMm(Paper.US_LETTER), stepX, 1e-9)
+        // The windows reach the rectangle's far edges.
+        assertTrue(g.tile(0, g.cols - 1).clip.x0 + 209.9 >= g.widthMm - 3.0 - 1e-6)
+        assertTrue(g.tile(g.rows - 1, 0).clip.y0 + 273.4 >= g.heightMm - 3.0 - 1e-6)
+        assertEquals(6, p.boardsPerSheet)
+    }
 
     @Test
     fun thePlanReportsBoardsOrientationBlankBoardsAndPages() {
         // Cut only in the left 30% of a 1 m piece: with portrait boards (457.2 mm) only board column 0 has cut.
         val s = stencil(400, 400) { x, _ -> x < 120 }
-        val plan = PrintPdf.plan(s, options())
-        val grid = assertNotNull(plan.boards)
+        val p = plan(s, options())
+        val grid = assertNotNull(p.boards)
         assertEquals(3, grid.cols); assertEquals(2, grid.rows)
         assertFalse(grid.landscape)
-        assertEquals(6, plan.boardsPerSheet)
-        assertEquals(4, plan.blankBoards)
-        assertEquals(2, plan.printedBoards)
-        val boards = plan.sheets.single().boards
+        assertEquals(6, p.boardsPerSheet)
+        assertEquals(4, p.blankBoards)
+        assertEquals(2, p.printedBoards)
+        val boards = p.sheets.single().boards
         assertEquals(listOf(false, true, true, false, true, true), boards.map { it.blank })
+        // Pages come from the single grid: the printed and skipped ones together are the whole grid.
+        assertEquals(p.tilesPerSheet, p.sheets.single().printed.size + p.sheets.single().blank.size)
+        assertTrue(p.sheets.single().printed.isNotEmpty())
         assertTrue(boards.filter { !it.blank }.all { it.printed.isNotEmpty() })
-        assertEquals(plan.printedPages, boards.sumOf { it.printed.size })
     }
 
-    // ---- The file.
+    @Test
+    fun theTopLeftPageIsAlwaysPrintedWhenAnythingIsAndNothingIsPrintedWhenNothingIsCut() {
+        // Cut only far from the top-left corner.
+        val sep = stencil(100, 100) { x, y -> x >= 80 && y >= 80 }
+        val p = plan(sep, options(400.0))
+        assertTrue(p.sheets.single().printed.any { it.col == 0 && it.row == 0 }, "A1 is the squaring reference")
+        assertTrue(p.sheets.single().blank.isNotEmpty())
+        val pdf = pages(PrintPdf.make(sep, options(400.0)))
+        assertTrue(pdf.filter { it.kind == "tile" }.mapNotNull { whereIs(interpret(it.content)) }.any { it.col == 0 && it.row == 0 })
+        val none = plan(stencil(100, 100) { _, _ -> false }, options(400.0))
+        assertTrue(none.sheets.single().printed.isEmpty())
+    }
 
     @Test
-    fun everyBoardPageIsLabelledWithItsBoardAndTheMapShowsBoardsPagesAndBlanks() {
-        val s = stencil(400, 400) { x, _ -> x < 120 && (x / 24) % 2 == 0 }
-        val pdf = pages(PrintPdf.make(s, options()))
-        val plan = PrintPdf.plan(s, options())
+    fun pageLabelsNameEveryBoardAPageTouchesAndTheMapShowsBoardsPagesAndDottedLines() {
+        val sep = allCut()
+        val pdf = pages(PrintPdf.make(sep, options(1000.0)))
         assertEquals("instructions", pdf[0].kind)
-        assertEquals(1, pdf.count { it.kind == "instructions" })
         assertEquals(1, pdf.count { it.kind == "map" })
-        val tiles = pdf.filter { it.kind == "tile" }
-        assertEquals(plan.printedPages, tiles.size)
-        assertEquals(1 + 1 + tiles.size + pdf.count { it.kind == "reference" }, pdf.size)
-        val labels = tiles.map { interpret(it.content).words.map { w -> w.third }.first { w -> w.startsWith("Sheet ") } }
-        assertTrue(labels.all { Regex("Sheet 1 of 1 - Board [14] of 6 - [A-Z]\\d").matches(it) }, labels.toString())
-        val map = interpret(pdf[1].content).words.map { it.third }
-        assertTrue("Board 1" in map && "Board 4" in map, map.toString())
-        assertTrue("Board 2 blank" in map && "Board 3 blank" in map && "Board 5 blank" in map && "Board 6 blank" in map, map.toString())
-        assertTrue(map.any { "Boards: 6 (3 across x 2 down, portrait)" in it })
+        val labels = pdf.filter { it.kind == "tile" }.map { interpret(it.content).words.map { w -> w.third }.first { w -> w.startsWith("Sheet ") } }
+        assertTrue(labels.any { Regex("Sheet 1 of 1 - Board 1 of 6 - A1").matches(it) }, labels.take(3).toString())
+        assertTrue(labels.any { Regex("Sheet 1 of 1 - Boards 1\\+2 - [A-Z]\\d").matches(it) }, "a page across the edge between boards 1 and 2")
+        assertTrue(labels.any { Regex("Sheet 1 of 1 - Boards 1\\+4 - [A-Z]\\d").matches(it) }, "and one across the edge between boards 1 and 4")
+        assertTrue(labels.any { Regex("Sheet 1 of 1 - Boards [0-9]\\+[0-9]\\+[0-9]\\+[0-9] - [A-Z]\\d").matches(it) }, "and one at a corner touching four boards")
+        val map = pdf.first { it.kind == "map" }.content
+        assertTrue("[0.01 3.0] 0 d" in map, "dotted lines on the map")
+        val words = interpret(map).words.map { it.third }
+        assertTrue("Board 1" in words && "Board 6" in words, words.toString())
+        assertTrue(words.any { "Boards: 6 (3 across x 2 down, portrait)" in it })
     }
 
     @Test
-    fun noPagePrintsAcrossABoardEdgeAndMarksOnlyJoinPagesOfTheSameBoard() {
-        val opts = options()
-        val sep = stripes()
-        val grid = assertNotNull(PrintPdf.plan(sep, opts).boards)
-        val pdf = pages(PrintPdf.make(sep, opts))
-        val pageH = 279.4 * k
-        var checked = 0
-        for (page in pdf.filter { it.kind == "tile" }) {
-            val d = interpret(page.content)
-            val w = assertNotNull(whereIs(d))
-            val cell = grid.cells[w.board - 1].cut
-            val ox = cell.x0 - poster.borderMm + 3.0
-            val oy = cell.y0 - poster.borderMm + 3.0
-            // The printed art is clipped to this board's cut area (and to the page): the first clip rectangle.
-            val clip = d.clips.first()
-            val a = finished(clip[0] to clip[1] + clip[3], pageH, ox, oy, w)
-            val b = finished(clip[0] + clip[2] to clip[1], pageH, ox, oy, w)
-            if (clip[2] > 0.0 && clip[3] > 0.0) assertTrue(a.first >= cell.x0 - 0.01 && a.second >= cell.y0 - 0.01 && b.first <= cell.x1 + 0.01 && b.second <= cell.y1 + 0.01,
-                "page ${w.board}/${w.col},${w.row} prints $a-$b inside cell $cell")
-            // Its marks all lie within its own board (the pages are fitted to it), so a band never straddles two boards.
-            val board = poster.board
-            for (poly in d.strokes) if (poly.size > 1) for (p in poly) {
-                val f = finished(p, pageH, ox, oy, w)
-                assertTrue(f.first >= cell.x0 - poster.borderMm - 0.01 && f.first <= cell.x0 - poster.borderMm + board.widthMm + 0.01 &&
-                    f.second >= cell.y0 - poster.borderMm - 0.01 && f.second <= cell.y0 - poster.borderMm + board.heightMm + 0.01,
-                    "mark point $f of board ${w.board} is outside its board")
-            }
-            checked++
+    fun aBlankBoardIsMarkedBlankOnTheMap() {
+        val s = stencil(400, 400) { x, _ -> x < 120 }
+        val map = pages(PrintPdf.make(s, options())).first { it.kind == "map" }.content
+        val words = interpret(map).words.map { it.third }
+        assertTrue("Board 2 blank" in words && "Board 3 blank" in words && "Board 5 blank" in words && "Board 6 blank" in words, words.toString())
+        assertTrue("Board 1" in words && "Board 4" in words)
+    }
+
+    /** The dotted cut lines of a tile page, as ((x1, y1), (x2, y2)) in grid mm. */
+    private fun dottedLines(content: String, w: Where): List<Pair<Pair<Double, Double>, Pair<Double, Double>>> {
+        val out = ArrayList<Pair<Pair<Double, Double>, Pair<Double, Double>>>()
+        val re = Regex("\\[0\\.01 3\\.6\\] 0 d\n1 J\n1\\.7 w\n0\\.1 0\\.1 0\\.1 RG\n(\\S+) (\\S+) m (\\S+) (\\S+) l S")
+        for (m in re.findAll(content)) {
+            val a = grid(m.groupValues[1].toDouble() to m.groupValues[2].toDouble(), w)
+            val b = grid(m.groupValues[3].toDouble() to m.groupValues[4].toDouble(), w)
+            out += a to b
         }
-        assertTrue(checked > 6)
-        // Board cells partition the plane: no two overlap in area.
-        for (a in grid.cells) for (b in grid.cells) if (a.number < b.number) {
-            val ox = min(a.cut.x1, b.cut.x1) - maxOf(a.cut.x0, b.cut.x0)
-            val oy = min(a.cut.y1, b.cut.y1) - maxOf(a.cut.y0, b.cut.y0)
-            assertFalse(ox > 1e-9 && oy > 1e-9, "boards ${a.number} and ${b.number} overlap")
-        }
-    }
-
-    /** A fully cut piece, 400 mm at 4 mm a pixel, so every board's A1 page has art on it. */
-    private fun allCut() = stencil(100, 100) { _, _ -> true }
-
-    @Test
-    fun pageA1OfEveryBoardHasItsPaperOnTheBoardCornerAndTheCutStartsTheBorderIn() {
-        // 1 m piece: 6 boards. On each board's A1 page the cut area begins exactly the border from the paper's left and top edges.
-        val sep = stencil(100, 100) { _, _ -> true }
-        val opts = options(1000.0)
-        val grid = assertNotNull(PrintPdf.plan(sep, opts).boards)
-        val pdf = pages(PrintPdf.make(sep, opts))
-        val pageH = 279.4 * k
-        val a1 = pdf.filter { it.kind == "tile" }.filter { p -> whereIs(interpret(p.content)).let { it != null && it.col == 0 && it.row == 0 } }
-        assertEquals(grid.count, a1.size, "every board has its A1 page")
-        for (page in a1) {
-            val clip = interpret(page.content).clips.first()
-            assertEquals(poster.borderMm * k, clip[0], 0.02, "cut area starts the border in from the paper's left edge")
-            assertEquals(pageH - poster.borderMm * k, clip[1] + clip[3], 0.02, "and from the paper's top edge")
-        }
+        return out
     }
 
     @Test
-    fun everyCutPixelOfABoardIsAtLeastTheBorderFromAllFourBoardEdgesAndNothingIsDrawnPastTheBoard() {
-        val opts = options(1000.0)
-        val sep = stencil(100, 100) { _, _ -> true }
-        val grid = assertNotNull(PrintPdf.plan(sep, opts).boards)
-        val pdf = pages(PrintPdf.make(sep, opts))
-        val pageH = 279.4 * k
-        val board = poster.board
-        for (page in pdf.filter { it.kind == "tile" }) {
-            val d = interpret(page.content)
-            val w = assertNotNull(whereIs(d))
-            val clip = d.clips.first()
-            if (clip[2] <= 0.0 || clip[3] <= 0.0) continue
-            // Board coordinates: x across from the board's left edge, y down from its top edge. Page (col, row)'s paper starts at col * step.
-            val left = w.col * step + clip[0] / k
-            val right = w.col * step + (clip[0] + clip[2]) / k
-            val topY = w.row * stepY + (pageH - clip[1] - clip[3]) / k
-            val bottomY = w.row * stepY + (pageH - clip[1]) / k
-            assertTrue(left >= poster.borderMm - 0.02 && topY >= poster.borderMm - 0.02, "board ${w.board} art starts the border in")
-            assertTrue(right <= board.widthMm - poster.borderMm + 0.02 && bottomY <= board.heightMm - poster.borderMm + 0.02, "board ${w.board} art ends the border before the far edges")
-        }
-        assertTrue(grid.count > 1)
-    }
-
-    @Test
-    fun noPageRunsPastTheBoardAndThereAreNoTrimLines() {
-        val pdf = pages(PrintPdf.make(allCut(), options(400.0)))
-        assertFalse(pdf.any { "TRIM TO BOARD EDGE" in it.content || "[3 2] 0 d" in it.content && it.kind == "tile" && "TAB" !in it.content }, "no board-edge trim line or caption")
-        assertFalse(pdf.any { "(TRIM TO BOARD EDGE) Tj" in it.content })
-    }
-
-    /** The windows (printable areas) of every printed page of every board, in the board's own mm, for [sep] and [opts]. */
-    private fun fittedPlan(sep: Separation, opts: PrintOptions) = PrintPdf.plan(sep, opts)
-
-    @Test
-    fun fittedPagesSpanTheBoardExactlyForEveryPaperAndOrientationAndOverlapEqually() {
-        for (paper in Paper.PRESETS + Paper.custom(250.0, 180.0)) for (landscapePaper in listOf(false, true)) for (piece in listOf(1000.0 to 1000.0, 1200.0 to 900.0)) {
-            val sep = stencil(100, 100) { _, _ -> true }
-            val aspect = piece.second / piece.first
-            val sepShaped = stencil(100, (100 * aspect).toInt()) { _, _ -> true }
-            val opts = PrintOptions(piece.first, paper, landscapePaper, poster)
-            val page = opts.page
-            val boardGrid = BoardGrid.of(piece.first, piece.first * aspect, poster)
-            val board = poster.board.oriented(boardGrid.landscape)
-            if (page.widthMm > board.widthMm || page.heightMm > board.heightMm) {
-                val e = assertFailsWith<IllegalArgumentException> { PrintPdf.plan(sepShaped, opts) }
-                assertTrue("larger than" in e.message.orEmpty(), e.message)
-                continue
-            }
-            val plan = fittedPlan(sepShaped, opts)
-            val grid = plan.grid
-            assertEquals(board.widthMm, grid.widthMm, 1e-9)
-            assertEquals(board.heightMm, grid.heightMm, 1e-9)
-            // Paper rectangles (window less the 3 mm margin each side): the first on the board's corner, the last on the far edges, none beyond.
-            var minX = Double.MAX_VALUE; var maxX = -Double.MAX_VALUE; var minY = Double.MAX_VALUE; var maxY = -Double.MAX_VALUE
-            for (t in grid.tiles) {
-                val px0 = t.clip.x0 - 3.0
-                val py0 = t.clip.y0 - 3.0
-                minX = minOf(minX, px0); maxX = maxOf(maxX, px0 + page.widthMm)
-                minY = minOf(minY, py0); maxY = maxOf(maxY, py0 + page.heightMm)
-            }
-            assertEquals(0.0, minX, 1e-9); assertEquals(board.widthMm, maxX, 1e-9)
-            assertEquals(0.0, minY, 1e-9); assertEquals(board.heightMm, maxY, 1e-9)
-            // Neighbouring sheets of paper overlap by at least 4 mm (the top page's paper edge is inside the under page's printed area) and equally across the board.
-            val printable = page.widthMm - 6.0
-            val paperOverlapsX = (0 until grid.cols - 1).map { c -> page.widthMm - (grid.tile(0, c + 1).clip.x0 - grid.tile(0, c).clip.x0) }
-            for (o in paperOverlapsX) { assertTrue(o >= 4.0 - 1e-9, "paper overlap $o on ${paper.name}"); assertEquals(paperOverlapsX.first(), o, 1e-9) }
-            val printableH = page.heightMm - 6.0
-            val paperOverlapsY = (0 until grid.rows - 1).map { r -> page.heightMm - (grid.tile(r + 1, 0).clip.y0 - grid.tile(r, 0).clip.y0) }
-            for (o in paperOverlapsY) { assertTrue(o >= 4.0 - 1e-9); assertEquals(paperOverlapsY.first(), o, 1e-9) }
-            // And it is the fewest pages that can do it: one fewer could not overlap by 4 mm.
-            if (grid.cols > 1) assertTrue(grid.cols == 2 && board.widthMm - page.widthMm > page.widthMm - 4.0 - 1e-9 || (board.widthMm - page.widthMm) / (grid.cols - 2) > page.widthMm - 4.0 - 1e-9)
-            // Every cut pixel (here the whole piece) is inside at least one printed page's printable area.
-            for (b in plan.sheets.single().boards) {
-                val ox = b.board.cut.x0 - poster.borderMm
-                val oy = b.board.cut.y0 - poster.borderMm
-                val cut = b.board.cut
-                var x = cut.x0 + 1.0
-                while (x < minOf(cut.x1, piece.first)) {
-                    var y = cut.y0 + 1.0
-                    while (y < minOf(cut.y1, piece.second * 1.0)) {
-                        // On a printed page's printable area, or in a page's blank 3 mm margin lying over another (the strip at a join).
-                        val covered = b.printed.any { t -> x >= ox + t.clip.x0 - 3.0 && x <= ox + t.clip.x0 + printable + 3.0 && y >= oy + t.clip.y0 - 3.0 && y <= oy + t.clip.y0 + printableH + 3.0 }
-                        assertTrue(covered, "point $x,$y of board ${b.board.number} is on no printed sheet (${paper.name})")
-                        y += 37.0
-                    }
-                    x += 41.0
-                }
-            }
-            assertTrue(sep.width > 0)
-        }
-    }
-
-    @Test
-    fun theUnderPageOfEveryOverlapPrintsGuidesOnTheTopPagesPaperEdgesAndTheTopPagePrintsNone() {
+    fun everyPageCrossingABoardEdgeHasADottedLineExactlyOnItAndNoneElsewhere() {
         val sep = allCut()
         val opts = options(1000.0)
-        val grid = assertNotNull(PrintPdf.plan(sep, opts).boards)
+        val g = plan(sep, opts).grid
         val pdf = pages(PrintPdf.make(sep, opts))
-        val pageH = 279.4 * k
-        val cell = grid.cells.first().cut
-        val ox = cell.x0 - poster.borderMm + 3.0 // finished x of page A1's printed left edge
-        val oy = cell.y0 - poster.borderMm + 3.0
-        val byPos = HashMap<Pair<Int, Int>, Drawn>()
-        val whereBy = HashMap<Pair<Int, Int>, Where>()
+        val rw = g.widthMm
+        val rh = g.heightMm
+        var crossings = 0
         for (page in pdf.filter { it.kind == "tile" }) {
             val d = interpret(page.content)
-            val w = whereIs(d) ?: continue
-            if (w.board != 1) continue
-            byPos[w.col to w.row] = d
-            whereBy[w.col to w.row] = w
+            val w = assertNotNull(whereIs(d))
+            val lines = dottedLines(page.content, w)
+            val wl = windowLeft(w); val wt = windowTop(w)
+            // The vertical and horizontal board edges that cross this page's printed area.
+            val expectedX = (1..3).map { it * bw }.filter { it > wl + 0.7 && it <= wl + 209.9 }
+            val expectedY = (1..2).map { it * bh }.filter { it > wt + 0.7 && it <= wt + 273.4 }
+            val xs = lines.filter { (a, b) -> abs(a.first - b.first) < 0.01 }
+            val ys = lines.filter { (a, b) -> abs(a.second - b.second) < 0.01 }
+            assertEquals(expectedX.size, xs.size, "vertical dotted lines on page ${w.col},${w.row}")
+            assertEquals(expectedY.size, ys.size, "horizontal dotted lines on page ${w.col},${w.row}")
+            for ((line, edge) in xs.zip(expectedX)) {
+                val (a, b) = line
+                // On the edge itself (or, if the edge is in the 3 mm strip, just before it on the visible side).
+                val nextLeft = if (w.col < g.cols - 1) g.tile(w.row, w.col + 1).clip.x0 - 3.0 else Double.NaN
+                val inStrip = !nextLeft.isNaN() && edge >= nextLeft && edge <= nextLeft + 3.0
+                assertEquals(if (inStrip) nextLeft - 0.3 else edge, a.first, 0.01, "dotted line exactly on the board edge")
+                // Across the page's printed extent, within the rectangle.
+                assertEquals(wt, minOf(a.second, b.second), 0.01)
+                assertEquals(minOf(wt + 273.4, rh), maxOf(a.second, b.second), 0.01)
+                crossings++
+            }
+            for ((line, edge) in ys.zip(expectedY)) {
+                val (a, b) = line
+                val nextTop = if (w.row < g.rows - 1) g.tile(w.row + 1, w.col).clip.y0 - 3.0 else Double.NaN
+                val inStrip = !nextTop.isNaN() && edge >= nextTop && edge <= nextTop + 3.0
+                assertEquals(if (inStrip) nextTop - 0.3 else edge, a.second, 0.01)
+                assertEquals(wl, minOf(a.first, b.first), 0.01)
+                assertEquals(minOf(wl + 209.9, rw), maxOf(a.first, b.first), 0.01)
+                crossings++
+            }
         }
-        fun segs(pos: Pair<Int, Int>) = byPos.getValue(pos).strokes.flatMap { poly -> poly.zipWithNext() }
-            .map { (a, b) -> finished(a, pageH, ox, oy, whereBy.getValue(pos)) to finished(b, pageH, ox, oy, whereBy.getValue(pos)) }
-        var pairs = 0
-        for (c in 0..1) for (r in 0..2) {
-            val under = c to r
-            val upper = c + 1 to r
-            if (under !in byPos || upper !in byPos) continue
-            // The top page's paper left edge, in finished mm: its window's left edge less the 3 mm margin.
-            val edge = ox + upper.first * step - 3.0
-            val onEdge = { pos: Pair<Int, Int> -> segs(pos).filter { (a, b) -> abs(a.first - b.first) < 1e-6 && abs(a.first - (edge - 0.1)) < 0.01 } }
-            assertTrue(onEdge(under).isNotEmpty(), "guides on the paper edge of $upper under $under")
-            // They lie in the under page's printed area (its window ends 1 mm or more past the edge).
-            val windowRight = ox + under.first * step + 209.9
-            assertTrue(onEdge(under).all { (a, b) -> a.first <= windowRight && b.first <= windowRight })
-            assertTrue(segs(upper).none { (a, b) -> abs(a.first - b.first) < 1e-6 && abs(a.first - (edge - 0.1)) < 0.5 }, "the top page prints nothing in its own margin")
-            pairs++
-        }
-        for (c in 0..2) for (r in 0..1) {
-            val under = c to r
-            val lower = c to r + 1
-            if (under !in byPos || lower !in byPos) continue
-            val edge = oy + lower.second * stepY - 3.0
-            val onEdge = { pos: Pair<Int, Int> -> segs(pos).filter { (a, b) -> abs(a.second - b.second) < 1e-6 && abs(a.second - (edge - 0.1)) < 0.01 } }
-            assertTrue(onEdge(under).isNotEmpty())
-            assertTrue(segs(lower).none { (a, b) -> abs(a.second - b.second) < 1e-6 && abs(a.second - (edge - 0.1)) < 0.5 })
-            pairs++
-        }
-        assertTrue(pairs >= 8, "most neighbours of board 1 were compared: $pairs")
+        assertTrue(crossings >= 10, "pages cross board edges: $crossings")
     }
 
     @Test
-    fun theCornerPageIsPrintedWheneverABoardHasAnyPageEvenWithNothingToCutOnIt() {
-        // Cut only in the far corner of the board: x 380..399 mm of a 400 mm piece lies in A1's... use a corner far from A1.
-        val sep = stencil(100, 100) { x, y -> x >= 80 && y >= 80 }
-        val opts = options(400.0)
-        val plan = PrintPdf.plan(sep, opts)
-        val board = plan.sheets.single().boards.single()
-        assertFalse(board.blank)
-        assertTrue(board.printed.any { it.col == 0 && it.row == 0 }, "A1 is printed")
-        assertTrue(board.skipped.isNotEmpty(), "other pages with nothing to cut are still skipped")
+    fun dotsContrastWithWhatTheyCrossBlankPaperDarkAndLight() {
+        val clip = "0 0 100 100 re W n\n"
+        val dark = PrintPdf.cutLineOps(10.0, 10.0, 10.0, 90.0, 0xFF101820.toInt(), clip)
+        val light = PrintPdf.cutLineOps(10.0, 10.0, 10.0, 90.0, 0xFFF4F0E0.toInt(), clip)
+        val blank = PrintPdf.cutLineOps(10.0, 10.0, 10.0, 90.0, 0xFF101820.toInt(), null)
+        // Over blank paper: dark dots only, nothing else.
+        assertEquals(1, Regex("0\\.1 0\\.1 0\\.1 RG").findAll(blank).count())
+        assertFalse("1 1 1 RG" in blank)
+        // Over a light fill the dark dots already contrast: no second pass.
+        assertFalse("1 1 1 RG" in light)
+        assertTrue("0.1 0.1 0.1 RG" in light)
+        // Over a dark fill: dark dots, then the same dots in white, inside the clip to the cut shapes, so each dot suits what lies under it.
+        assertTrue("0.1 0.1 0.1 RG" in dark)
+        val white = dark.indexOf("1 1 1 RG")
+        assertTrue(white > dark.indexOf("0.1 0.1 0.1 RG"))
+        assertTrue(dark.indexOf("W n") in 0 until white, "the white pass is clipped to the cut shapes")
+        // Round dots (round caps and a zero-length dash), distinct from the thin solid guides and the outline.
+        assertTrue("[0.01 3.6] 0 d" in dark && "1 J" in dark && "1.7 w" in dark)
+        assertTrue(PrintPdf.luminance(0xFF000000.toInt()) < 0.01 && PrintPdf.luminance(0xFFFFFFFF.toInt()) > 0.99)
+        // The pivot is half luminance: mid grey 0x80 is just over.
+        val mid = PrintPdf.cutLineOps(0.0, 0.0, 1.0, 1.0, 0xFF808080.toInt(), clip)
+        assertFalse("1 1 1 RG" in mid)
+        val darkish = PrintPdf.cutLineOps(0.0, 0.0, 1.0, 1.0, 0xFF707070.toInt(), clip)
+        assertTrue("1 1 1 RG" in darkish)
+    }
+
+    /** The art blocks of a tile page: each clip rectangle in grid mm and the translation of its finished-piece art. */
+    private fun artBlocks(content: String, w: Where): List<Pair<DoubleArray, Double>> {
+        val out = ArrayList<Pair<DoubleArray, Double>>()
+        val re = Regex("q\n(\\S+) (\\S+) (\\S+) (\\S+) re W n\n1 0 0 1 (\\S+) (\\S+) cm\n")
+        for (m in re.findAll(content)) {
+            val x = m.groupValues[1].toDouble(); val y = m.groupValues[2].toDouble()
+            val cw = m.groupValues[3].toDouble(); val ch = m.groupValues[4].toDouble()
+            val x0 = x / k - 3.0 + windowLeft(w)
+            val y1 = (ph * k - y) / k - 3.0 + windowTop(w)
+            val clip = doubleArrayOf(x0, y1 - ch / k, x0 + cw / k, y1)
+            out += clip to m.groupValues[5].toDouble()
+        }
+        return out
+    }
+
+    @Test
+    fun whatAPageShowsBeyondABoardEdgeIsTheNextBoardsContentAtItsStartAndCutsStayInsideEachCutArea() {
+        val sep = allCut()
+        val opts = options(1000.0)
+        val grid = assertNotNull(plan(sep, opts).boards)
+        val border = poster.borderMm
         val pdf = pages(PrintPdf.make(sep, opts))
-        val labels = pdf.filter { it.kind == "tile" }.mapNotNull { whereIs(interpret(it.content)) }
-        assertTrue(labels.any { it.col == 0 && it.row == 0 })
-        assertEquals(board.printed.size, labels.size)
-        // An empty board prints no A1 at all.
-        val none = PrintPdf.plan(stencil(100, 100) { _, _ -> false }, opts).sheets.single().boards.single()
-        assertTrue(none.blank)
-        assertTrue(none.printed.isEmpty())
+        var straddling = 0
+        for (page in pdf.filter { it.kind == "tile" }) {
+            val w = assertNotNull(whereIs(interpret(page.content)))
+            val wl = windowLeft(w)
+            for ((clip, tx) in artBlocks(page.content, w)) {
+                // Which board this block belongs to: the one whose rectangle holds it.
+                val bcol = (clip[0] / bw).toInt().coerceAtMost(2)
+                val brow = (clip[1] / bh).toInt().coerceAtMost(1)
+                val cell = grid.cells[brow * 3 + bcol]
+                val cutX0 = bcol * bw + border; val cutX1 = (bcol + 1) * bw - border
+                val cutY0 = brow * bh + border; val cutY1 = (brow + 1) * bh - border
+                // A tab (cut in the border, wholly before the cut area on the left or top) is not a cut-area block.
+                if (clip[2] <= cutX0 + 0.01 || clip[3] <= cutY0 + 0.01) continue
+                // Cuts stay inside the board's cut area.
+                assertTrue(clip[0] >= cutX0 - 0.01 && clip[2] <= cutX1 + 0.01 && clip[1] >= cutY0 - 0.01 && clip[3] <= cutY1 + 0.01,
+                    "art ${clip.toList()} inside board ${cell.number}'s cut area")
+                // The art's translation maps a finished point f to grid x = tx/k - 3 + wl + f; for this board that must be (f - cell.x0 + border) from its left edge.
+                val f = cell.cut.x0 + 10.0
+                val gridX = tx / k - 3.0 + wl + f - 0.0
+                // tx is in page points: page x = tx + f * k, so grid x = (tx + f * k) / k - 3 + wl.
+                val local = (tx + f * k) / k - 3.0 + wl - bcol * bw
+                assertEquals(border + 10.0, local, 0.02, "board ${cell.number}: a point 10 mm into the cell is ${border + 10.0} mm from the board's edge")
+                assertTrue(gridX.isFinite())
+            }
+            if (w.boards.size > 1) straddling++
+        }
+        assertTrue(straddling >= 3)
     }
 
     @Test
-    fun noCornerTargetsAreDrawn() {
-        val pdf = pages(PrintPdf.make(stripes(), options()))
-        assertFalse(pdf.any { "TARGET" in it.content })
-        val text = pdf.flatMap { interpret(it.content).words }.joinToString(" ") { it.third }
-        assertFalse("pin" in text.lowercase().split(" ", "."), text)
+    fun aPointPastBoardOnesRightEdgeOnAStraddlingPageIsBoardTwosLocalX() {
+        val sep = allCut()
+        val opts = options(1000.0)
+        val pdf = pages(PrintPdf.make(sep, opts))
+        // Find a page that carries both board 1's cut area and board 2's, in the first row of boards.
+        val border = poster.borderMm
+        var checked = 0
+        for (page in pdf.filter { it.kind == "tile" }) {
+            val w = assertNotNull(whereIs(interpret(page.content)))
+            val blocks = artBlocks(page.content, w)
+            val b2 = blocks.firstOrNull { (clip, _) -> clip[0] >= bw - 0.01 && clip[0] < 2 * bw && clip[1] < bh } ?: continue
+            val b1 = blocks.firstOrNull { (clip, _) -> clip[2] <= bw + 0.01 && clip[1] < bh }
+            if (b1 == null) continue
+            // A point d past board 1's edge, on this page: grid x = bw + d, which is board 2's local x = d. The art there is cut area only past border.
+            val d = border + 7.0
+            val gridX = bw + d
+            val finishedOnBoard2 = gridX - (bw - (457.2 - border)) // the cell-1 left edge is 457.2, its board's left edge at finished 457.2 - border
+            val tx2 = b2.second
+            assertEquals(gridX, (tx2 + finishedOnBoard2 * k) / k - 3.0 + windowLeft(w), 0.02)
+            // The start of board 2's cut area on the page is exactly at local x = border.
+            assertEquals(bw + border, b2.first[0], 0.02)
+            checked++
+        }
+        assertTrue(checked >= 1)
+    }
+
+    @Test
+    fun labelsAndTipsNeverSitOnADottedLineOrAcrossABoardEdge() {
+        val sep = allCut()
+        val pdf = pages(PrintPdf.make(sep, options(1000.0)))
+        for (page in pdf.filter { it.kind == "tile" }) {
+            val d = interpret(page.content)
+            val w = assertNotNull(whereIs(d))
+            for ((i, word) in d.words.withIndex()) {
+                if (word.third.startsWith("cut ") || word.third == "cut here - board edge" || word.third == "TAB") continue
+                val x0 = (word.first / k - 3.0) + windowLeft(w)
+                val x1 = x0 + PdfText.width(word.third, d.sizes[i], d.bold[i]) / k
+                for (edge in listOf(bw, 2 * bw, 3 * bw)) assertFalse(x0 < edge + 1.0 && x1 > edge - 1.0, "'${word.third}' crosses a board edge at x=$edge")
+                val y0 = (ph * k - word.second) / k - 3.0 + windowTop(w)
+                for (edge in listOf(bh, 2 * bh)) assertFalse(y0 - d.sizes[i] / k < edge + 1.0 && y0 > edge - 1.0, "'${word.third}' crosses a board edge at y=$edge")
+            }
+        }
+    }
+
+    @Test
+    fun tabsNeverLieOnABoardEdgeSoNoDottedLineSplitsOne() {
+        for (border in listOf(25.4, 50.8, 76.2, 101.6)) {
+            val m = MountOptions(Board.POSTER_22X28, border)
+            val sep = stripes()
+            val g = BoardGrid.of(1000.0, 1000.0, m)
+            val full = m.board.oriented(g.landscape)
+            for (b in plan(sep, options(1000.0, m)).sheets.single().boards) for (t in b.tabs) {
+                val local = if (t.side == TabSide.LEFT) t.rect.x0 - (b.board.cut.x0 - border) to t.rect.x1 - (b.board.cut.x0 - border)
+                else t.rect.y0 - (b.board.cut.y0 - border) to t.rect.y1 - (b.board.cut.y0 - border)
+                assertTrue(local.first > 0.0 && local.second < (if (t.side == TabSide.LEFT) full.widthMm else full.heightMm), "tab clear of the board's edges")
+                assertTrue(local.first >= border / 2 - 1e-9, "the tab starts at least half the border from the board's edge")
+            }
+        }
     }
 
     @Test
@@ -499,16 +519,16 @@ class PrintMountTest {
         for (landscape in listOf(false, true)) {
             val opts = PrintOptions(900.0, Paper.A4, landscape, poster)
             val pdf = pages(PrintPdf.make(stripes(), opts))
-            val pw = opts.page.widthMm * k
-            val ph = opts.page.heightMm * k
+            val pageW = opts.page.widthMm * k
+            val pageHt = opts.page.heightMm * k
             val left = 3.0 * k
             for (page in pdf) {
                 val d = interpret(page.content)
-                for ((x, y) in d.points) assertTrue(x >= left - 0.01 && x <= pw - left + 0.01 && y >= left - 0.01 && y <= ph - left + 0.01, "$x,$y on ${page.kind}")
-                for (c in d.clips) assertTrue(c[0] >= left - 0.01 && c[1] >= left - 0.01 && c[0] + c[2] <= pw - left + 0.01 && c[1] + c[3] <= ph - left + 0.01)
+                for ((x, y) in d.points) assertTrue(x >= left - 0.01 && x <= pageW - left + 0.01 && y >= left - 0.01 && y <= pageHt - left + 0.01, "$x,$y on ${page.kind}")
+                for (c in d.clips) assertTrue(c[0] >= left - 0.01 && c[1] >= left - 0.01 && c[0] + c[2] <= pageW - left + 0.01 && c[1] + c[3] <= pageHt - left + 0.01)
                 for ((i, w) in d.words.withIndex()) {
                     val width = PdfText.width(w.third, d.sizes[i], d.bold[i])
-                    assertTrue(w.first >= left - 0.01 && w.first + width <= pw - left + 0.01 && w.second >= left - 0.01 && w.second + d.sizes[i] <= ph - left + 0.01,
+                    assertTrue(w.first >= left - 0.01 && w.first + width <= pageW - left + 0.01 && w.second >= left - 0.01 && w.second + d.sizes[i] <= pageHt - left + 0.01,
                         "word '${w.third}' on ${page.kind}")
                 }
             }
@@ -516,15 +536,17 @@ class PrintMountTest {
     }
 
     @Test
-    fun theInstructionsExplainGluingTargetsBoardsAndWallRegistration() {
+    fun theInstructionsExplainTheDottedLineOffcutsBoardsAndTheStrip() {
         val pdf = pages(PrintPdf.make(stripes(), options()))
         val text = interpret(pdf[0].content).words.joinToString(" ") { it.third }
         for (needle in listOf("GET THE BOARD", "Poster board 22 x 28 in", "railroad board", "Thin poster board tears", "6 boards", "2 in", "50.8 mm",
-            "LAY THE PAGES", "GLUE", "outermost pages lie on the board's edges on every side", "CUT", "paper and the board together", "THE 3 MM STRIP", "Continue each cut line", "and any tab too",
-            "One board: page A1, unprinted strip, border, cut area", "A1 is the board's top-left corner page")) {
+            "FIND YOUR PAGES", "one grid of pages", "LAY THE PAGES", "page A1's paper edges on the board's top and left edges", "THE 3 MM STRIP", "Continue each cut line",
+            "CUT AT THE DOTTED LINE", "cut the paper along the dotted line", "keep the offcut", "first piece of the next board",
+            "up to three other boards", "The dotted line is the only place paper is cut", "waste", "GLUE", "butt it square", "CUT", "paper and the board together",
+            "Two boards edge to edge: cut on the dotted line", "A1 is the top-left corner page")) {
             assertTrue(needle in text, "instructions mention '$needle'")
         }
-        for (gone in listOf("REGISTER", "target", "pierce")) assertFalse(gone in text, "no '$gone' in the instructions")
+        for (gone in listOf("REGISTER", "target", "pierce", "fitted", "overhang")) assertFalse(gone in text, "no '$gone' in the instructions")
         assertFalse("trim" in text.lowercase(), "the instructions never ask for trimming")
     }
 
@@ -551,23 +573,18 @@ class PrintMountTest {
     }
 
     @Test
-    fun mountedSnapWorksOnBoardsAndLeavesPartialPagesInsideABoardAlone() {
+    fun mountedSnapWorksOnBoardsAndLeavesPartialPagesAlone() {
         val paper = Paper.US_LETTER.oriented(false)
         val two = PrintSizing.widthMmForBoardsWide(2.0, poster, false)
-        // Exactly two boards across: no sliver, even though the pages inside a board end in a partial page.
         assertFalse(PrintSizing.hasSliver(two, 0.5, paper, poster))
         assertEquals(two, PrintSizing.snapToWholePages(two, 0.5, paper, poster), 1e-9)
-        // A hair over two boards: a sliver board column, snapped to exactly two.
         val sliver = two + 10.0
         assertTrue(PrintSizing.hasSliver(sliver, 0.5, paper, poster))
         assertEquals(two, PrintSizing.snapToWholePages(sliver, 0.5, paper, poster), 1e-9)
-        // A row sliver is fixed too, and the result never ends in a sliver.
         for (w in listOf(470.0, 930.0, 1000.0, 1380.0, 1400.0, 2000.0)) for (aspect in listOf(0.4, 0.8, 1.0, 1.3)) {
             assertFalse(PrintSizing.hasSliver(PrintSizing.snapToWholePages(w, aspect, paper, poster), aspect, paper, poster), "w=$w aspect=$aspect")
         }
-        // The paper-only snap is untouched by mounting being absent.
-        val letter = paper
-        val twoPages = PrintSizing.widthMmForSheetsWide(2.0, letter)
-        assertEquals(twoPages, PrintSizing.snapToWholePages(twoPages + 5.0, 0.2, letter), 1e-9)
+        val twoPages = PrintSizing.widthMmForSheetsWide(2.0, paper)
+        assertEquals(twoPages, PrintSizing.snapToWholePages(twoPages + 5.0, 0.2, paper), 1e-9)
     }
 }

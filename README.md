@@ -39,9 +39,10 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   non-cutting reference page beside the affected detail. Pages with nothing to cut are skipped and
   shown as blank on the map.
 - Optionally mounts the print on poster board (22 x 28 in, or a custom board of at least 18 in a side) with an
-  uncut border of at least 1 in (default 2 in) on every side: the piece is divided into boards that butt exactly,
-  each board's pages are fitted to it, so the outermost pages' paper edges lie on the board's edges on every side, and the
-  stencil starts the border distance in from the board's edges.
+  uncut border of at least 1 in (default 2 in) on every side: the piece is divided into boards that butt exactly.
+  The pages keep the normal overlap and form one grid over the boards laid edge to edge; where a page crosses a
+  board edge it prints a dotted cut line exactly on that edge, and the offcut becomes the first piece of the
+  next board. The stencil starts the border distance in from the board's edges.
 - PDF export bounds pathological detail counts, diagnoses actual surviving components, and handles
   one stencil sheet at a time to keep memory use predictable.
 
@@ -80,11 +81,14 @@ pages a sheet takes and how many are skipped as blank.
 **Mount on** chooses *Paper only*, *Poster board 22 x 28* or a *Custom board* (width and height in inches, at
 least 18 each) with a *Border* in inches (default 2, at least 1). The piece is divided into boards whose cut
 areas (the board less the border; 18 x 24 in for poster board at 2 in) butt exactly, in the orientation that
-needs fewer boards (portrait on a tie). Each board's pages are fitted to it (the fewest pages whose paper spans the board with at least 4 mm of paper
-overlap, equal across the board), so no page spans two boards, no page overhangs, and the outermost pages' paper
-edges lie on the board's edges on every side: any outer page can be squared against the board's corner or edge.
-Page A1 of each board is always printed when the board has any page. Glue the assembled pages on, then cut through
-paper and board together.
+needs fewer boards (portrait on a tie). Think of a sheet's boards placed edge to edge as one big rectangle: one grid of pages covers it, starting at board 1's
+top-left corner with page A1's paper edges on the board's edges, at the normal step (paper less 4 mm, later pages on top,
+untrimmed). Where a page crosses a board edge it prints a **dotted cut line** exactly on that edge, across the page's
+printed width, labelled once "cut here - board edge". The dots are always the opposite colour to what they cross (dark
+over blank paper or light fill, white over a dark fill). Glue the page on its board, then cut the paper along the dotted
+line only (the board is not cut), and use the offcut as the first piece of the next board, so a corner page gives pieces for
+up to three other boards. The right and bottom edges of the whole rectangle get the same line; that offcut is waste.
+Labels name the boards a page touches ("Sheet 2 of 5 - Boards 1+2 - C1"). Page A1 is always printed when anything is.
 Painting goes left to right, top to bottom, so a board carries registration **tabs** only on its left and top
 border, where it faces a board already painted: one or two 1 in wide, at most 0.5 in deep (never more than half the
 border) windows cut to the neighbouring board's artwork for that sheet. Slide the board until the paint on the wall
@@ -93,13 +97,13 @@ hold an edge of the artwork are preferred, since an edge gives something to line
 position gets no tab and the map says so. A board with nothing to cut on a sheet is skipped and shown as blank on the map. Use heavyweight poster board or
 4-ply or 6-ply railroad board; thin poster board tears. Foam board and tri-fold boards are not offered.
 
-Print at 100% / actual size. Nothing is trimmed. Lay the pages left to right, top to bottom, each later page on top of
+Print at 100% / actual size. Lay the pages left to right, top to bottom, each later page on top of
 the earlier ones, and slide it until its paper edge touches the guide marks the page underneath prints (ticks along
 the edge, an L where a paper corner lands). Paper-only, sheets advance by the paper size less 4 mm: the top page's
 paper edge lies 1 mm inside the under page's printed area, where the guide is. The top page's unprinted 3 mm margin
 hides what lies under it, so each join has a 3 mm blank strip; nothing is shifted to hide it. The first page of the
 PDF says so, with a diagram and a 100 mm check bar. Checked here with pypdf (strict), PyMuPDF renders and an
-overlay of every page in stacking order; **not printed on a real printer.**
+overlay of every page in stacking order (mounted: all of a sheet's boards composited with the board edges marked); **not printed on a real printer.**
 
 ## PNG exports
 

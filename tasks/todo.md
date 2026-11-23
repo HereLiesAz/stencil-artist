@@ -98,12 +98,13 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       (single-page whole-piece and tiled) are gone; the tip detection lives on.
 - [x] **9b. Mount on board** — `PrintOptions.mount` (`MountOptions(Board, borderMm)`): the piece is split
       into boards (cut area = board less the border; poster board 22 x 28 in at 2 in gives 18 x 24 in; board at
-      least 18 in a side, border at least 1 in), in the orientation needing fewer boards. Each board is tiled
-      on its own from the board's top-left corner: page A1's paper edges are the board's edges and the cut area
-      starts the border in, so gluing is by edges, not targets. A1 is always printed when the board has any
-      page. Pages are fitted to the board (fewest pages with at least 4 mm of paper overlap, equal across the
-      board), so the outer paper edges lie on the board's edges on every side and nothing overhangs. Labels read
-      "Sheet 2 of 5 - Board 3 of 6 - B1"; the map shows boards, border, pages and blank boards; the instructions
+      least 18 in a side, border at least 1 in), in the orientation needing fewer boards. A sheet's boards laid
+      edge to edge form one rectangle covered by ONE page grid from board 1's top-left corner, at the normal
+      step (paper less 4 mm, later pages on top, untrimmed). A page crossing a board edge prints a dotted cut
+      line exactly on the edge (dark, or white clipped to dark fills by sheet luminance); the user glues, cuts
+      the paper along it and reuses the offcut on the next board; outer right/bottom edges are waste. Blank
+      skipping is over the whole rectangle; the top-left page is always printed. Labels read
+      "Sheet 2 of 5 - Boards 1+2 - C1"; the map shows the rectangle, grid and dotted lines; the instructions
       add board, glue and cut steps with a board diagram. `PrintSizing` gained boards wide/high and a board-aware
       snap. Boards register against each other on the wall by tabs: each board has up to two small windows in its left
       and top border (only where a board already painted lies that way), cut to the neighbour's artwork for the

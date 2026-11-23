@@ -5,6 +5,7 @@ import com.hereliesaz.stencilartist.core.Sheet
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** Registration tabs: small cut windows in a board's left and top border, cut to the neighbouring board's artwork. */
@@ -138,20 +139,23 @@ class PrintTabTest {
 
     @Test
     fun aPageThatContainsATabIsPrintedEvenWithNothingElseToCutOnIt() {
-        // Cut only a thin strip inside the left neighbour (x 444..456) and a far-right strip of board 2.
-        val sep = mask { x, _ -> x in 444.0..456.0 || x in 880.0..900.0 }
-        val o = options()
-        val b = boards(sep, o).first { it.board.col == 1 && it.board.row == 0 }
+        // 4 in border: board 2's left tab zone is finished x 342.9..355.6, which lies in grid x 647.7..660.4 on board 2 but 444.5..457.2 on
+        // board 1, so a page that holds only the tab is one that board 1's own cut does not need. Cut: a thin strip in cell 1, and far inside cell 2.
+        val m = MountOptions(Board.POSTER_22X28, 101.6)
+        val sep = mask { x, _ -> x in 343.0..354.0 || x in 640.0..660.0 }
+        val o = options(m)
+        val p = PrintPdf.plan(sep, o)
+        val b = p.sheets.single().boards.first { it.board.col == 1 && it.board.row == 0 }
         assertFalse(b.blank)
-        val left = b.tabs.filter { it.side == TabSide.LEFT }
-        assertEquals(2, left.size)
-        // The second tab sits low on the board: its page is not otherwise needed, yet it is printed.
-        val rows = b.printed.filter { it.col == 0 }.map { it.row }.toSet()
-        assertTrue(rows.contains(0) && rows.any { it > 0 }, "a left-column page below A1 is printed for the lower tab: $rows")
-        val pdf = PrintPdf.make(sep, o).decodeToString()
-        assertTrue(Regex("Board 2 of 6 - A[2-9]\\) Tj").containsMatchIn(pdf.replace("\\(", "(").replace("\\)", ")")) || Regex("Board 2 of 6 - A[2-9]").containsMatchIn(pdf))
-        assertTrue("(TAB) Tj" in pdf)
-        assertTrue(plan(sep, o).tabCount >= 2)
+        val tab = b.tabs.first { it.side == TabSide.LEFT }
+        val shift = (2 * 1 + 1) * 101.6
+        val gridRect = RectMm(tab.rect.x0 + shift, tab.rect.y0 + 101.6, tab.rect.x1 + shift, tab.rect.y1 + 101.6)
+        val tile = p.sheets.single().printed.firstOrNull { t ->
+            gridRect.x0 < t.clip.x0 + 209.9 && gridRect.x1 > t.clip.x0 && gridRect.y0 < t.clip.y0 + 273.4 && gridRect.y1 > t.clip.y0
+        }
+        assertNotNull(tile, "a printed page holds the tab")
+        assertTrue(tile.col == 3 && tile.row == 0, "it is a page the board's own cut does not need: ${tile.col},${tile.row}")
+        assertTrue("(TAB) Tj" in PrintPdf.make(sep, o).decodeToString())
     }
 
     private fun plan(sep: Separation, o: PrintOptions) = PrintPdf.plan(sep, o)
@@ -162,8 +166,7 @@ class PrintTabTest {
         val pdf = PrintPdf.make(bands, options()).decodeToString()
         assertFalse("(ISLAND) Tj" in pdf || "(FINE DETAIL) Tj" in pdf, "tabs create no notes")
         assertTrue("(PAINT BOARD BY BOARD) Tj" in pdf)
-        assertTrue("(One board: page A1, unprinted strip, border, cut area, tabs) Tj" in pdf)
-        assertTrue("(tabs on the left and top) Tj" in pdf)
+        assertTrue("(CUT AT THE DOTTED LINE) Tj" in pdf)
     }
 
     @Test
