@@ -533,10 +533,15 @@ private fun PrintSection(
                 val line = if (boards != null) {
                     val where = "${boards.cols} across, ${boards.rows} down, ${if (boards.landscape) "landscape" else "portrait"}"
                     if (shown != null) {
-                        "${boards.count} board${if (boards.count == 1) "" else "s"} on sheet ${shown.sheet + 1} ($where), ${shown.boards.count { it.blank }} blank; ${shown.printed.size} pages"
+                        val tabs = shown.boards.sumOf { it.tabs.size }
+                        val lacking = shown.boards.count { it.missingTabs.isNotEmpty() }
+                        "${boards.count} board${if (boards.count == 1) "" else "s"} on sheet ${shown.sheet + 1} ($where), ${shown.boards.count { it.blank }} blank; " +
+                            "${shown.printed.size} pages, $tabs tab${if (tabs == 1) "" else "s"}" +
+                            if (lacking > 0) ", $lacking board${if (lacking == 1) "" else "s"} with no usable tab on a shared side" else ""
                     } else {
                         "${boards.count} board${if (boards.count == 1) "" else "s"} per sheet ($where), ${boards.count * ready.sheets.size} boards in all, " +
-                            "${ready.blankBoards} blank; ${ready.printedPages} pages"
+                            "${ready.blankBoards} blank; ${ready.printedPages} pages, ${ready.tabCount} tabs" +
+                            if (ready.boardsMissingTabs > 0) ", ${ready.boardsMissingTabs} board${if (ready.boardsMissingTabs == 1) "" else "s"} with no usable tab on a shared side" else ""
                     }
                 } else if (shown != null) {
                     "${shown.printed.size} pages on sheet ${shown.sheet + 1} (${ready.grid.cols} across, ${ready.grid.rows} down), " +

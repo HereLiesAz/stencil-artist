@@ -76,7 +76,12 @@ boards and page marks only join pages of one board. Page A1 of each board is its
 when the board has any page. Glue the assembled pages on with A1's top and left paper edges flush with the board's
 top and left edges (square corners make that easy to see), then cut through paper and board together. Pages in the
 last column or row may run past the board's right or bottom edge; a dashed line marks the board edge to trim along.
-A board with nothing to cut on a sheet is skipped and shown as blank on the map. Use heavyweight poster board or
+Painting goes left to right, top to bottom, so a board carries registration **tabs** only on its left and top
+border, where it faces a board already painted: one or two 1 in wide, at most 0.5 in deep (never more than half the
+border) windows cut to the neighbouring board's artwork for that sheet. Slide the board until the paint on the wall
+shows exactly through its tabs; paint that lands through a tab falls where that colour goes anyway. Positions that
+hold an edge of the artwork are preferred, since an edge gives something to line up to; a side with no usable
+position gets no tab and the map says so. A board with nothing to cut on a sheet is skipped and shown as blank on the map. Use heavyweight poster board or
 4-ply or 6-ply railroad board; thin poster board tears. Foam board and tri-fold boards are not offered.
 
 Print at 100% / actual size. Each page keeps a fixed 3 mm border unprinted; after trimming the left and
