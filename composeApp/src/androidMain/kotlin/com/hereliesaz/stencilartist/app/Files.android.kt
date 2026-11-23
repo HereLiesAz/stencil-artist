@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.UUID
 
 @Composable
 actual fun rememberFileSaver(): FileSaver {
@@ -76,7 +77,7 @@ actual fun rememberStencilPackSharer(): StencilPackSharer {
                 require(file.name.endsWith(".stencilpack")) { "Only StencilPack archives can be shared here" }
                 val written = withContext(Dispatchers.IO) {
                     File(context.cacheDir, "stencil-shares").apply { mkdirs() }
-                        .resolve("stencil-layers.stencilpack")
+                        .resolve("stencil-layers-${UUID.randomUUID()}.stencilpack")
                         .also { it.writeBytes(file.bytes) }
                 }
                 val uri = FileProvider.getUriForFile(
