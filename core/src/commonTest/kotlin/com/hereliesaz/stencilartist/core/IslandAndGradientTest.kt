@@ -150,6 +150,145 @@ class IslandAndGradientTest {
     }
 
     @Test
+    fun aMissingWhiteMarkIsComposedOnTheWhiteLayerInsteadOfDroppingTheBlackIsland() {
+        val w = 9
+        val blackRing = BooleanArray(w * w)
+        val partialWhite = BooleanArray(w * w)
+        for (y in 2..6) for (x in 2..6) {
+            if (x == 2 || x == 6 || y == 2 || y == 6) blackRing[y * w + x] = true
+        }
+        for (y in 3..5) for (x in 3..5) {
+            if (x != 4 || y != 4) partialWhite[y * w + x] = true
+        }
+        val image = RgbaImage(w, w, IntArray(w * w) { index ->
+            val x = index % w
+            val y = index / w
+            if (x in 3..5 && y in 3..5) white.color else black.color
+        })
+        val original = Separation.fromMasks(w, w, listOf(black, white), listOf(blackRing, partialWhite))
+        assertEquals(0, original.render()[4 * w + 4], "the original misses the centre")
+        val plan = IslandPlanner.repair(original, source = image)
+        assertEquals(1, plan.sourceGuidedIslands)
+        assertEquals(0, plan.unresolved)
+        assertEquals(0, plan.concealedBridges)
+        assertTrue(plan.separation.mask(0)[4 * w + 4], "black can now be sprayed beneath the highlight")
+        assertTrue(plan.separation.mask(1)[4 * w + 4], "white restores the centre as a corrective mark")
+        assertFalse(original.mask(1)[4 * w + 4], "the original white stencil must not be mutated")
+        val expected = IntArray(w * w) { pixel ->
+            val x = pixel % w
+            val y = pixel / w
+            when {
+                x in 3..5 && y in 3..5 -> white.color
+                x in 2..6 && y in 2..6 && (x == 2 || x == 6 || y == 2 || y == 6) -> black.color
+                else -> 0
+            }
+        }
+        assertContentEquals(expected, plan.separation.render())
+        for (layer in 0..1) {
+            assertTrue(StencilPrintTips.detect(plan.separation.mask(layer), w, w, 90.0)
+                .none { it.kind == PrintTipKind.ISLAND })
+        }
+    }
+
+    @Test
+    fun correctiveGreyAndWhiteMarksCanJointlyRestoreABlackLayerIsland() {
+        val w = 11
+        val base = BooleanArray(w * w)
+        val greyCut = BooleanArray(w * w)
+        val whiteCut = BooleanArray(w * w)
+        for (y in 2..8) for (x in 2..8) {
+            if (x == 2 || x == 8 || y == 2 || y == 8) base[y * w + x] = true
+        }
+        for (y in 3..7) for (x in 3..7) {
+            val pixel = y * w + x
+            if (x <= 5 && (x != 4 || y != 5)) greyCut[pixel] = true
+            if (x >= 6 && (x != 6 || y != 5)) whiteCut[pixel] = true
+        }
+        val source = RgbaImage(w, w, IntArray(w * w) { pixel ->
+            val x = pixel % w
+            val y = pixel / w
+            when {
+                x in 3..5 && y in 3..7 -> grey.color
+                x in 6..7 && y in 3..7 -> white.color
+                else -> black.color
+            }
+        })
+        val plan = IslandPlanner.repair(
+            Separation.fromMasks(w, w, listOf(black, grey, white), listOf(base, greyCut, whiteCut)),
+            source,
+        )
+        assertEquals(1, plan.sourceGuidedIslands)
+        assertEquals(0, plan.unresolved)
+        assertTrue(plan.separation.mask(0)[5 * w + 4])
+        assertTrue(plan.separation.mask(1)[5 * w + 4], "a grey correction is necessary")
+        assertTrue(plan.separation.mask(2)[5 * w + 6], "a separate white correction is necessary")
+        val expected = IntArray(w * w) { pixel ->
+            val x = pixel % w
+            val y = pixel / w
+            when {
+                x in 3..5 && y in 3..7 -> grey.color
+                x in 6..7 && y in 3..7 -> white.color
+                x in 2..8 && y in 2..8 && (x == 2 || x == 8 || y == 2 || y == 8) -> black.color
+                else -> 0
+            }
+        }
+        assertContentEquals(expected, plan.separation.render())
+    }
+
+    @Test
+    fun sourceDarkDetailCannotBePaintedWhiteToHideAnIsland() {
+        val w = 9
+        val base = BooleanArray(w * w)
+        val whiteCut = BooleanArray(w * w)
+        for (y in 2..6) for (x in 2..6) {
+            if (x == 2 || x == 6 || y == 2 || y == 6) base[y * w + x] = true
+        }
+        for (y in 3..5) for (x in 3..5) {
+            if (x != 4 || y != 4) whiteCut[y * w + x] = true
+        }
+        val source = RgbaImage(w, w, IntArray(w * w) { pixel ->
+            if (pixel == 4 * w + 4) black.color else white.color
+        })
+        val original = Separation.fromMasks(w, w, listOf(black, white), listOf(base, whiteCut))
+        val plan = IslandPlanner.repair(original, source)
+        assertEquals(0, plan.sourceGuidedIslands)
+        assertEquals(1, plan.unresolved)
+        assertContentEquals(base, plan.separation.mask(0))
+        assertContentEquals(whiteCut, plan.separation.mask(1))
+    }
+
+    @Test
+    fun aCorrectiveMarkCannotCloseALaterCutAndCreateAnotherIsland() {
+        val w = 13
+        val base = BooleanArray(w * w)
+        val greyCut = BooleanArray(w * w)
+        val whiteCut = BooleanArray(w * w)
+        for (y in 2..10) for (x in 2..10) {
+            if (x == 2 || x == 10 || y == 2 || y == 10) base[y * w + x] = true
+        }
+        for (y in 3..9) for (x in 3..9) {
+            val p = y * w + x
+            if (x in 4..8 && y in 4..8 && (x == 4 || x == 8 || y == 4 || y == 8)) {
+                if (x != 6 || y != 4) whiteCut[p] = true
+            } else {
+                greyCut[p] = true
+            }
+        }
+        val source = RgbaImage(w, w, IntArray(w * w) { pixel ->
+            val x = pixel % w
+            val y = pixel / w
+            if (x in 4..8 && y in 4..8 && (x == 4 || x == 8 || y == 4 || y == 8))
+                white.color else grey.color
+        })
+        val original = Separation.fromMasks(w, w, listOf(black, grey, white), listOf(base, greyCut, whiteCut))
+        val plan = IslandPlanner.repair(original, source)
+        assertEquals(0, plan.sourceGuidedIslands, "white must not strand the stock in the middle of the ring")
+        assertFalse(plan.separation.mask(2)[4 * w + 6], "the unsafe white mark stays absent")
+        assertEquals(1, plan.unresolved, "the black stock island remains explicitly unresolved")
+        assertContentEquals(original.render(), plan.separation.render())
+    }
+
+    @Test
     fun aSlowTonalGradientIsLocatedAtTheActualEdgeWithTheOutwardDirection() {
         val w = 80
         val h = 40
