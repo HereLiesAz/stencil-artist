@@ -78,9 +78,11 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Traces every sheet into vector outlines and writes cutter files at a real physical size: SVG,
   DXF (R12), HPGL and G-code, whole or split across a cutting mat or sheet of paper.
 
-Island planning: independent layer cut masks now permit overpainting deliberate negative-stroke bridges.
-The app automatically makes a bridge only when a later sheet already hides its entire footprint;
-anything it cannot repair remains an island warning, never an omitted detail. It also locates
+Island planning: independent layer cut masks allow black or grey to be painted beneath a
+lighter detail that existing later cuts already restore, eliminating unsupported stock islands
+without a bridge. If full repainting is impossible, the app can add a negative-stroke bridge
+only where later paint conceals its entire footprint; otherwise it flags an unresolved island
+instead of silently omitting detail. It also locates
 soft source-image gradients on cut edges and labels the appropriate edge for controlled
 stencil lifting in the print PDF, with scrap-test guidance. **Stroke construction** offers
 Classic (the original masks) and opt-in Brush strokes, which now reconstruct broad

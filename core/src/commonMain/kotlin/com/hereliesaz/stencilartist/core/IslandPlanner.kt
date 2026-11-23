@@ -6,13 +6,23 @@ import kotlin.math.abs
  * A physically safe island repair result. [unresolved] counts stock islands that still need
  * cross-layer reconstruction or an explicit artistic bridge; none are silently dropped.
  */
-data class IslandPlan(val separation: Separation, val concealedBridges: Int, val unresolved: Int, val skipped: Boolean = false)
+data class IslandPlan(
+    val separation: Separation,
+    val concealedBridges: Int,
+    val unresolved: Int,
+    val skipped: Boolean = false,
+    /** Islands removed from an earlier cut and exactly repainted by existing later cuts. */
+    val reconstructedIslands: Int = 0,
+)
 
 /**
- * Plans negative brushstroke bridges across paint openings. Only cuts that will be COMPLETELY
- * hidden by a later sheet are automatically changed: every pixel removed from an earlier
- * opening must already be covered by a later paint opening. This makes the painted composite
- * *exactly* unchanged. No island is ever "fixed" by deleting a visible feature.
+ * Plans islands across the entire painting order. An unsupported stock island can be
+ * removed by opening the earlier stencil over it if EVERY pixel is already painted by
+ * a later sheet. Black may therefore be sprayed beneath a white detail, or beneath a
+ * detail reconstructed jointly by grey and white. Otherwise, a negative brushstroke
+ * bridge is allowed only where its entire footprint is concealed by later paint.
+ * Both strategies keep the finished composite exactly unchanged. Exposed features
+ * are never silently discarded.
  *
  * Paths use 4-connected stock, trace shortest supported routes, and break equal-distance ties
  * along the source's luminance-contour tangent when one is available. Width is the minimum
@@ -40,6 +50,7 @@ object IslandPlanner {
         val cuts = original.sheets.indices.map { original.mask(it) }
         val renderedBefore = original.render()
         var repaired = 0
+        var reconstructed = 0
         var unresolved = 0
         val n = w * h
         val radius = minimumBridgePixels / 2
@@ -133,8 +144,22 @@ object IslandPlanner {
                         }
                     }
                 }
-                // A connected island is now in queue[0..tail); search only concealed paint
-                // openings from its boundary to previously supported, uncut stock.
+                // Painting order can eliminate this island entirely: open the earlier
+                // stencil over its retained stock, then let existing later cuts restore
+                // each pixel's final grey or white (or other later-layer) colour.
+                // Only do this when every pixel will be restored. No new later cut is
+                // invented, and no previously transparent or dark detail is destroyed.
+                val restoredLater = (0 until tail).all { i ->
+                    val pixel = queue[i]
+                    (sheet + 1 until cuts.size).any { later -> cuts[later][pixel] }
+                }
+                if (restoredLater) {
+                    for (i in 0 until tail) cut[queue[i]] = true
+                    reconstructed++
+                    continue
+                }
+                // Otherwise search only concealed negative-stroke connections from
+                // the island boundary to previously supported, uncut stock.
                 generation++
                 var searchHead = 0
                 var searchTail = 0
@@ -194,6 +219,6 @@ object IslandPlanner {
         check(renderedBefore.contentEquals(after.render())) {
             "Island planning changed finished paint; refusing to replace the original artwork"
         }
-        return IslandPlan(after, repaired, unresolved)
+        return IslandPlan(after, repaired, unresolved, reconstructedIslands = reconstructed)
     }
 }

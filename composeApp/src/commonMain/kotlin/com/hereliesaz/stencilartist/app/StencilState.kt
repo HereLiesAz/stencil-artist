@@ -673,8 +673,9 @@ class StencilState(
                     // Show the base image, not the previous stencil, which no longer matches the settings.
                     preview = argbToImageBitmap(lit.pixels, lit.width, lit.height)
                 } else {
-                    // Plan bridges in painting order. Only fully concealed negative strokes are
-                    // automatically cut; an exposed correction remains an explicit island warning.
+                    // Plan islands across paint order: remove earlier stock only when later cuts
+                    // reproduce it exactly, else use fully concealed negative-stroke bridges.
+                    // Exposed corrections remain explicit island warnings.
                     // Gradient-lift notes are derived from the processed SOURCE, not from flat masks.
                     val finished = result
                     val planned = withContext(Dispatchers.Default) {

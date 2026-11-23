@@ -40,10 +40,15 @@ pixel-width connection does not prove a millimetre-width connection.
   `mask`, `covers`, and `render`; the finished preview is the last paint opening to
   cover each pixel.
 - `IslandPlanner.repair` examines retained material's four-connected components on
-  each sheet. It may carve a short negative stroke from an island to border-connected
-  stock **only when later paint hides its entire footprint**, checking the composite
-  exactly afterward. Exposed bridge routes remain unresolved and are annotated by
-  the existing PDF island tips. The current path follows short connections with
+  each sheet. **Before bridging**, it removes a stock island from an earlier cut when
+  every pixel of that island is already covered by a later cut. Black can thus be
+  sprayed under a light detail reconstructed wholly in white or jointly in grey
+  and white, without creating a narrow support bridge. This is an exact
+  paint-order reconstruction, not inferred new artwork. For islands that cannot
+  be completely restored by existing later cuts, it may carve a negative stroke
+  to border-connected stock **only when later paint hides its entire footprint**.
+  The final composite is checked exactly afterward. Unrepairable islands remain
+  annotated by existing PDF tips. Bridge paths use short connections with
   luminance-flow tie-breaking, not full semantic stroke reconstruction.
 - The optional **Brush strokes** mode now uses `StrokeStyler` to **construct
   additive paint ribbons** inside broad grey/white or other later-layer openings.
@@ -78,8 +83,9 @@ pixel-width connection does not prove a millimetre-width connection.
 - For performance, independent-mask island repair and gradient analysis are
   currently limited to stacks of at most sixteen sheets. The app warns when it
   skips this analysis. Existing cutting hazard tips still run for any sheet count.
-- Synthetic JVM/Wasm tests cover layer overlap, unchanged composite paint, hidden
-  bridge connectivity, unresolved exposed islands, and slow versus sharp gradients.
+- Synthetic JVM/Wasm tests cover layer overlap, exact reconstruction through
+  white or grey/white, unchanged composite paint, hidden bridge connectivity,
+  unresolved exposed islands, and slow versus sharp gradients.
 
 ## Still required
 
@@ -87,8 +93,10 @@ pixel-width connection does not prove a millimetre-width connection.
   perspective and anatomy; multi-stroke scribbles whose tapered ends describe
   broad gradients; and physically calibrated brush widths. The new additive
   ribbon generator is source-gradient-guided but still procedural, not semantic.
-- Joint across-layer design for cases where **no existing later cut** conceals a
-  bridge, including explicit grey/white reconstruction and black-base repairs.
+- Joint across-layer design where **existing** later cuts cannot restore an
+  entire island or conceal a bridge. Such cases need newly composed grey/white
+  strokes, not simply painting over dark details. Existing-cut black-base
+  reconstruction is now supported, but creating missing corrective strokes is not.
 - Confidence/saliency checks around pupils, letters, hands and silhouettes.
 - Scale-aware material width, real cutter tests and wall tests of shim size,
   spray pressure, distance and the direction of overspray.

@@ -53,6 +53,103 @@ class IslandAndGradientTest {
     }
 
     @Test
+    fun blackIslandCanBePaintedOverAndReconstructedWithWhite() {
+        val width = 9
+        val baseRing = BooleanArray(width * width)
+        val whiteCentre = BooleanArray(width * width)
+        for (y in 2..6) for (x in 2..6) {
+            if (x == 2 || x == 6 || y == 2 || y == 6) baseRing[y * width + x] = true
+        }
+        for (y in 3..5) for (x in 3..5) whiteCentre[y * width + x] = true
+
+        val original = Separation.fromMasks(width, width, listOf(black, white), listOf(baseRing, whiteCentre))
+        val expected = IntArray(width * width) { pixel ->
+            val x = pixel % width
+            val y = pixel / width
+            when {
+                x in 3..5 && y in 3..5 -> white.color
+                x in 2..6 && y in 2..6 && (x == 2 || x == 6 || y == 2 || y == 6) -> black.color
+                else -> 0
+            }
+        }
+        assertContentEquals(expected, original.render())
+        val plan = IslandPlanner.repair(original)
+        assertEquals(1, plan.reconstructedIslands)
+        assertEquals(0, plan.concealedBridges)
+        assertEquals(0, plan.unresolved)
+        for (y in 3..5) for (x in 3..5) {
+            assertTrue(plan.separation.mask(0)[y * width + x], "black is sprayed beneath white")
+            assertFalse(original.mask(0)[y * width + x], "the original layer must not be mutated")
+        }
+        assertContentEquals(expected, plan.separation.render())
+        assertTrue(StencilPrintTips.detect(plan.separation.mask(0), width, width, 90.0)
+            .none { it.kind == PrintTipKind.ISLAND })
+    }
+
+    @Test
+    fun blackIslandCanBeReconstructedJointlyByGreyAndWhite() {
+        val width = 9
+        val baseRing = BooleanArray(width * width)
+        val greyCentre = BooleanArray(width * width)
+        val whiteCentre = BooleanArray(width * width)
+        for (y in 2..6) for (x in 2..6) {
+            if (x == 2 || x == 6 || y == 2 || y == 6) baseRing[y * width + x] = true
+        }
+        for (y in 3..5) for (x in 3..5) {
+            val pixel = y * width + x
+            if (x <= 4) greyCentre[pixel] = true else whiteCentre[pixel] = true
+        }
+        val original = Separation.fromMasks(
+            width, width, listOf(black, grey, white), listOf(baseRing, greyCentre, whiteCentre),
+        )
+        val expected = IntArray(width * width) { pixel ->
+            val x = pixel % width
+            val y = pixel / width
+            when {
+                x in 3..5 && y in 3..5 -> if (x <= 4) grey.color else white.color
+                x in 2..6 && y in 2..6 && (x == 2 || x == 6 || y == 2 || y == 6) -> black.color
+                else -> 0
+            }
+        }
+        assertContentEquals(expected, original.render())
+        val plan = IslandPlanner.repair(original)
+        assertEquals(1, plan.reconstructedIslands)
+        assertEquals(0, plan.unresolved)
+        assertTrue((3..5).all { y -> (3..5).all { x -> plan.separation.mask(0)[y * width + x] } })
+        assertContentEquals(expected, plan.separation.render(), "grey and white must reproduce the finished detail")
+    }
+
+    @Test
+    fun anExposedIslandIsNeverErasedEvenWhenMostPixelsHaveLaterPaint() {
+        val width = 9
+        val baseRing = BooleanArray(width * width)
+        val whiteCentre = BooleanArray(width * width)
+        for (y in 2..6) for (x in 2..6) {
+            if (x == 2 || x == 6 || y == 2 || y == 6) baseRing[y * width + x] = true
+        }
+        for (y in 3..5) for (x in 3..5) {
+            if (x != 3 || y != 3) whiteCentre[y * width + x] = true
+        }
+        val original = Separation.fromMasks(width, width, listOf(black, white), listOf(baseRing, whiteCentre))
+        val plan = IslandPlanner.repair(original)
+        assertEquals(0, plan.reconstructedIslands)
+        assertEquals(0, plan.concealedBridges)
+        assertEquals(1, plan.unresolved)
+        assertContentEquals(baseRing, plan.separation.mask(0))
+        val expected = IntArray(width * width) { pixel ->
+            val x = pixel % width
+            val y = pixel / width
+            when {
+                x in 3..5 && y in 3..5 && (x != 3 || y != 3) -> white.color
+                x in 2..6 && y in 2..6 && (x == 2 || x == 6 || y == 2 || y == 6) -> black.color
+                else -> 0
+            }
+        }
+        assertContentEquals(expected, original.render())
+        assertContentEquals(expected, plan.separation.render())
+    }
+
+    @Test
     fun aSlowTonalGradientIsLocatedAtTheActualEdgeWithTheOutwardDirection() {
         val w = 80
         val h = 40
