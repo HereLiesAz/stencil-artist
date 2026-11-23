@@ -116,8 +116,6 @@ object StrokeStyler {
                 // Small regions and thin lines carry important information (eyes, teeth,
                 // lens reflections, letters) and are not a place to introduce hatching.
                 if (tail < 160 || thickest < 4) continue
-                val required = (tail * (1.0 - maximumRemovedFraction)).toInt()
-                if (required >= tail) continue
                 for (i in 0 until tail) rebuilt[queue[i]] = false
                 var painted = 0
                 // Component-wide thickness misses thin extensions attached to a wide
@@ -153,6 +151,16 @@ object StrokeStyler {
                         painted++
                     }
                 }
+                // The broad-area quota MUST exclude already protected fine details.
+                // Otherwise an 800x3 line can consume the entire quota and cause
+                // an attached 20x20 patch to vanish without a single painted ribbon.
+                val unprotected = tail - painted
+                val allowedMissing = (unprotected * maximumRemovedFraction).toInt()
+                if (allowedMissing < 1) {
+                    for (i in 0 until tail) rebuilt[queue[i]] = true
+                    continue
+                }
+                val required = tail - allowedMissing
                 val seedSpacing = max(3, strokeWidthPixels + 2)
                 val fallbackX = if (maxX - minX >= maxY - minY) 1f else 0f
                 val fallbackY = 1f - fallbackX
