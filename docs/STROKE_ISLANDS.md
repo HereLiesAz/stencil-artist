@@ -52,7 +52,11 @@ pixel-width connection does not prove a millimetre-width connection.
   turns guided by smoothed source luminance contours. When the photograph is flat,
   ribbons follow the shape's distance-contour field. Broad connected paint
   components are remade from these small strokes; thin and small components,
-  including distinctive eye and lens marks, remain unchanged. Ribbons never paint
+  including distinctive eye and lens marks, remain unchanged. Attached thin
+  extensions are protected by local width checks on horizontal, vertical and
+  diagonal axes, rather than by component size alone. Protected detail is
+  **excluded** from the reconstruction quota so a long narrow line cannot
+  substitute for painting its attached broad region. Ribbons never paint
   outside their original coverage, and a maximum loss budget prevents excessive
   missing paint. Any **new enclosed stock gap** composed solely of previously
   painted pixels is painted back in to avoid newly introduced stencil islands.
