@@ -31,7 +31,8 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   shown as blank on the map.
 - Optionally mounts the print on poster board (22 x 28 in, or a custom board of at least 18 in a side) with an
   uncut border of at least 1 in (default 2 in) on every side: the piece is divided into boards that butt exactly,
-  each board is tiled with its own pages, and four corner targets per board serve gluing and wall registration.
+  each board is tiled with its own pages from the board's top-left corner, so page A1's paper edges lie on the board's top
+  and left edges, and the stencil starts the border distance in from the board's edges.
 - PDF export bounds pathological detail counts, diagnoses actual surviving components, and handles
   one stencil sheet at a time to keep memory use predictable.
 
@@ -71,11 +72,10 @@ pages a sheet takes and how many are skipped as blank.
 least 18 each) with a *Border* in inches (default 2, at least 1). The piece is divided into boards whose cut
 areas (the board less the border; 18 x 24 in for poster board at 2 in) butt exactly, in the orientation that
 needs fewer boards (portrait on a tie). Each board's pages are tiled from its own top-left, so no page spans two
-boards and page marks only join pages of one board. Every board gets four corner targets, a circle with a cross
-marked "not a cut", exactly on its cut area's corners. Glue the assembled pages on so each target is the border
-distance in from both board edges, then cut through paper and board together. To paint a piece that spans
-several boards, pierce each target with a pin, mark the wall through the holes, and place the next board so its
-targets land on the marks the neighbouring board shares (neighbouring boards share their corner points exactly).
+boards and page marks only join pages of one board. Page A1 of each board is its corner page and is always printed
+when the board has any page. Glue the assembled pages on with A1's top and left paper edges flush with the board's
+top and left edges (square corners make that easy to see), then cut through paper and board together. Pages in the
+last column or row may run past the board's right or bottom edge; a dashed line marks the board edge to trim along.
 A board with nothing to cut on a sheet is skipped and shown as blank on the map. Use heavyweight poster board or
 4-ply or 6-ply railroad board; thin poster board tears. Foam board and tri-fold boards are not offered.
 

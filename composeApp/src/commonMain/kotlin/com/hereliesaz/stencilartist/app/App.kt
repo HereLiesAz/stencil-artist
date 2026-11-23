@@ -481,7 +481,7 @@ private fun PrintSection(
             NumberField("Border (in)", settings.borderIn, 2, { if (it > 0) settings.borderIn = it }, Modifier.fillMaxWidth())
             mountResult.exceptionOrNull()?.let { Text(it.message ?: "These board settings do not work.", style = MaterialTheme.typography.bodySmall) }
             Text(
-                "Glue the pages onto the board, each corner target the border in from the edges, and cut through both. " +
+                "Glue the pages onto the board with page A1's top and left paper edges flush with the board's, and cut through both. " +
                     "Heavyweight poster board or 4-ply railroad board; thin board tears.",
                 style = MaterialTheme.typography.bodySmall, color = subdued,
             )
@@ -533,9 +533,9 @@ private fun PrintSection(
                 val line = if (boards != null) {
                     val where = "${boards.cols} across, ${boards.rows} down, ${if (boards.landscape) "landscape" else "portrait"}"
                     if (shown != null) {
-                        "${boards.count} boards on sheet ${shown.sheet + 1} ($where), ${shown.boards.count { it.blank }} blank; ${shown.printed.size} pages"
+                        "${boards.count} board${if (boards.count == 1) "" else "s"} on sheet ${shown.sheet + 1} ($where), ${shown.boards.count { it.blank }} blank; ${shown.printed.size} pages"
                     } else {
-                        "${boards.count} boards per sheet ($where), ${boards.count * ready.sheets.size} boards in all, " +
+                        "${boards.count} board${if (boards.count == 1) "" else "s"} per sheet ($where), ${boards.count * ready.sheets.size} boards in all, " +
                             "${ready.blankBoards} blank; ${ready.printedPages} pages"
                     }
                 } else if (shown != null) {
