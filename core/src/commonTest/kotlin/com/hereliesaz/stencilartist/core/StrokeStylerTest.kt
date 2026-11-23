@@ -35,7 +35,9 @@ class StrokeStylerTest {
         val cut = styled.mask(1)
         val changed = original.indices.count { original[it] && !cut[it] }
         assertTrue(changed > 0, "a broad uniform region should be reconstructed with gaps between paint ribbons")
-        assertTrue(changed <= (original.count { it } * 0.20).toInt(), "texture cannot erase an arbitrary share of the layer")
+        // The hand-specified 71 x 61 paint patch contains 4331 pixels; no more than
+        // 866 of them may be exchanged for negative space in this fixture.
+        assertTrue(changed <= 866, "texture cannot erase an arbitrary share of the layer")
         assertContentEquals(input.mask(0), styled.mask(0), "the black silhouette is never stylized")
         assertTrue(StencilPrintTips.detect(styled.mask(1), w, h, 100.0)
             .none { it.kind == PrintTipKind.ISLAND }, "no new retained-stock islands may be introduced by ribbon reconstruction")
