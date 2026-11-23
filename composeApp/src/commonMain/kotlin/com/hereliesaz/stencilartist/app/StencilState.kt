@@ -10,6 +10,7 @@ import com.hereliesaz.stencilartist.core.DepthLighting
 import com.hereliesaz.stencilartist.core.LightingParams
 import com.hereliesaz.stencilartist.core.IslandPlanner
 import com.hereliesaz.stencilartist.core.SoftGradientZones
+import com.hereliesaz.stencilartist.core.StrokeStyler
 import com.hereliesaz.stencilartist.core.RgbaImage
 import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.TonalParams
@@ -76,6 +77,17 @@ class StencilState(
 
     /** Edge-closing side of the active mode. */
     val closing: Int get() = if (mode == SeparationMode.TONE) toneParams.closing else colorParams.closing
+
+    /** Optional expressive openings with small flow-aligned negative brushstrokes. */
+    var strokeBased: Boolean by mutableStateOf(false)
+        private set
+
+    /** Change the shape language without changing the chosen paints or lighting. */
+    fun useStrokeBased(enabled: Boolean) {
+        if (strokeBased == enabled) return
+        strokeBased = enabled
+        remake(settle = false)
+    }
 
     // --- Paint: making the layers real cans -------------------------------------------------------
 
@@ -560,6 +572,7 @@ class StencilState(
         val wantedTone = toneParams
         val wantedColor = colorParams
         val wantedLighting = lighting
+        val wantedStrokes = strokeBased
         val wantedPaint = if (wantedMode == SeparationMode.COLOUR) paintMode else PaintMode.FREE
         val remove = removeBackground
         val assist = depthAssistedBackground
@@ -665,7 +678,8 @@ class StencilState(
                     // Gradient-lift notes are derived from the processed SOURCE, not from flat masks.
                     val finished = result
                     val planned = withContext(Dispatchers.Default) {
-                        val bridgePlan = IslandPlanner.repair(finished, lit, minimumBridgePixels = 2)
+                        val composed = if (wantedStrokes) StrokeStyler.stylize(lit, finished) else finished
+                        val bridgePlan = IslandPlanner.repair(composed, lit, minimumBridgePixels = 2)
                         val softEdges = SoftGradientZones.locate(lit, bridgePlan.separation)
                         bridgePlan to bridgePlan.separation.withLiftZones(softEdges)
                     }
@@ -676,6 +690,9 @@ class StencilState(
                     }
                     if (bridgePlan.skipped) {
                         notes += "Automatic island repair and gradient-lift hints are not available above 16 layers; check print notes for cut hazards."
+                    }
+                    if (wantedStrokes && output.sheets.size > 16) {
+                        notes += "Brushstroke styling is unavailable above 16 layers; the original masks were preserved."
                     }
                     paintLayers = layers
                     if (output.sheets.size < asked) {
