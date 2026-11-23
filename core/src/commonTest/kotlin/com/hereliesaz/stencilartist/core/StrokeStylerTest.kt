@@ -131,7 +131,7 @@ class StrokeStylerTest {
             assertTrue(styled[17 * w + x],
                 "single-pixel highlight at ($x,17) must not be carved as a negative stroke")
         }
-        assertTrue((24..81).any { y -> (35..82).any { x -> !styled[y * w + x] } },
+        assertTrue((24..60).any { y -> (35..82).any { x -> !styled[y * w + x] } },
             "wide coat or face areas must still show connected stroke texture")
     }
 
