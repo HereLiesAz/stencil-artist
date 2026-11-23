@@ -177,6 +177,14 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     var gcodePasses by remember { mutableIntStateOf(1) }
     var gcodeSafeZ by remember { mutableDoubleStateOf(5.0) }
     var gcodeCutZ by remember { mutableDoubleStateOf(-1.0) }
+    // A temporarily blank or malformed number must not silently export its previous value.
+    var invalidCutterDrafts by remember { mutableStateOf(emptySet<String>()) }
+    val recordCutterDraft: (String, String, Boolean) -> Unit = { field, raw, whole ->
+        val number = raw.replace(',', '.').toDoubleOrNull()
+        val valid = number != null && number.isFinite() &&
+            (!whole || (number in 1.0..1000.0 && number == number.toInt().toDouble()))
+        invalidCutterDrafts = if (valid) invalidCutterDrafts - field else invalidCutterDrafts + field
+    }
     val print = remember { PrintSettings() }
 
     // The Android picker completes asynchronously. Keep every export control locked until the
@@ -430,18 +438,23 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 if (customMat) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         NumberField("Mat width (mm)", cutterCustomWidthMm, 1,
-                            { cutterCustomWidthMm = it }, Modifier.weight(1f))
+                            { cutterCustomWidthMm = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("matWidth", it, false) })
                         NumberField("Mat height (mm)", cutterCustomHeightMm, 1,
-                            { cutterCustomHeightMm = it }, Modifier.weight(1f))
+                            { cutterCustomHeightMm = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("matHeight", it, false) })
                     }
                 } else {
-                    NumberField("Roll width (mm)", cutterRollWidthMm, 1, { cutterRollWidthMm = it })
+                    NumberField("Roll width (mm)", cutterRollWidthMm, 1, { cutterRollWidthMm = it },
+                        onDraft = { recordCutterDraft("rollWidth", it, false) })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumberField("Edge margin (mm)", cutterEdgeMm, 2,
-                        { cutterEdgeMm = it }, Modifier.weight(1f))
+                        { cutterEdgeMm = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("edge", it, false) })
                     NumberField("Tile overlap (mm)", cutterOverlapMm, 2,
-                        { cutterOverlapMm = it }, Modifier.weight(1f))
+                        { cutterOverlapMm = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("overlap", it, false) })
                 }
             }
             val fitResult = runCatching {
@@ -463,7 +476,14 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     fit,
                 )
             } else null
-            val fitError = fitResult.exceptionOrNull()?.message ?: tilePlan?.exceptionOrNull()?.message
+            val relevantFitDrafts = when {
+                customMat -> setOf("matWidth", "matHeight", "edge", "overlap")
+                roll -> setOf("rollWidth", "edge", "overlap")
+                else -> emptySet()
+            }
+            val badFitDraft = invalidCutterDrafts.any { it in relevantFitDrafts }
+            val fitError = if (badFitDraft) "Enter a valid number in each visible size field."
+                else fitResult.exceptionOrNull()?.message ?: tilePlan?.exceptionOrNull()?.message
             if (fitError != null) {
                 Text("Invalid cutter size: $fitError", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error)
@@ -492,22 +512,28 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     Choice("Router", selected = !gcodeLaser, modifier = Modifier.weight(1f)) { gcodeLaser = false }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NumberField("Cut feed (mm/min)", gcodeFeed, 0, { gcodeFeed = it }, Modifier.weight(1f))
-                    NumberField("Travel (mm/min)", gcodeTravel, 0, { gcodeTravel = it }, Modifier.weight(1f))
+                    NumberField("Cut feed (mm/min)", gcodeFeed, 0, { gcodeFeed = it }, Modifier.weight(1f),
+                        onDraft = { recordCutterDraft("feed", it, false) })
+                    NumberField("Travel (mm/min)", gcodeTravel, 0, { gcodeTravel = it }, Modifier.weight(1f),
+                        onDraft = { recordCutterDraft("travel", it, false) })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumberField(if (gcodeLaser) "Laser power (S)" else "Spindle speed (S)",
-                        gcodePower, 0, { gcodePower = it }, Modifier.weight(1f))
+                        gcodePower, 0, { gcodePower = it }, Modifier.weight(1f),
+                        onDraft = { recordCutterDraft("power", it, false) })
                     NumberField("Passes", gcodePasses.toDouble(), 0, {
                         if (it.isFinite() && it in 1.0..1000.0 && it == it.toInt().toDouble()) {
                             gcodePasses = it.toInt()
                         }
-                    }, Modifier.weight(1f))
+                    }, Modifier.weight(1f),
+                        onDraft = { recordCutterDraft("passes", it, true) })
                 }
                 if (!gcodeLaser) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        NumberField("Safe Z (mm)", gcodeSafeZ, 2, { gcodeSafeZ = it }, Modifier.weight(1f))
-                        NumberField("Cut Z (mm)", gcodeCutZ, 2, { gcodeCutZ = it }, Modifier.weight(1f))
+                        NumberField("Safe Z (mm)", gcodeSafeZ, 2, { gcodeSafeZ = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("safeZ", it, false) })
+                        NumberField("Cut Z (mm)", gcodeCutZ, 2, { gcodeCutZ = it }, Modifier.weight(1f),
+                            onDraft = { recordCutterDraft("cutZ", it, false) })
                     }
                 }
                 Text(
@@ -528,7 +554,13 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     cutZMm = gcodeCutZ,
                 )
             } else Result.success(GcodeOptions())
-            gcodeResult.exceptionOrNull()?.message?.let { error ->
+            val relevantGcodeDrafts = if (gcodeLaser) setOf("feed", "travel", "power", "passes")
+                else setOf("feed", "travel", "power", "passes", "safeZ", "cutZ")
+            val badGcodeDraft = cutterFormat == CutterFormat.GCODE &&
+                invalidCutterDrafts.any { it in relevantGcodeDrafts }
+            val gcodeError = if (badGcodeDraft) "Enter a valid number in each visible G-code field."
+                else gcodeResult.exceptionOrNull()?.message
+            gcodeError?.let { error ->
                 Text("Invalid G-code settings: $error", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error)
             }
@@ -536,7 +568,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             val lines = cutterCutLines
             val width = printWidthMm.toDouble()
             val options = gcodeResult.getOrNull()
-            val cutterReady = canExport && fitError == null && options != null
+            val cutterReady = canExport && fitError == null && gcodeError == null && options != null
             state.shownSheet?.let { sheet ->
                 OutlinedButton(
                     onClick = {
@@ -766,9 +798,18 @@ private fun PrintSection(
  * A small numeric text field in the app's monochrome: [value] shown to [decimals] places, [onValue] called
  * with each valid number as it is typed (a comma counts as a point). When [value] changes from outside, as
  * "Fit to whole pages" does, the text follows, but typing "2." is never rewritten under the cursor.
+ * Optional [onDraft] also sees incomplete text so cutter downloads can be disabled while a
+ * numeric field is invalid, rather than exporting a stale last-valid number.
  */
 @Composable
-private fun NumberField(title: String, value: Double, decimals: Int, onValue: (Double) -> Unit, modifier: Modifier = Modifier) {
+private fun NumberField(
+    title: String,
+    value: Double,
+    decimals: Int,
+    onValue: (Double) -> Unit,
+    modifier: Modifier = Modifier,
+    onDraft: ((String) -> Unit)? = null,
+) {
     val scheme = MaterialTheme.colorScheme
     var text by remember { mutableStateOf(fixedDecimals(value, decimals)) }
     LaunchedEffect(value) {
@@ -781,6 +822,7 @@ private fun NumberField(title: String, value: Double, decimals: Int, onValue: (D
             value = text,
             onValueChange = { next ->
                 text = next
+                onDraft?.invoke(next)
                 next.replace(',', '.').toDoubleOrNull()?.let(onValue)
             },
             singleLine = true,
