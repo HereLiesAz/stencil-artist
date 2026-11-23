@@ -163,8 +163,11 @@ object Clip {
             to - from <= EPS) return null
 
         fun snapped(t: Double): Point {
-            val x = a.x + t * dx
-            val y = a.y + t * dy
+            // Reconstructing a source endpoint with a + 1.0 * (b - a) need not equal b
+            // bit-for-bit. The next edge uses b itself, so this would leave the directed
+            // graph open even though the polygon is geometrically closed.
+            val x = when (t) { 0.0 -> a.x; 1.0 -> b.x; else -> a.x + t * dx }
+            val y = when (t) { 0.0 -> a.y; 1.0 -> b.y; else -> a.y + t * dy }
             return Point(
                 when {
                     abs(x - rect.x0) < EPS -> rect.x0
