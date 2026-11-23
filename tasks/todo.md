@@ -131,8 +131,10 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       instead of scanning (same output, held by the OpenCV fixtures). App: "Separate by" Tone / Colour, each mode
       keeps its own settings, "Order" in Colour mode, "Base" and "Tonal bias" in Tone mode only; the sheet strip's
       number is black or white by contrast. `StencilState.setSheetColor` and `ColorParams.colors` are ready;
-      **done in follow-up: a Free Colour-mode palette editor now calls `StencilState.setSheetColor`,
-      with editable #RRGGBB/RGB channels, duplicate-colour rejection, and a reset to image-derived colours.**
+      **done in follow-up: the Free Colour-mode editor now browses top views of all catalogue cans
+      with search/brand filters and the existing full-can swipe carousel (adjacent can edges peek).
+      A valid can colour calls `StencilState.setSheetColor`; hex/RGB editing, duplicate-colour
+      rejection and reset to image-derived colours remain.**
       Verified: 26 new tests on JVM and Wasm (flat regions of 2/5/9/24 colours, determinism, given colours,
       every order, invariants for 1..60 sheets on dark and light subjects, fewer colours than sheets, null cases,
       Oklab round trip, and a colour separation through the vectoriser, SVG/DXF/HPGL/G-code and `PrintPdf` with
@@ -282,7 +284,12 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 **Left open by decision or for later**
 
-- Island bridging (deferred by Az). Free Colour sheets now have a palette editor (using the existing `ColorParams.colors` and `StencilState.setSheetColor`); manual colours are independent of the can catalogue.
+- Island bridging (deferred by Az). Free Colour sheets have a can-top palette browser using
+  the same full-can peeking carousel as My cans, with fallback hex/RGB editing through
+  `ColorParams.colors` and `StencilState.setSheetColor`. The can grid includes entries with no
+  colour value (hatched rings, not selectable as paint colours); MTN values remain unavailable.
+  A live site/reference is not a redistribution license for its imagery or swatch database.
+  Visual/touch checks on actual devices remain outstanding.
 - Custom mat and roll sizes, and G-code feed/power, are in core but have no UI yet.
 - Tiled text formats clip with Sutherland-Hodgman: a concave shape cut by a mat edge gets doubled
   edges along that edge, which a cutter traces twice. The PDF clips properly and has none.
