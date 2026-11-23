@@ -674,7 +674,7 @@ class StencilState(
                     if (bridgePlan.unresolved > 0) {
                         notes += "${bridgePlan.unresolved} stencil island(s) still need bridge or later-layer reconstruction; see the print notes."
                     }
-                    if (bridgePlan.unresolved < 0) {
+                    if (bridgePlan.skipped) {
                         notes += "Automatic island repair is not available above 16 layers; check print notes."
                     }
                     paintLayers = layers
