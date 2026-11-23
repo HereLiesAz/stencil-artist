@@ -488,8 +488,9 @@ private fun PrintSection(
             }
         }
         Text(
-            "Pages print ${PrintPdf.MARGIN_MM.roundToInt()} mm in from the paper's edge and overlap by " +
-                "${PrintPdf.OVERLAP_MM.roundToInt()} mm, where the alignment marks are.",
+            "Pages print ${PrintPdf.MARGIN_MM.roundToInt()} mm in from the paper's edge. Nothing is cut: lay each page on top of " +
+                "the one before, with its paper edges on the guide marks printed on the page beneath. Every join has a " +
+                "${PrintPdf.MARGIN_MM.roundToInt()} mm blank strip; cut straight across it.",
             style = MaterialTheme.typography.bodySmall, color = subdued,
         )
 
@@ -509,7 +510,8 @@ private fun PrintSection(
             NumberField("Border (in)", settings.borderIn, 2, { if (it > 0) settings.borderIn = it }, Modifier.fillMaxWidth())
             mountResult.exceptionOrNull()?.let { Text(it.message ?: "These board settings do not work.", style = MaterialTheme.typography.bodySmall) }
             Text(
-                "Glue the pages onto the board with page A1's top and left paper edges flush with the board's, and cut through both. " +
+                "The pages are fitted to the board, so the outer pages' paper edges lie on the board's edges on every side. " +
+                    "Glue them down flush with the board's edges, then cut through both. " +
                     "Heavyweight poster board or 4-ply railroad board; thin board tears.",
                 style = MaterialTheme.typography.bodySmall, color = subdued,
             )
