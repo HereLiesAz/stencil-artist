@@ -161,7 +161,11 @@ object StrokeStyler {
                     for (i in 0 until tail) rebuilt[queue[i]] = true
                     continue
                 }
-                val required = tail - allowedMissing
+                // Leave part of the missing-paint allowance for *connected* negative
+                // brushstrokes. Free-floating gaps between positive ribbons are
+                // physically unusable islands and are later filled back in.
+                val reservedForConnectedGaps = max(1, allowedMissing / 2)
+                val required = tail - (allowedMissing - reservedForConnectedGaps)
                 val seedSpacing = max(3, strokeWidthPixels + 2)
                 val fallbackX = if (maxX - minX >= maxY - minY) 1f else 0f
                 val fallbackY = 1f - fallbackX
@@ -261,6 +265,87 @@ object StrokeStyler {
                 // Insufficiently reconstructed regions retain their source geometry; the
                 // algorithm must not quietly discard distinctive large shapes.
                 if (painted < required) for (i in 0 until tail) rebuilt[queue[i]] = true
+
+                // Finish the painting with narrow negative brushstrokes that START
+                // at the original opening boundary and remain connected to stock.
+                // This is not a second arbitrary texture filter: it makes genuine
+                // supported gaps between the positive paint ribbons, where purely
+                // internal ribbon gaps would detach as stencil islands.
+                var unpainted = 0
+                for (i in 0 until tail) if (!rebuilt[queue[i]]) unpainted++
+                val gapSpacing = max(12, strokeWidthPixels * 7)
+                var seedY = minY + gapSpacing / 2
+                while (seedY <= maxY - gapSpacing / 2 && unpainted < allowedMissing) {
+                    var seedX = -1
+                    for (x in max(1, minX)..min(maxX - 8, w - 9)) {
+                        val p = seedY * w + x
+                        // The first pixel is adjacent to retained material, and a
+                        // substantial body of paint extends inward from that edge.
+                        if (member[p] == component && member[p - 1] != component &&
+                            member[p + 8] == component && distance[p + 8] >= 5) {
+                            seedX = x
+                            break
+                        }
+                    }
+                    if (seedX >= 0) {
+                        var px = seedX.toFloat()
+                        var py = seedY.toFloat()
+                        var vx = 1f
+                        var vy = 0f
+                        var lastX = seedX
+                        var lastY = seedY
+                        for (step in 0 until 38) {
+                            if (unpainted >= allowedMissing) break
+                            val x = px.roundToInt()
+                            val y = py.roundToInt()
+                            if (x !in 2 until w - 2 || y !in 2 until h - 2) break
+                            val p = y * w + x
+                            if (member[p] != component ||
+                                (step > 8 && distance[p] <= 3)) break
+                            // Preserve four-connected stock even across a diagonal
+                            // rounding step, as an artist would keep a scribble joined.
+                            if (step > 0 && x != lastX && y != lastY) {
+                                val corner = lastY * w + x
+                                if (member[corner] == component && rebuilt[corner] &&
+                                    unpainted < allowedMissing) {
+                                    rebuilt[corner] = false
+                                    unpainted++
+                                }
+                            }
+                            val nx = -vy
+                            val ny = vx
+                            val span = if (step < 3) 1 else strokeWidthPixels
+                            for (side in 0 until span) {
+                                val offset = side - (span - 1) * 0.5f
+                                val xx = (x + nx * offset).roundToInt()
+                                val yy = (y + ny * offset).roundToInt()
+                                if (xx !in 0 until w || yy !in 0 until h) continue
+                                val q = yy * w + xx
+                                if (member[q] == component && rebuilt[q] &&
+                                    unpainted < allowedMissing) {
+                                    rebuilt[q] = false
+                                    unpainted++
+                                }
+                            }
+                            lastX = x
+                            lastY = y
+                            val target = direction(p, vx, vy)
+                            // Keep the negative stroke flowing inward long enough
+                            // to connect to the surrounding sheet before following
+                            // the source-image contour as a brushstroke would.
+                            val blend = min(0.6f, 0.10f + 0.02f * step)
+                            val dx = (1f - blend) * vx + blend * target.first
+                            val dy = (1f - blend) * vy + blend * target.second
+                            val length = sqrt(dx * dx + dy * dy)
+                            if (length <= 0f) break
+                            vx = dx / length
+                            vy = dy / length
+                            px += vx
+                            py += vy
+                        }
+                    }
+                    seedY += gapSpacing
+                }
             }
 
             // Reconstructed neighbouring paint strokes must never create NEW detached
