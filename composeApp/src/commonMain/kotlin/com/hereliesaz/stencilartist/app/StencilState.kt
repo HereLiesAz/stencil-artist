@@ -8,6 +8,8 @@ import com.hereliesaz.stencilartist.core.ColorParams
 import com.hereliesaz.stencilartist.core.ColorSeparator
 import com.hereliesaz.stencilartist.core.DepthLighting
 import com.hereliesaz.stencilartist.core.LightingParams
+import com.hereliesaz.stencilartist.core.IslandPlanner
+import com.hereliesaz.stencilartist.core.SoftGradientZones
 import com.hereliesaz.stencilartist.core.RgbaImage
 import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.TonalParams
@@ -658,17 +660,34 @@ class StencilState(
                     // Show the base image, not the previous stencil, which no longer matches the settings.
                     preview = argbToImageBitmap(lit.pixels, lit.width, lit.height)
                 } else {
-                    paintLayers = layers
-                    if (result.sheets.size < asked) {
-                        notes += "The image has only ${result.sheets.size} distinct colour" +
-                            (if (result.sheets.size == 1) "" else "s") + ", so that is how many sheets it makes."
+                    // Plan bridges in painting order. Only fully concealed negative strokes are
+                    // automatically cut; an exposed correction remains an explicit island warning.
+                    // Gradient-lift notes are derived from the processed SOURCE, not from flat masks.
+                    val finished = result
+                    val planned = withContext(Dispatchers.Default) {
+                        val bridgePlan = IslandPlanner.repair(finished, lit, minimumBridgePixels = 2)
+                        val softEdges = SoftGradientZones.locate(lit, bridgePlan.separation)
+                        bridgePlan to bridgePlan.separation.withLiftZones(softEdges)
                     }
-                    separation = result
+                    val bridgePlan = planned.first
+                    val output = planned.second
+                    if (bridgePlan.unresolved > 0) {
+                        notes += "${bridgePlan.unresolved} stencil island(s) still need bridge or later-layer reconstruction; see the print notes."
+                    }
+                    if (bridgePlan.skipped) {
+                        notes += "Automatic island repair and gradient-lift hints are not available above 16 layers; check print notes for cut hazards."
+                    }
+                    paintLayers = layers
+                    if (output.sheets.size < asked) {
+                        notes += "The image has only ${output.sheets.size} distinct colour" +
+                            (if (output.sheets.size == 1) "" else "s") + ", so that is how many sheets it makes."
+                    }
+                    separation = output
                     // A colour image can make fewer sheets than asked: keep the shown one in range.
-                    shownSheet = shownSheet?.takeIf { it < result.sheets.size }
+                    shownSheet = shownSheet?.takeIf { it < output.sheets.size }
                     message = notes.joinToString(" ").ifEmpty { null }
                     preview = if (viewProcessedImage) argbToImageBitmap(lit.pixels, lit.width, lit.height)
-                        else result.toImageBitmap(shownSheet)
+                        else output.toImageBitmap(shownSheet)
                 }
             } finally {
                 if (generation == request) busy = false

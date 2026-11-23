@@ -239,8 +239,15 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 ## Open questions
 
-1. **Islands.** Open — waiting on Az's approach. (GraffitiXR assumes overpaint and never bridges;
-   a *cut* sheet still drops any region fully enclosed by a cut.)
+1. **Islands and stroke synthesis.** In progress: Az's black-base/grey/white
+   references establish that essential details must be reproducible from the supplied
+   cuts, even if the painter previously reconstructed them by hand. The first stage
+   adds independently overpainted cuts and automatic negative-stroke bridges only where
+   a later layer fully conceals the changed pixels. Exposed islands remain flagged,
+   not silently deleted. Full stroke-based generation, grey/white collaborative
+   reconstruction, physical-width checking and real-world validation remain.
+   GraffitiXR originally assumed overpaint and never bridged; a *cut* sheet still
+   drops any region fully enclosed by a cut. See `docs/STROKE_ISLANDS.md`.
 2. **Depth model.** Depth Anything V2 Small (quantised, on demand) selected and benchmarked
    against MiDaS v2.1 Small on the same CI CPU runner; see `models/depth-anything-v2-small.md`.
    Device-specific latency and segmentation-quality evaluation remain for phase 12. The shared
@@ -285,7 +292,7 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 **Left open by decision or for later**
 
-- Island bridging (deferred by Az). Free Colour sheets have a can-top palette browser using
+- Island bridging is partly implemented (only fully concealed negative strokes, with visible islands explicitly left unresolved). Free Colour sheets have a can-top palette browser using
   the same full-can peeking carousel as My cans, with fallback hex/RGB editing through
   `ColorParams.colors` and `StencilState.setSheetColor`. The can grid includes entries with no
   colour value (hatched rings until the user supplies a colour). An MTN can or any other can
