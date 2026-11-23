@@ -28,6 +28,7 @@ kotlin {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.ui)
+            implementation(compose.components.resources)
             implementation(libs.compose.material3)
             implementation(libs.kotlinx.coroutines.core)
         }
@@ -49,6 +50,12 @@ kotlin {
             implementation(npm("zxing-wasm", libs.versions.zxingWasm.get()))
         }
     }
+}
+
+// Keep the bundled, unmodified MTN 94 photograph accessible on Android and web.
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "com.hereliesaz.stencilartist.app.generated.resources"
 }
 
 // --- Models and the web ONNX runtime, as static files of the web build -----------------------------
