@@ -438,6 +438,11 @@ object PrintPdf {
             val lines = when (tip.kind) {
                 PrintTipKind.ISLAND -> listOf("ISLAND", position, "Add small bridges", "before cutting.")
                 PrintTipKind.FINE_CUT -> listOf("FINE DETAIL", position, "Cut this part last.", "Lift waste slowly.")
+                PrintTipKind.SOFT_GRADIENT -> listOf(
+                    "SOFT GRADIENT", position,
+                    "Shim the ${tip.direction?.name?.lowercase() ?: "uncut"} edge.",
+                    "Spray lightly. Test first.",
+                )
             }
             return Note(
                 "S$sheet:${tip.kind}:${tip.x}:${tip.y}", sheet, lines, x, y, x + shiftX(b), y + shiftY(b), tile, tileCode(grid.tiles[tile]),
@@ -645,9 +650,16 @@ object PrintPdf {
             val mmPerPx = options.widthMm / separation.width
             val uncut = UncutSpace(mask, separation.width, separation.height, mmPerPx)
             val analysis = layout.analyse(mask, separation.width, separation.height, uncut)
-            val tips = StencilPrintTips.detect(
+            val cuttingTips = StencilPrintTips.detect(
                 mask, separation.width, separation.height, options.widthMm, maxTips = MAX_TIPS - tipsUsed,
             )
+            val gradientTips = separation.liftZones.asSequence().filter { it.sheet == sheet }.map {
+                PrintTip(PrintTipKind.SOFT_GRADIENT, it.x, it.y, it.towards)
+            }.toList()
+            require(gradientTips.size <= MAX_TIPS - tipsUsed - cuttingTips.size) {
+                "Too many stencil details for a printable PDF; simplify the image or reduce the sheet count."
+            }
+            val tips = cuttingTips + gradientTips
             tipsUsed += tips.size
             val outline = Vectorizer.vectorizeSheet(separation, sheet)
             val shapes = outline.shapes.map { Placed(it.rings.map { r -> r.points }, mmPerPx, layout.heightMm) }
