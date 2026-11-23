@@ -71,6 +71,29 @@ assert.equal(catalogueHit.networkCalls, 0, "A cached catalogue is not fetched ag
 const missing = await fetchThroughServiceWorker(catalogue, { networkStatus: 404 });
 assert.equal(missing.cacheWrites, 0, "Never cache a failed catalogue download");
 
+// The barcode reader (zxing-wasm, loaded on first scan) is heavy and fixed per release: cache first,
+// the JavaScript and licence beside the wasm included, quota failure or not.
+for (const file of ["zxing_reader.wasm", "zxing_reader.js", "LICENSE"]) {
+  const url = `https://stencil.example/stencil-artist/zxing/${file}`;
+  const first = await fetchThroughServiceWorker(url, { failPut: true });
+  assert.equal(first.response.status, 200, `A quota failure must not mask the ${file} download`);
+  assert.equal(first.networkCalls, 1);
+  assert.equal(first.cacheWrites, 1, `${file} is cached in the heavy cache on first use`);
+  const again = await fetchThroughServiceWorker(url, { cached: cacheHit });
+  assert.strictEqual(again.response, cacheHit);
+  assert.equal(again.networkCalls, 0, `A cached ${file} is not fetched again`);
+  const gone = await fetchThroughServiceWorker(url, { networkStatus: 404 });
+  assert.equal(gone.cacheWrites, 0, `Never cache a failed ${file} download`);
+}
+
+// The scanner glue is part of the shell: network first, so a release is picked up on the next visit.
+const glue = await fetchThroughServiceWorker("https://stencil.example/stencil-artist/scanner.js", { cached: cacheHit });
+assert.equal(glue.networkCalls, 1, "scanner.js is network first");
+
+// Only the zxing/ directory is heavy, not any file with zxing in its name.
+const zxingLookalike = await fetchThroughServiceWorker("https://stencil.example/stencil-artist/zxing.html", { cached: cacheHit });
+assert.equal(zxingLookalike.networkCalls, 1);
+
 // The shell stays network first: a cached page does not stop the network being asked.
 const page = await fetchThroughServiceWorker("https://stencil.example/stencil-artist/index.html", { cached: cacheHit });
 assert.equal(page.networkCalls, 1, "The app shell is network first");

@@ -99,7 +99,9 @@ fun App() {
     StencilArtistTheme {
         val scope = rememberCoroutineScope()
         val models = rememberModelLoader()
-        val state = remember { StencilState(scope, SubjectIsolator(models), DepthEstimator(models)) }
+        val catalogueLoader = rememberCatalogueLoader()
+        val store = rememberKeyValueStore()
+        val state = remember { StencilState(scope, SubjectIsolator(models), DepthEstimator(models), catalogueLoader, store) }
         val pick = rememberImagePicker(onPicked = state::open, onError = state::fail)
 
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -257,7 +259,9 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        Section("Sheets") {
+        if (state.mode == SeparationMode.COLOUR) PaintSection(state)
+
+        if (!state.snapped) Section("Sheets") {
             Stepper(
                 value = state.sheetCount,
                 range = 1..state.maxSheets,
@@ -301,6 +305,8 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 state.update(tone.copy(bias = it.roundToInt()))
             }
         }
+
+        if (state.snapped) PaintListSection(state)
 
         Section("Raster PNG") {
             state.separation?.let { stencil ->
@@ -406,7 +412,8 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             exporting = exporting,
             onWidth = { printWidthMm = it.toFloat() },
             onExport = { label, sheet ->
-                val wanted = print.options(printWidthMm.toDouble()).getOrNull()
+                // A stencil made from cans carries its shopping list (only the sheets exported); any other has none.
+                val wanted = print.options(printWidthMm.toDouble()).getOrNull()?.copy(shopping = state.shoppingFor(sheet))
                 if (wanted != null) startExport(label) { stencil -> printPdfFile(stencil, wanted, sheet) }
             },
         )
@@ -625,13 +632,20 @@ private fun NumberField(title: String, value: Double, decimals: Int, onValue: (D
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             textStyle = TextStyle(color = scheme.onSurface, fontSize = 14.sp),
             cursorBrush = SolidColor(scheme.primary),
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp).height(40.dp)
-                .clip(RoundedCornerShape(6.dp)).background(scheme.surfaceVariant)
-                .border(1.dp, scheme.outline, RoundedCornerShape(6.dp))
-                .semantics { contentDescription = title },
+            modifier = Modifier.fieldBox(title),
             decorationBox = { inner -> Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) { inner() } },
         )
     }
+}
+
+/** The look of a text box: a dark rounded field with a thin outline, named [title] for screen readers. Shared by the number and search fields. */
+@Composable
+internal fun Modifier.fieldBox(title: String): Modifier {
+    val scheme = MaterialTheme.colorScheme
+    return fillMaxWidth().padding(top = 4.dp).height(40.dp)
+        .clip(RoundedCornerShape(6.dp)).background(scheme.surfaceVariant)
+        .border(1.dp, scheme.outline, RoundedCornerShape(6.dp))
+        .semantics { contentDescription = title }
 }
 
 /** [value] to [decimals] places without locale or platform formatting. */
@@ -644,7 +658,7 @@ private fun fixedDecimals(value: Double, decimals: Int): String {
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+internal fun Section(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         content()
@@ -654,9 +668,8 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 /** "All", then one swatch per sheet in paint order. It scrolls, so the number of sheets is not its problem. */
 @Composable
 private fun SheetStrip(sheets: List<Sheet>, shown: Int?, onShow: (Int?) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        item { Choice("All", selected = shown == null) { onShow(null) } }
-        items(sheets.size) { i ->
+    @Composable
+    fun swatch(i: Int) {
             val selected = shown == i
             Box(
                 Modifier
@@ -676,19 +689,34 @@ private fun SheetStrip(sheets: List<Sheet>, shown: Int?, onShow: (Int?) -> Unit)
                 Text("${i + 1}", color = if (Color(sheets[i].color).isLight()) Color.Black else Color.White,
                     style = MaterialTheme.typography.labelMedium)
             }
+    }
+    // Up to this many sheets wrap, so a mouse can reach every swatch without dragging a row sideways
+    // (30 chosen cans stay in view); beyond it the strip scrolls so a thousand sheets stay cheap.
+    if (sheets.size <= WRAPPED_SHEETS) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("All", selected = shown == null) { onShow(null) }
+            for (i in sheets.indices) swatch(i)
+        }
+    } else {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            item { Choice("All", selected = shown == null) { onShow(null) } }
+            items(sheets.size) { i -> swatch(i) }
         }
     }
 }
+
+/** The most sheets the strip wraps over several lines. */
+private const val WRAPPED_SHEETS = 48
 
 /**
  * Whether black text reads better on this colour than white. Relative luminance (which weighs
  * green far above blue and works in linear light) crosses over at 0.179, where black and white
  * give equal contrast; a flat 0.5 on gamma values would put white on a bright orange or green.
  */
-private fun Color.isLight(): Boolean = luminance() > 0.179f
+internal fun Color.isLight(): Boolean = luminance() > 0.179f
 
 @Composable
-private fun Choice(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun Choice(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Box(
         modifier
@@ -704,7 +732,7 @@ private fun Choice(text: String, selected: Boolean, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun Stepper(value: Int, range: IntRange, label: String, onChange: (Int) -> Unit) {
+internal fun Stepper(value: Int, range: IntRange, label: String, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = { onChange(value - 1) }, enabled = value > range.first,
             modifier = Modifier.semantics { contentDescription = "Fewer $label" }) { Text("−") }

@@ -158,6 +158,51 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       **Next: the picker UI (brands, search, selection, "pick for my image"), the PDF shopping list, the barcode scanner.**
       Verified: 35 new tests on JVM and Wasm, including every row of the real file on both.
 
+- [x] **14b. Paint list in the print PDF** — `PrintOptions.shopping` (items from `ShoppingList.of`, already limited to the
+      exported sheets, in paint order) adds a "Paint" block to the instructions (swatch with dark outline, layer, brand/line/name, code,
+      barcode, match words, sampled flag, up to 3 equivalents) and a "CHECK THE COLOURS" step. Rows fill page 1 while its scale stays
+      >= 0.9; the rest go on "Paint, continued" pages at 1.1; list text is never under 7 pt. `PrintPlan.instructionPages` (default 1).
+      `PdfText` now writes Latin-1 and WinAnsi marks (octal escapes, file stays 7-bit), folds Latin Extended-A, else "?". With no list
+      the output is byte-identical (FNV-1a golden test of four inputs). Tests: `PrintShoppingTest`. Rendered with PyMuPDF; pypdf strict.
+      **Not verified:** a real printer; legibility of 7 pt on paper; names in a single word wider than the page (not broken);
+      the picker UI passing the list (other agent). With a 6-layer list on Letter only 2 rows fit page 1 beside the diagram.
+
+- [x] **15. Can picker** - Colour mode gets a **Paint** section: Free / Pick for me / My cans (`PaintMode`).
+      `core.paint.PaintPlan` holds the testable logic (layers per mode, `separate` with exactly the cans' colours,
+      `SnappedLayer` used/unused per sheet, shopping list numbered by sheet, shared-colour notes, available colour
+      count), `CanFilter` (brand/line chips) and `PaintPersistence` (cans by `canKey`, brands; unknown dropped).
+      `StencilState` loads the catalogue on first need, persists through the new `KeyValueStore` (expect/actual:
+      SharedPreferences, `localStorage` in try/catch), recomputes layers off the main thread under the existing
+      debounce, and has the scanner hooks `addCanByBarcode(gtin)` and `learnBarcode(gtin, can)` (no scanner UI).
+      UI (`PaintPanel.kt`, `CanArt.kt`): layer stepper (up to the distinct colours the allowed cans have), brand then line
+      chips, inline collapsible picker: search, brand chips and a grid of vector can tops (60 plus Show more; hatched
+      disc for colourless cans, sampled dot, check when selected); tapping one opens a carousel (HorizontalPager, whole
+      can drawn side-on with maker, colour name, code, barcode, match quality in Pick for me; neighbours peek; arrows,
+      keyboard arrows, touch and mouse drag); Selected strip of small tops with remove, shared-colour
+      note, Paint list with match quality and Keep/Drop for unused layers, one-line data caveat. Sheet strip wraps
+      up to 48 sheets. The print PDF gets `PrintOptions.shopping` for the sheets exported (empty when not snapped).
+      Verified: new `PaintPlanTest` on JVM and Wasm; the web build driven in headless Chromium (astronaut photo):
+      Pick for me 6 layers from Montana Cans, My cans search "frog" and typing, carousel by arrows, keys and mouse drag, three chosen cans give exactly
+      three layers, selection survives a page reload, composite PNG has exactly the three cans' colours, the print
+      PDF lists the cans. **Not verified:** Android (builds and lints only; SharedPreferences untested), a very
+      large selection (30+ cans) in the browser, touch input, `addCanByBarcode`/`learnBarcode` (no UI calls them).
+
+- [x] **16. Barcode scanner** - `ScannerView` (expect/actual: camera preview, reticle, decode while active, release on
+      stop or leaving the screen) and the self-contained `ScannerPanel` (Scan a can, live square view, one status line,
+      Stop / Scan again, last number, "or type the barcode" with the check-digit message). Every read goes through
+      `core.paint.BarcodeScan` (check digit verified, UPC-A as its EAN-13 form, UPC-E expanded) and `ScanDebouncer`
+      (same number ignored for 2 s while in view); a mis-read is dropped, never reported. Web: `getUserMedia` into a
+      `<video>` laid over the canvas (`scanner.js`, loaded on first scan); the browser's `BarcodeDetector` when it lists
+      all four retail formats, else zxing-wasm (reader build, MIT, 411 kB wasm + 13 kB JS gzipped, in `zxing/`, cache
+      first in `sw.js`). Android: CameraX + ML Kit bundled barcode model, runtime camera permission. Errors:
+      `PermissionDenied`, `NoCamera`, `DecoderUnavailable`, `Unsupported` (an http page has no camera API).
+      Verified: `BarcodeScanTest` on JVM and Wasm; the web glue and the real Kotlin `ScannerView` in headless Chromium
+      with a fake camera (EAN-13, UPC-A, UPC-E decoded, a corrupted check digit never reported, permission denied,
+      insecure origin, no device, camera tracks ended on dispose); service worker tests. **Not done:** wiring
+      `ScannerPanel` into `App.kt` (calls `addCanByBarcode`; `learnBarcode` for an unknown can), anything on an Android
+      device, a real `BarcodeDetector` (headless Chromium on Linux has none: the native path ran against a stand-in), a
+      real camera, a real can, iPhone Safari.
+
 ## Verification
 
 - Phase 5: model CPU inference comparison is reproducible in
