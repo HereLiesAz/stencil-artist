@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,6 +45,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -66,6 +68,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
+import com.hereliesaz.stencilartist.core.PaletteColor
 import com.hereliesaz.stencilartist.core.paint.Can
 import com.hereliesaz.stencilartist.core.paint.CanFilter
 import com.hereliesaz.stencilartist.core.paint.HexSource
@@ -89,7 +93,8 @@ internal fun PaintSection(state: StencilState) {
             Choice("My cans", selected = state.paintMode == PaintMode.MY_CANS) { state.selectPaintMode(PaintMode.MY_CANS) }
         }
         if (state.paintMode == PaintMode.FREE) {
-            Text("Any colours: the picture's own.", style = MaterialTheme.typography.bodySmall, color = subdued)
+            Text("Image colours, or your own palette.", style = MaterialTheme.typography.bodySmall, color = subdued)
+            FreePaletteEditor(state)
             return@Section
         }
         val catalogue = state.catalogue
@@ -109,6 +114,115 @@ internal fun PaintSection(state: StencilState) {
             "Colour values are on-screen approximations; cans marked sampled are approximate; some makers have no colour value yet.",
             style = MaterialTheme.typography.bodySmall, color = subdued,
         )
+    }
+}
+
+/**
+ * Edits the actual sheet colours in Free mode, without modifying any can-based paint selection.
+ *
+ * Only one layer is edited at a time. The local hex/RGB draft is applied on demand rather than on
+ * every slider tick: a colour change regenerates and may reorder the sheets, so an in-flight drag
+ * must not keep changing a different sheet. All exporters then consume that completed separation.
+ * A palette can be restored to the image-derived colours without changing the requested sheet count.
+ */
+@Composable
+private fun FreePaletteEditor(state: StencilState) {
+    val sheets = state.separation?.sheets.orEmpty()
+    val scheme = MaterialTheme.colorScheme
+    var editing by remember { mutableStateOf<Int?>(null) }
+
+    Text("Tap a swatch to edit its colour. Changes update the stencil and all exports.",
+        style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+    if (sheets.isEmpty()) {
+        Text("Open an image to edit its palette.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+    } else {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            items(sheets.size) { index ->
+                val rgb = sheets[index].color
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(6.dp))
+                        .border(if (editing == index) 3.dp else 1.dp,
+                            if (editing == index) scheme.primary else scheme.outline, RoundedCornerShape(6.dp))
+                        .clickable(role = Role.Button) { editing = if (editing == index) null else index }
+                        .semantics { contentDescription = "Edit sheet ${index + 1} colour ${PaletteColor.hex(rgb)}" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Swatch(rgb, 40.dp)
+                    Text("${index + 1}", style = MaterialTheme.typography.labelMedium,
+                        color = if (Color(rgb).isLight()) Color.Black else Color.White)
+                }
+            }
+        }
+    }
+
+    if (state.colorParams.colors != null) {
+        OutlinedButton(onClick = {
+            editing = null
+            state.update(state.colorParams.copy(colors = null))
+        }, modifier = Modifier.fillMaxWidth()) { Text("Use image colours again") }
+    }
+
+    val index = editing
+    if (index != null && index in sheets.indices) {
+        val current = sheets[index].color
+        var hexText by remember(index, current) { mutableStateOf(PaletteColor.hex(current)) }
+        val candidate = PaletteColor.parseHex(hexText)
+        val duplicate = candidate != null && sheets.indices.any {
+            it != index && (sheets[it].color and 0xFFFFFF) == (candidate and 0xFFFFFF)
+        }
+        val draft = candidate ?: current
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                .border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("SHEET ${index + 1} COLOUR", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Swatch(draft, 52.dp)
+                BasicTextField(
+                    value = hexText,
+                    onValueChange = { hexText = it },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    textStyle = TextStyle(color = scheme.onSurface, fontSize = 14.sp),
+                    cursorBrush = SolidColor(scheme.primary),
+                    modifier = Modifier.weight(1f).fieldBox("Hex colour, six digits"),
+                    decorationBox = { inner ->
+                        Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) { inner() }
+                    },
+                )
+            }
+            if (candidate == null) {
+                Text("Enter a six-digit hex colour, such as #1A2B3C.",
+                    style = MaterialTheme.typography.bodySmall, color = scheme.error)
+            } else if (duplicate) {
+                Text("Another sheet already uses this colour.",
+                    style = MaterialTheme.typography.bodySmall, color = scheme.error)
+            }
+            for ((label, shift) in listOf("Red" to 16, "Green" to 8, "Blue" to 0)) {
+                val value = (draft shr shift) and 0xFF
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("$label $value", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(74.dp))
+                    Slider(
+                        value = value.toFloat(),
+                        onValueChange = { hexText = PaletteColor.hex(PaletteColor.withChannel(draft, shift, it.roundToInt())) },
+                        valueRange = 0f..255f,
+                        modifier = Modifier.weight(1f).semantics { contentDescription = "$label channel" },
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { editing = null }, modifier = Modifier.weight(1f)) { Text("Cancel") }
+                OutlinedButton(
+                    onClick = {
+                        candidate?.let { state.setSheetColor(index, it) }
+                        editing = null
+                    },
+                    enabled = candidate != null && !duplicate && candidate != current && !state.busy,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Apply colour") }
+            }
+        }
     }
 }
 
