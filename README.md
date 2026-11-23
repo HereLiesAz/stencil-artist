@@ -23,8 +23,15 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   as there are sheets, up to 1024, and sprayed in an order of your choice: auto (dark base for a
   dark subject, light for a light one), light to dark, dark to light, or largest area first.
   An image with fewer distinct colours than sheets asked for makes that many sheets, not duplicates.
-  The core also takes the user's own paint colours instead of finding them (`ColorParams.colors`);
-  the app has no screen for that yet.
+  The core also takes the user's own paint colours instead of finding them (`ColorParams.colors`).
+- Paints a stencil from real spray cans. In Colour mode, **Paint** is *Free* (any colours), *Pick for me*
+  (you set the layer count and which brands or lines are allowed; the app matches the image's colours to
+  distinct cans) or *My cans* (a can picker: search, brand chips, a grid of can tops and a swipeable carousel of whole cans, with a selected strip; the layers are
+  exactly the chosen cans' distinct colours, and two cans of one colour make one layer). A **Paint list**
+  shows each layer's can, code and how near it is (Exact, Close, Approximate); a can no pixel uses is
+  noted as not needed and left off the lists unless you keep it. The print PDF is given a shopping list
+  of the cans for the sheets it prints. Chosen cans, allowed brands and learned barcodes are kept on the
+  device (SharedPreferences, `localStorage`).
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
 - Shows the improved base image, the finished piece, or any one sheet alone.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
@@ -51,7 +58,7 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Traces every sheet into vector outlines and writes cutter files at a real physical size: SVG,
   DXF (R12), HPGL and G-code, whole or split across a cutting mat or sheet of paper.
 
-Not yet: bridges for islands, a palette editor for colour sheets, custom mat sizes in the UI. See the roadmap.
+Not yet: bridges for islands, a free colour picker for colour sheets, custom mat sizes in the UI. See the roadmap.
 
 ## Cutter files
 
@@ -107,6 +114,16 @@ hides what lies under it, so each join has a 3 mm blank strip; nothing is shifte
 PDF says so, with a diagram and a 100 mm check bar. Checked here with pypdf (strict), PyMuPDF renders and an
 overlay of every page in stacking order (mounted: all of a sheet's boards composited with the board edges marked); **not printed on a real printer.**
 
+**Paint list.** When the print is given a shopping list (`PrintOptions.shopping`, one item per layer in paint order), the
+instructions gain a "Paint" block: per layer a swatch in the can's colour with a dark outline (so pale cans show), "Layer N",
+brand, line and name, the maker's code, the barcode digits when known, and the match as words (exact, close or approximate;
+"colour sampled, approximate" for our own samplings), then up to 3 equivalent cans of the same colour ("also: ... and N more").
+It says to spray in that order, base first, and a step tells you to check colours against a real can's cap or a swatch card
+before buying, since screen colours are approximate. Rows stay on page 1 while it scales no smaller than 0.9; the rest continue
+on extra pages titled "Paint, continued" (`PrintPlan.instructionPages` counts them). No list text prints below 7 pt. Accented
+Latin-1 letters in names (e-acute, n-tilde, u-umlaut) and curly quotes print; other Latin letters fold to ASCII; other scripts print "?".
+Without a list the PDF is byte for byte as before.
+
 ## PNG exports
 
 In **Raster PNG**, download the composite, select a swatch to download one sheet, or download
@@ -134,6 +151,52 @@ Processing order: **source image → depth-assisted background removal → relit
 (by tone or by colour) → stencil sheets**. Changing the light always regenerates the sheets from the new base.
 
 
+## Paint catalogue
+
+`models/paints.tsv` lists 3,479 spray cans from 12 brands (Rust-Oleum 635, Montana Cans 580, MTN 543,
+Loop Colors 305, Flame 273, Kobra 264, Clash 263, Krylon 229, Molotow 204, Ironlak 102, Liquitex 50,
+Dupli-Color 31): brand, line, name, finish, code, colour value and barcode. It is a 134 kB tab-separated
+text file that ships by the same route as the models (Android assets, `models/` on the web) and is read
+by `core.paint.PaintCatalogue`, which searches it (ignoring case, accents and punctuation, so `rv 252`,
+`RV-252` and `rv252` are one code), finds a can by barcode (UPC-A and EAN-13 are the same), and matches the
+colours of an image to the nearest cans. Regenerate it with `python3 tools/catalogue/build.py`.
+
+- 2,057 cans have a colour value (1,689 distinct). The other 1,422 (all of MTN, Flame, Molotow and Clash, and
+  the effect finishes of other makers) have none: they can be listed, searched and scanned, not matched to
+  a colour. Colour values are how a screen shows the paint, not the paint; 79 (Liquitex, Dupli-Color) are our
+  own sampling of the maker's swatch and are flagged so.
+- **Not for public release yet.** No licence to redistribute the data was found; `models/paints.NOTICE.txt`
+  says where each brand's data came from. Check the makers' terms before shipping it.
+- Built so far: the data, its loading, and the logic in `core`. The picker screen is built (above); next: the barcode scanner.
+
+## Barcode scanner
+
+**Scan a can** (`ScannerPanel`, built on `ScannerView`) reads the EAN-13, EAN-8, UPC-A or UPC-E barcode on a
+spray can with the camera, so the cans the user owns can be added to their selection. The camera is used only
+while a scan is on, and only after the user taps the button; nothing is recorded or sent anywhere. Every number
+read must pass its check digit (`core.paint.GtinCheck`) or it is ignored, since a wrong can is worse than none;
+UPC-A is reported as its EAN-13 form and UPC-E is expanded to the UPC-A it stands for; the same number is not reported
+again for two seconds while it stays in view. A barcode can also be typed.
+
+- **Permission.** Android asks for the camera the first time a scan starts (`CAMERA`; the camera is declared
+  not required, so camera-less devices still install). A browser asks the same way. A refusal is shown as a
+  message ("Camera blocked: allow camera access in your browser or app settings"), and typing still works.
+- **Secure page.** Browsers only offer a camera to https pages (and localhost). Over plain http the scanner says
+  so instead of failing silently. GitHub Pages is https.
+- **Web decoding.** The browser's own `BarcodeDetector` is used when it lists all four retail formats (Chrome on
+  Android, macOS and ChromeOS). Elsewhere (iPhone Safari, Firefox, Chrome on Windows and Linux) it falls back to
+  [zxing-wasm](https://github.com/Sec-ant/zxing-wasm) (MIT, the reader build only; its licence is `zxing/LICENSE` in
+  the web build). The fallback is not part of the app bundle: `scanner.js` loads it on the first scan, from `zxing/`
+  next to the page, and the service worker keeps it for offline use. It is a 946 kB WebAssembly file (411 kB gzipped)
+  and 37 kB of JavaScript (13 kB gzipped); a browser with a `BarcodeDetector` never downloads it. Frames are
+  decoded about 8 times a second, scaled to at most 960 px on the long side.
+- **Android decoding.** CameraX and ML Kit's on-device barcode scanner, the bundled model (no Play services download,
+  works offline). It adds about 13.6 MB to the release APK (arm64 and armeabi-v7a, not minified), most of it ML Kit's
+  native library.
+- **Tested** with a fake camera (a generated EAN-13, UPC-A and UPC-E picture played as video) in headless Chromium,
+  on both decoders' paths as far as that browser allows, and in unit tests. **Not tested:** a real camera or can, an
+  Android device, iPhone Safari, or a real `BarcodeDetector`.
+
 ## Layout
 
 | Module | What it is |
@@ -141,8 +204,9 @@ Processing order: **source image → depth-assisted background removal → relit
 | `core` | The stencil pipeline. Pure Kotlin (`jvm`, `wasmJs`), no platform dependencies. |
 | `composeApp` | The app: UI and state, shared by Android and the web. Produces the web build. |
 | `androidApp` | The Android wrapper: an Activity and a manifest. |
-| `models` | Bundled U²-Net subject model and licence; depth ONNX is downloaded on demand. |
+| `models` | Bundled U²-Net subject model and licence, and the paint catalogue; depth ONNX is downloaded on demand. |
 | `tools/golden` | Generates the OpenCV fixtures the pipeline is tested against. |
+| `tools/catalogue` | Builds `models/paints.tsv` from the research data in `source/`. |
 
 ## Build
 

@@ -12,6 +12,16 @@ import com.hereliesaz.stencilartist.core.RgbaImage
 import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.TonalParams
 import com.hereliesaz.stencilartist.core.TonalSeparator
+import com.hereliesaz.stencilartist.core.paint.Can
+import com.hereliesaz.stencilartist.core.paint.CanFilter
+import com.hereliesaz.stencilartist.core.paint.PaintCatalogue
+import com.hereliesaz.stencilartist.core.paint.PaintMode
+import com.hereliesaz.stencilartist.core.paint.PaintPersistence
+import com.hereliesaz.stencilartist.core.paint.PaintPlan
+import com.hereliesaz.stencilartist.core.paint.ShoppingItem
+import com.hereliesaz.stencilartist.core.paint.SnappedLayer
+import com.hereliesaz.stencilartist.core.paint.UserBarcodes
+import com.hereliesaz.stencilartist.core.paint.displayName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +42,8 @@ class StencilState(
     private val scope: CoroutineScope,
     private val isolator: SubjectIsolator,
     private val depthEstimator: DepthEstimator,
+    private val catalogueLoader: CatalogueLoader,
+    private val store: KeyValueStore = MemoryStore(),
 ) {
 
     /** The opened image, or null before one is opened. */
@@ -61,6 +73,224 @@ class StencilState(
 
     /** Edge-closing side of the active mode. */
     val closing: Int get() = if (mode == SeparationMode.TONE) toneParams.closing else colorParams.closing
+
+    // --- Paint: making the layers real cans -------------------------------------------------------
+
+    /**
+     * Where the colour sheets' colours come from. Only [SeparationMode.COLOUR] uses it; like the
+     * tone and colour settings it is kept when the mode is switched away and back.
+     */
+    var paintMode: PaintMode by mutableStateOf(PaintMode.FREE)
+        private set
+
+    /** How many layers [PaintMode.PICK_FOR_ME] asks for. */
+    var pickCount: Int by mutableStateOf(4)
+        private set
+
+    /** The brands and lines [PaintMode.PICK_FOR_ME] may use, as [CanFilter] entries; empty allows all. */
+    var allowed: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** The cans the user chose for [PaintMode.MY_CANS], in the order chosen. Every one has a colour value. */
+    var selected: List<Can> by mutableStateOf(emptyList())
+        private set
+
+    /** Barcodes the user taught the app; consulted before the catalogue by [addCanByBarcode]. */
+    var userBarcodes: UserBarcodes by mutableStateOf(UserBarcodes.EMPTY)
+        private set
+
+    /** The paint catalogue, null until it is first needed and has loaded. */
+    var catalogue: PaintCatalogue? by mutableStateOf(null)
+        private set
+
+    /** True while the catalogue is loading. */
+    var catalogueLoading: Boolean by mutableStateOf(false)
+        private set
+
+    /** Why the catalogue could not be loaded, worded for the user, or null. */
+    var catalogueError: String? by mutableStateOf(null)
+        private set
+
+    /** The most layers [PaintMode.PICK_FOR_ME] can ask for: the distinct colours among the allowed cans. */
+    var pickMax: Int by mutableStateOf(1)
+        private set
+
+    /** The sheets of the current stencil as cans, in paint order; empty unless the stencil was made from cans. */
+    var paintLayers: List<SnappedLayer> by mutableStateOf(emptyList())
+        private set
+
+    /** Colours (24-bit RGB) of unused layers the user chose to keep on the lists. */
+    var keptUnused: Set<Int> by mutableStateOf(emptySet())
+        private set
+
+    /** Whether the current stencil is made from cans: Colour mode with a paint mode other than free. */
+    val snapped: Boolean get() = mode == SeparationMode.COLOUR && paintMode.snapped
+
+    /** The layer count the screen shows: the layers actually used (plus those kept), not the count asked for. */
+    val layersUsed: Int get() = PaintPlan.layerCount(paintLayers, keptUnused)
+
+    private var catalogueJob: Job? = null
+    private var savedCans = ""
+    private var savedAllowed = ""
+
+    init {
+        // Brands and cans are text keys until the catalogue is there to resolve them (see ensureCatalogue).
+        paintMode = store.get(KEY_MODE)?.let { name -> PaintMode.entries.firstOrNull { it.name == name } } ?: PaintMode.FREE
+        pickCount = store.get(KEY_PICK)?.toIntOrNull()?.coerceIn(1, ColorParams.MAX_SHEETS) ?: 4
+        savedCans = store.get(KEY_CANS).orEmpty()
+        savedAllowed = store.get(KEY_ALLOWED).orEmpty()
+        userBarcodes = store.get(KEY_BARCODES)?.let(UserBarcodes::decode) ?: UserBarcodes.EMPTY
+    }
+
+    /**
+     * Loads the catalogue if it is not loaded or loading. It is read on first need, not at start, so
+     * a session that never uses cans never fetches it. When it arrives the saved cans and brands are
+     * resolved through it (what it no longer has is dropped) and, if the stencil is made from cans,
+     * the stencil is made again.
+     */
+    fun ensureCatalogue() {
+        if (catalogue != null || catalogueJob?.isActive == true) return
+        catalogueLoading = true
+        catalogueError = null
+        catalogueJob = scope.launch {
+            try {
+                val loaded = catalogueLoader.loadPaintCatalogue()
+                selected = PaintPersistence.decodeCans(savedCans, loaded).filter { it.rgb != null }
+                allowed = PaintPersistence.decodeAllowed(savedAllowed, loaded)
+                catalogue = loaded
+                pickMax = pickLimit(loaded, allowed)
+                pickCount = pickCount.coerceAtMost(pickMax)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                catalogueError = "The paint catalogue couldn't be loaded."
+            } finally {
+                catalogueLoading = false
+            }
+        }
+    }
+
+    private fun pickLimit(of: PaintCatalogue, filter: Set<String>): Int =
+        PaintPlan.availableColours(of, filter).coerceIn(1, ColorParams.MAX_SHEETS)
+
+    /** Chooses where the colour sheets' colours come from and makes the stencil again. */
+    fun selectPaintMode(next: PaintMode) {
+        if (next == paintMode) return
+        paintMode = next
+        store.put(KEY_MODE, next.name)
+        if (next.snapped) ensureCatalogue()
+        if (mode == SeparationMode.COLOUR) changedParams(sheetCount)
+    }
+
+    /** Sets how many layers [PaintMode.PICK_FOR_ME] asks for, within what the allowed cans can supply. */
+    fun choosePickCount(count: Int) {
+        val next = count.coerceIn(1, pickMax)
+        if (next == pickCount) return
+        pickCount = next
+        store.put(KEY_PICK, next.toString())
+        if (snapped && paintMode == PaintMode.PICK_FOR_ME) changedParams(sheetCount)
+    }
+
+    private fun changeAllowed(next: Set<String>) {
+        val cat = catalogue ?: return
+        allowed = next
+        savedAllowed = PaintPersistence.encodeAllowed(next)
+        store.put(KEY_ALLOWED, savedAllowed)
+        pickMax = pickLimit(cat, next)
+        pickCount = pickCount.coerceAtMost(pickMax)
+        if (snapped && paintMode == PaintMode.PICK_FOR_ME) changedParams(sheetCount)
+    }
+
+    /** Taps a brand chip of the Pick for me filter. */
+    fun toggleBrand(brand: String) = changeAllowed(CanFilter.toggleBrand(allowed, brand))
+
+    /** Taps a line chip of the Pick for me filter. */
+    fun toggleLine(brand: String, line: String) {
+        val cat = catalogue ?: return
+        changeAllowed(CanFilter.toggleLine(allowed, cat, brand, line))
+    }
+
+    /** "All": every brand and line is allowed again. */
+    fun allowAll() = changeAllowed(emptySet())
+
+    private fun changeSelected(next: List<Can>) {
+        selected = next
+        savedCans = PaintPersistence.encodeCans(next)
+        store.put(KEY_CANS, savedCans)
+        if (snapped && paintMode == PaintMode.MY_CANS) changedParams(sheetCount)
+    }
+
+    /**
+     * Adds [can] to the chosen cans, or removes it if it is chosen. A can with no colour value
+     * cannot be a layer and is refused with a message.
+     */
+    fun toggleCan(can: Can) {
+        if (can in selected) changeSelected(selected - can)
+        else if (can.rgb == null) message = "${can.name} has no colour value, so it can't be a layer."
+        else changeSelected(selected + can)
+    }
+
+    /** Removes [can] from the chosen cans. */
+    fun removeCan(can: Can) {
+        if (can in selected) changeSelected(selected - can)
+    }
+
+    /** Clears the chosen cans. */
+    fun clearCans() {
+        if (selected.isNotEmpty()) changeSelected(emptyList())
+    }
+
+    /** Keeps (or stops keeping) an unused layer of colour [rgb] on the paint list and in the print PDF's shopping list. */
+    fun keepUnused(rgb: Int, keep: Boolean) {
+        val colour = rgb and 0xFFFFFF
+        keptUnused = if (keep) keptUnused + colour else keptUnused - colour
+    }
+
+    /**
+     * The shopping list for an export of [sheet] (a sheet index; null for every sheet), for the
+     * print PDF: empty unless the stencil is made from cans, and without unused layers the user
+     * has not kept.
+     */
+    fun shoppingFor(sheet: Int?): List<ShoppingItem> =
+        if (!snapped) emptyList() else PaintPlan.shopping(paintLayers, sheet?.let(::listOf), keptUnused)
+
+    // --- Hooks for the barcode scanner (a later task; there is no camera or scanner UI yet) -----------
+
+    /**
+     * HOOK FOR THE BARCODE SCANNER: call with each scanned barcode. It is looked up as the user
+     * taught it ([learnBarcode]) or else in the catalogue ([PaintCatalogue.resolve]), and the can it
+     * names is added to the chosen cans. An unknown barcode, or a can with no colour value, is said
+     * so in [message]; the scanner can then offer [learnBarcode]. Waits for the catalogue if it is still loading.
+     */
+    fun addCanByBarcode(gtin: String) {
+        ensureCatalogue()
+        scope.launch {
+            catalogueJob?.join()
+            val cat = catalogue ?: run {
+                message = catalogueError ?: "The paint catalogue isn't available."
+                return@launch
+            }
+            val can = cat.resolve(gtin, userBarcodes)
+            when {
+                can == null -> message = "No can is known for barcode $gtin."
+                can in selected -> message = "${can.displayName} is already chosen."
+                else -> toggleCan(can)
+            }
+        }
+    }
+
+    /**
+     * HOOK FOR THE BARCODE SCANNER: teaches the app that barcode [gtin] is [can], kept across
+     * restarts and preferred to the catalogue. An invalid barcode is refused with a message.
+     */
+    fun learnBarcode(gtin: String, can: Can) {
+        try {
+            userBarcodes = userBarcodes.learn(gtin, can.canKey)
+            store.put(KEY_BARCODES, userBarcodes.encode())
+        } catch (refused: IllegalArgumentException) {
+            message = "That isn't a valid barcode."
+        }
+    }
 
     /**
      * Whether the background is removed before the stencil is made, so the base sheet is the
@@ -149,6 +379,7 @@ class StencilState(
     fun selectMode(next: SeparationMode) {
         if (next == mode) return
         mode = next
+        if (snapped) ensureCatalogue()
         changedParams(sheetCount)
     }
 
@@ -184,6 +415,10 @@ class StencilState(
      * sheet already has is refused with a message.
      */
     fun setSheetColor(sheet: Int, argb: Int) {
+        if (snapped) {
+            message = "The colours come from the cans. Change the cans instead."
+            return
+        }
         val current = separation?.sheets?.map { it.color } ?: return
         if (sheet !in current.indices) return
         val colors = current.toMutableList().also { it[sheet] = argb }
@@ -249,11 +484,15 @@ class StencilState(
         val wantedTone = toneParams
         val wantedColor = colorParams
         val wantedLighting = lighting
+        val wantedPaint = if (wantedMode == SeparationMode.COLOUR) paintMode else PaintMode.FREE
+        val wantedPick = pickCount
+        val wantedAllowed = allowed
         val remove = removeBackground
         val assist = depthAssistedBackground
         val request = ++generation
         run?.cancel()
         separation = null
+        paintLayers = emptyList()
         busy = true
         run = scope.launch {
             try {
@@ -299,18 +538,51 @@ class StencilState(
                 } else isolated
                 // This is the processing order: source -> depth-assisted mask -> relit base image
                 // -> separation (by tone or by colour). No relighting occurs after any stencil layer is created.
-                val result = withContext(Dispatchers.Default) {
-                    when (wantedMode) {
-                        SeparationMode.TONE -> TonalSeparator.separate(lit, wantedTone)?.separation
-                        SeparationMode.COLOUR -> ColorSeparator.separate(lit, wantedColor)?.separation
+                var asked = if (wantedMode == SeparationMode.TONE) wantedTone.sheets else wantedColor.sheets
+                var layers: List<SnappedLayer> = emptyList()
+                var failure = "Couldn't make a stencil from this image."
+                var result: Separation? = null
+                var free = !wantedPaint.snapped
+                if (wantedPaint.snapped) {
+                    // Cans need the catalogue; the stencil waits for it rather than being made in free colours first.
+                    ensureCatalogue()
+                    catalogueJob?.join()
+                    val cat = catalogue
+                    if (cat == null) {
+                        notes += (catalogueError ?: "The paint catalogue isn't available.") + " Using free colours."
+                        free = true
+                    } else {
+                        val chosen = selected
+                        val picked = withContext(Dispatchers.Default) {
+                            PaintPlan.layersFor(wantedPaint, cat, lit, wantedPick, wantedAllowed, chosen)
+                        }
+                        if (picked.isEmpty()) {
+                            failure = if (wantedPaint == PaintMode.MY_CANS) "Choose the cans to use under Paint."
+                            else "None of the allowed cans has a colour value to match."
+                        } else {
+                            asked = picked.size
+                            val made = withContext(Dispatchers.Default) { PaintPlan.separate(lit, wantedColor, picked) }
+                            result = made?.separation
+                            layers = made?.layers.orEmpty()
+                        }
+                    }
+                }
+                if (free) {
+                    result = withContext(Dispatchers.Default) {
+                        when (wantedMode) {
+                            SeparationMode.TONE -> TonalSeparator.separate(lit, wantedTone)?.separation
+                            SeparationMode.COLOUR -> ColorSeparator.separate(lit, wantedColor)?.separation
+                        }
                     }
                 }
                 processed = lit
                 if (result == null) {
                     separation = null
-                    message = "Couldn't make a stencil from this image."
+                    message = failure
+                    // Show the base image, not the previous stencil, which no longer matches the settings.
+                    preview = argbToImageBitmap(lit.pixels, lit.width, lit.height)
                 } else {
-                    val asked = if (wantedMode == SeparationMode.TONE) wantedTone.sheets else wantedColor.sheets
+                    paintLayers = layers
                     if (result.sheets.size < asked) {
                         notes += "The image has only ${result.sheets.size} distinct colour" +
                             (if (result.sheets.size == 1) "" else "s") + ", so that is how many sheets it makes."
@@ -334,5 +606,10 @@ class StencilState(
 
     private companion object {
         const val SETTLE_MILLIS = 120L
+        const val KEY_MODE = "paint.mode"
+        const val KEY_PICK = "paint.pick"
+        const val KEY_CANS = "paint.cans"
+        const val KEY_ALLOWED = "paint.allowed"
+        const val KEY_BARCODES = "paint.barcodes"
     }
 }

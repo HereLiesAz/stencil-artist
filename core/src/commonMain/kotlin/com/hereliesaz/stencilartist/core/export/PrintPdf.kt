@@ -17,12 +17,19 @@ import kotlin.math.roundToInt
  * to [landscape] or portrait. The printer's unprintable border and the overlap between pages are not
  * options: see [PrintPdf.MARGIN_MM] and [PrintPdf.OVERLAP_MM]. With a [mount] the printed pages are glued on boards
  * of that size, each board tiled with pages on its own; without one the pages tile the whole piece.
+ *
+ * [shopping] is the paint each layer needs, one item per layer in paint order, to be listed on the
+ * instructions page; empty (the default) lists nothing, as for a stencil whose layers are not tied to
+ * real cans, and then the file is byte for byte what it was before the list existed. Items are taken as
+ * already limited to the sheets exported and in paint order (the first layer is the base, sprayed first);
+ * a long list continues on extra instruction pages rather than shrinking its text (see [PrintPdf]).
  */
 data class PrintOptions(
     val widthMm: Double = 203.2,
     val paper: Paper = Paper.US_LETTER,
     val landscape: Boolean = false,
     val mount: MountOptions? = null,
+    val shopping: List<com.hereliesaz.stencilartist.core.paint.ShoppingItem> = emptyList(),
 ) {
     init {
         require(widthMm > 0.0 && widthMm.isFinite()) { "The stencil width must be a positive number of millimetres." }
@@ -79,9 +86,14 @@ data class SheetPages(val sheet: Int, val printed: List<Tile>, val blank: List<T
  * printed and which are blank. It is computed by the same code that writes the PDF, so a readout built from it is
  * the PDF's own page count (less the instructions page, the maps and any reference pages, which depend on the
  * cutting tips). Without mounting [grid] tiles the piece; when mounting it tiles the board rectangle (the sheet's boards edge to
- * edge) from board 1's top-left corner, and [boards] says how many boards a sheet takes.
+ * edge) from board 1's top-left corner, and [boards] says how many boards a sheet takes. [instructionPages] is how many pages the
+ * instructions take at the front of the file: one, plus one for each page the paint list of [PrintOptions.shopping] spills onto.
+ * The file's pages are [instructionPages] + per sheet a map, [printedPages] tiles and any reference pages.
  */
-class PrintPlan(val options: PrintOptions, val grid: TilePlan, val sheets: List<SheetPages>, val boards: BoardGrid? = null) {
+class PrintPlan(
+    val options: PrintOptions, val grid: TilePlan, val sheets: List<SheetPages>, val boards: BoardGrid? = null,
+    val instructionPages: Int = 1,
+) {
     /** Tiles in the grid, printed or not: the pages one sheet would take if nothing were blank. */
     val tilesPerSheet: Int get() = grid.tiles.size
 
@@ -137,7 +149,13 @@ class PrintPlan(val options: PrintOptions, val grid: TilePlan, val sheets: List<
  * side of the strip with a note of how far past it to cut. At the outer right and bottom edges of the rectangle the offcut is waste. On the
  * wall the boards still overlap by their borders; nothing here changes cut areas, borders, tabs or the board count.
  *
- * Pages. One instructions page for the whole file; then for each sheet an assembly map, the sheet's tile
+ * The paint list. With [PrintOptions.shopping] the instructions gain a "Paint" block: one row per layer in paint order (a swatch
+ * in the can's colour with a dark outline so pale cans show, the layer number, brand, line and name, the maker's code, the barcode
+ * digits, how near the match is in words, and "also:" up to 3 cans of the same colour). As many rows as fit stay on page 1 while
+ * its scale stays at 0.9 or more; the rest continue on extra pages titled "Paint, continued" drawn at 1.1. No list text is drawn
+ * smaller than 7 pt (8 pt at the 0.9 floor; at least 8.8 pt on the extra pages). Without a list nothing here is drawn.
+ *
+ * Pages. One instructions page for the whole file (more when the paint list continues); then for each sheet an assembly map, the sheet's tile
  * pages (a tile whose net cell, the part of the piece it alone owns, has nothing to cut is skipped and
  * shown as blank on the map), and non-cutting reference pages for tips that cannot be placed. The cut
  * shapes are vectors clipped to the printable area, filled in the sheet's colour and outlined in dark
@@ -609,7 +627,7 @@ object PrintPdf {
             }
             SheetPages(sheet, printed, blank, boards)
         }
-        return PrintPlan(options, layout.grid, perSheet, layout.boardGrid)
+        return PrintPlan(options, layout.grid, perSheet, layout.boardGrid, Instructions.pageCount(layout.lay(separation.sheets.size), layout, sheets.size))
     }
 
     /** The print PDF of [sheets] (default all) of [separation], as one file. */
@@ -618,7 +636,7 @@ object PrintPdf {
         val layout = layoutFor(separation, options, sheets.size)
         val first = layout.lay(separation.sheets.size)
         val doc = PdfDoc()
-        doc.addPage(first.pageW, first.pageH, Instructions.page(first, layout, sheets.size, separation.sheets.size))
+        for (content in Instructions.pages(first, layout, sheets.size)) doc.addPage(first.pageW, first.pageH, content)
 
         var tipsUsed = 0
         for (sheet in sheets) {
@@ -1345,17 +1363,163 @@ object PrintPdf {
         private const val LEAD = 12.5
         private const val SIZE = 9.5
 
-        fun page(lay: Lay, plan: Layout, sheetsInFile: Int, sheetTotal: Int): String {
-            val landscape = lay.winW >= lay.winH * 1.2
-            val vw = if (landscape) 780.0 else 540.0
+        /** The smallest size, in points as printed, of any text in the paint list. */
+        const val MIN_LIST_PT = 7.0
+        private const val NAME_PT = 8.5
+        private const val DETAIL_PT = 8.0
+        private const val NAME_LEAD = 10.5
+        private const val DETAIL_LEAD = 9.5
+        private const val ROW_GAP = 6.0
+        private const val SWATCH = 11.0
+        private const val FIRST_HEAD = 34.0
+        private const val MORE_HEAD = 26.0
+        private const val BLOCK_GAP = 10.0
+        private const val BAR_RESERVE = 34.0
+
+        /** Page 1 takes list rows only while its scale stays at or above this: [DETAIL_PT] x 0.9 = 7.2 pt. */
+        const val MIN_SCALE = 0.9
+
+        /** The scale of the extra paint pages; their virtual width is the printable width over this. */
+        const val LIST_SCALE = 1.1
+
+        /** One row of the paint list, wrapped for a given width: [head] lines, then [detail] and [also] in muted ink. */
+        internal class Row(val item: com.hereliesaz.stencilartist.core.paint.ShoppingItem, val label: String, val textX: Double,
+            val head: List<String>, val detail: List<String>, val also: List<String>) {
+            val height: Double = head.size * NAME_LEAD + (detail.size + also.size) * DETAIL_LEAD + ROW_GAP
+        }
+
+        /** Where the paint list goes: [first] rows on page 1, then one list per extra page. */
+        internal class ListPages(val first: List<Row>, val more: List<List<Row>>)
+
+        private fun quality(item: com.hereliesaz.stencilartist.core.paint.ShoppingItem): String {
+            val q = when (item.quality) {
+                com.hereliesaz.stencilartist.core.paint.MatchQuality.EXACT -> "exact match"
+                com.hereliesaz.stencilartist.core.paint.MatchQuality.CLOSE -> "close match"
+                com.hereliesaz.stencilartist.core.paint.MatchQuality.APPROXIMATE -> "approximate match"
+            }
+            return if (item.sampled) "$q (colour sampled, approximate)" else q
+        }
+
+        private fun canName(can: com.hereliesaz.stencilartist.core.paint.Can): String =
+            "${can.brand} ${can.line} ${can.name}" + (can.code?.let { " ($it)" } ?: "")
+
+        private fun row(item: com.hereliesaz.stencilartist.core.paint.ShoppingItem, width: Double, labelW: Double): Row {
+            val textX = SWATCH + 7.0 + labelW
+            val w = width - textX
+            val parts = ArrayList<String>()
+            parts += item.code?.let { "code $it" } ?: "no maker code"
+            item.gtin?.let { parts += "barcode $it" }
+            parts += quality(item)
+            val also = if (item.equivalents.isEmpty()) emptyList() else {
+                val named = item.equivalents.take(3).joinToString(", ") { canName(it) }
+                val more = item.equivalents.size - 3
+                PdfText.wrap("also: $named" + (if (more > 0) ", and $more more" else ""), w, DETAIL_PT)
+            }
+            return Row(
+                item, "Layer ${item.layerNumber}", textX,
+                PdfText.wrap("${item.brand} ${item.line} - ${item.name}", w, NAME_PT),
+                PdfText.wrap(parts.joinToString(", "), w, DETAIL_PT), also,
+            )
+        }
+
+        private fun isLandscape(lay: Lay) = lay.winW >= lay.winH * 1.2
+        private fun virtualWidth(lay: Lay) = if (isLandscape(lay)) 780.0 else 540.0
+
+        private fun labelWidth(plan: Layout): Double =
+            PdfText.width("Layer ${plan.options.shopping.maxOf { it.layerNumber }}", NAME_PT, true) + 6.0
+
+        /** Splits the paint list between page 1 and the extra pages; empty when there is no list. */
+        internal fun listPages(lay: Lay, plan: Layout, sheetsInFile: Int): ListPages {
+            val items = plan.options.shopping
+            if (items.isEmpty()) return ListPages(emptyList(), emptyList())
+            val vw = virtualWidth(lay)
+            val labelW = labelWidth(plan)
+            val first = ArrayList<Row>()
+            if (lay.winW / vw >= MIN_SCALE) {
+                val used = draw(StringBuilder(), lay, plan, vw, isLandscape(lay), sheetsInFile, emptyList())
+                var h = used + BLOCK_GAP + FIRST_HEAD
+                for (item in items) {
+                    val r = row(item, vw, labelW)
+                    h += r.height
+                    if (min(min(lay.winW / vw, (lay.winH - BAR_RESERVE) / h), 1.5) < MIN_SCALE) break
+                    first += r
+                }
+            }
+            val vwc = lay.winW / LIST_SCALE
+            val avail = lay.winH / LIST_SCALE - 18.0 - 12.0 - MORE_HEAD
+            val more = ArrayList<List<Row>>()
+            var cur = ArrayList<Row>()
+            var h = 0.0
+            for (item in items.drop(first.size)) {
+                val r = row(item, vwc, labelW)
+                if (cur.isNotEmpty() && h + r.height > avail) { more += cur; cur = ArrayList(); h = 0.0 }
+                cur += r
+                h += r.height
+            }
+            if (cur.isNotEmpty()) more += cur
+            return ListPages(first, more)
+        }
+
+        /** How many instruction pages there are: page 1 and the extra paint pages. */
+        fun pageCount(lay: Lay, plan: Layout, sheetsInFile: Int): Int = 1 + listPages(lay, plan, sheetsInFile).more.size
+
+        /** The instruction pages' content streams, page 1 first. */
+        fun pages(lay: Lay, plan: Layout, sheetsInFile: Int): List<String> {
+            val lp = listPages(lay, plan, sheetsInFile)
+            val out = ArrayList<String>()
+            out += page(lay, plan, sheetsInFile, lp.first, plan.options.shopping.isNotEmpty())
+            for ((i, rows) in lp.more.withIndex()) {
+                val scale = LIST_SCALE
+                val sb = StringBuilder("0 g\nq\n").append(Decimal.format(scale, 5)).append(" 0 0 ").append(Decimal.format(scale, 5)).append(' ')
+                    .append(num(lay.left)).append(' ').append(num(lay.top)).append(" cm\n")
+                val firstBlock = lp.first.isEmpty() && i == 0
+                block(sb, 18.0, rows, if (firstBlock) "Paint" else "Paint, continued", firstBlock, 14.0)
+                sb.append("Q\n")
+                out += sb.toString()
+            }
+            return out
+        }
+
+        /** Draws the paint block with its title baseline [y] below the box's top; returns the y after its last row. */
+        private fun block(sb: StringBuilder, y: Double, rows: List<Row>, title: String, intro: Boolean, titlePt: Double): Double {
+            text(sb, titlePt, 0.0, -y, title, bold = true)
+            var cy = y + (if (intro) 13.0 else 8.0)
+            if (intro) {
+                text(sb, NAME_PT, 0.0, -cy, "Spray in this order, base first.")
+                cy += 9.0
+            }
+            for (r in rows) {
+                val top = cy
+                sb.append("q\n")
+                r.item.can.rgb?.let { sb.append(rgb(it)).append(" rg\n") } ?: sb.append("1 g\n")
+                sb.append("$INK RG\n0.6 w\n").append(num(0.3)).append(' ').append(num(-(top + 1.0 + SWATCH))).append(' ')
+                    .append(num(SWATCH)).append(' ').append(num(SWATCH)).append(" re B\nQ\n")
+                text(sb, NAME_PT, SWATCH + 7.0, -(top + 8.0), r.label, bold = true)
+                var ly = top + 8.0
+                for (l in r.head) { text(sb, NAME_PT, r.textX, -ly, l); ly += NAME_LEAD }
+                ly += DETAIL_LEAD - NAME_LEAD
+                sb.append("q\n0.3 g\n")
+                for (l in r.detail + r.also) { text(sb, DETAIL_PT, r.textX, -ly, l); ly += DETAIL_LEAD }
+                sb.append("Q\n")
+                cy += r.height
+            }
+            return cy
+        }
+
+        fun page(lay: Lay, plan: Layout, sheetsInFile: Int, sheetTotal: Int): String =
+            page(lay, plan, sheetsInFile, emptyList(), false)
+
+        private fun page(lay: Lay, plan: Layout, sheetsInFile: Int, rows: List<Row>, paint: Boolean): String {
+            val landscape = isLandscape(lay)
+            val vw = virtualWidth(lay)
             val dry = StringBuilder()
-            val used = draw(dry, lay, plan, vw, landscape, sheetsInFile)
-            val barReserve = 34.0
+            val used = draw(dry, lay, plan, vw, landscape, sheetsInFile, rows, paint)
+            val barReserve = BAR_RESERVE
             val scale = min(min(lay.winW / vw, (lay.winH - barReserve) / used), 1.5)
             val sb = StringBuilder("0 g\n")
             sb.append("q\n").append(Decimal.format(scale, 5)).append(" 0 0 ").append(Decimal.format(scale, 5)).append(' ')
                 .append(num(lay.left)).append(' ').append(num(lay.top)).append(" cm\n")
-            draw(sb, lay, plan, vw, landscape, sheetsInFile)
+            draw(sb, lay, plan, vw, landscape, sheetsInFile, rows, paint)
             sb.append("Q\n")
             // True-size check bar at the foot of the page, never scaled.
             val bar = if (lay.winW >= 110.0 * K) 100.0 else 50.0
@@ -1372,7 +1536,14 @@ object PrintPdf {
 
         private fun inches(mm: Double) = Decimal.format(mm / PhysicalSize.MM_PER_INCH, 2)
 
-        private fun steps(sheetsInFile: Int, plan: Layout): List<Pair<String, String>> {
+        private fun steps(sheetsInFile: Int, plan: Layout, paint: Boolean = false): List<Pair<String, String>> {
+            val all = baseSteps(sheetsInFile, plan)
+            return if (!paint) all else all + ("CHECK THE COLOURS" to "The Paint list names a can for each layer. Colours on a screen are only " +
+                "approximate, and a swatch here is how a screen shows the can, not the paint. Before you buy, hold the can's cap or a paint swatch card " +
+                "next to your screen and compare. Spray the layers in the order listed: the first layer is the base and goes on first.")
+        }
+
+        private fun baseSteps(sheetsInFile: Int, plan: Layout): List<Pair<String, String>> {
             val mount = plan.options.mount
             val print = "PRINT AT 100%" to "In the print dialog choose \"Actual size\" or \"Scale 100%\". Never choose \"Fit to page\", " +
                 "\"Shrink to fit\" or \"Scale to printable area\": they change the size of your stencil. Check the bar at the foot of this page."
@@ -1434,7 +1605,16 @@ object PrintPdf {
         }
 
         /** Draws the page at 1:1 in a [vw]-wide box whose top-left is the origin (y down), returns the height used. */
-        private fun draw(sb: StringBuilder, lay: Lay, plan: Layout, vw: Double, twoCol: Boolean, sheetsInFile: Int): Double {
+        private fun draw(
+            sb: StringBuilder, lay: Lay, plan: Layout, vw: Double, twoCol: Boolean, sheetsInFile: Int,
+            rows: List<Row>, paint: Boolean = rows.isNotEmpty(),
+        ): Double {
+            val end = body(sb, lay, plan, vw, twoCol, sheetsInFile, paint || plan.options.shopping.isNotEmpty())
+            if (rows.isEmpty()) return end
+            return block(sb, end + BLOCK_GAP + 12.0, rows, "Paint", true, 12.0)
+        }
+
+        private fun body(sb: StringBuilder, lay: Lay, plan: Layout, vw: Double, twoCol: Boolean, sheetsInFile: Int, paint: Boolean): Double {
             var y = 18.0
             text(sb, 16.0, 0.0, -y, "How to put the pages together", bold = true)
             y += 18.0
@@ -1447,7 +1627,7 @@ object PrintPdf {
             val tw = if (twoCol) vw * 0.56 else vw
             for (l in PdfText.wrap(summary, tw, SIZE)) { text(sb, SIZE, 0.0, -y, l); y += LEAD }
             y += 6.0
-            for ((n, step) in steps(sheetsInFile, plan).withIndex()) {
+            for ((n, step) in steps(sheetsInFile, plan, paint).withIndex()) {
                 text(sb, SIZE, 0.0, -y, "${n + 1}.", bold = true)
                 text(sb, SIZE, 16.0, -y, step.first, bold = true)
                 y += LEAD

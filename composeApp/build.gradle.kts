@@ -34,11 +34,19 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.onnxruntime.android)
+            // The barcode scanner: CameraX shows and feeds the camera, ML Kit's bundled model (not the
+            // Play services one, which downloads its model) reads barcodes on the device, offline.
+            implementation(libs.androidx.camera.camera2)
+            implementation(libs.androidx.camera.lifecycle)
+            implementation(libs.androidx.camera.view)
+            implementation(libs.mlkit.barcode.scanning)
         }
         wasmJsMain.dependencies {
             // Not imported by the Kotlin code, so webpack leaves it out of the bundle. It is here so
             // the package is installed and `copyOnnxRuntimeWeb` below has files to copy.
             implementation(npm("onnxruntime-web", libs.versions.onnxruntime.get()))
+            // Likewise for the barcode reader's fallback decoder: see `copyZxingWasm`.
+            implementation(npm("zxing-wasm", libs.versions.zxingWasm.get()))
         }
     }
 }
@@ -57,7 +65,21 @@ val copyOnnxRuntimeWeb by tasks.registering(Copy::class) {
     into(layout.buildDirectory.dir("webStatic/ort"))
 }
 
+// zxing-wasm (MIT) reads barcodes where the browser has no BarcodeDetector (iPhone Safari, Firefox,
+// desktop Chrome on Windows and Linux). Like ONNX Runtime Web it is loaded with a script tag the first
+// time a can is scanned (scanner.js), not bundled. Only the reader build is copied, as plain files:
+// its classic-script JavaScript (13 kB gzipped), its WebAssembly (411 kB gzipped) and its licence.
+val copyZxingWasm by tasks.registering(Copy::class) {
+    dependsOn(rootProject.tasks.named("kotlinWasmNpmInstall"))
+    val zxing = rootProject.layout.buildDirectory.dir("wasm/node_modules/zxing-wasm")
+    from(zxing.map { it.file("dist/iife/reader/index.js") }) { rename { "zxing_reader.js" } }
+    from(zxing.map { it.file("dist/reader/zxing_reader.wasm") })
+    from(zxing.map { it.file("LICENSE") })
+    into(layout.buildDirectory.dir("webStatic/zxing"))
+}
+
 tasks.named<ProcessResources>("wasmJsProcessResources") {
     from(copyOnnxRuntimeWeb) { into("ort") }
+    from(copyZxingWasm) { into("zxing") }
     from(rootProject.layout.projectDirectory.dir("models")) { into("models") }
 }

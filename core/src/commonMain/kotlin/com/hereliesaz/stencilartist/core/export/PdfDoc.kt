@@ -2,8 +2,8 @@ package com.hereliesaz.stencilartist.core.export
 
 /**
  * Collects objects, then writes them as PDF 1.4 with a correct cross-reference table: uncompressed
- * streams, Helvetica (F1) and Helvetica-Bold (F2), the same bytes on every target. All text is ASCII,
- * so a string index is a byte offset.
+ * streams, Helvetica (F1) and Helvetica-Bold (F2), the same bytes on every target. The file is 7-bit ASCII
+ * (accented letters are octal escapes, see [PdfText]), so a string index is a byte offset.
  */
 internal class PdfDoc {
     private val bodies = ArrayList<String>()

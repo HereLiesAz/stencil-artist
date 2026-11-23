@@ -4,22 +4,24 @@
 // (GitHub Pages serves it at /<repository>/).
 //
 // Two kinds of file, two rules:
-//  - HEAVY files (the WebAssembly binaries, the ONNX runtime, the models) are tens of megabytes and
-//    change only with a release. Cache first: once fetched they are never fetched again, and they
+//  - HEAVY files (the WebAssembly binaries, the ONNX runtime, the barcode reader in zxing/, the models, and the paint catalogue
+//    paints.tsv, which is small but changes only with a release) are cached for good; the big ones are
+//    tens of megabytes. Cache first: once fetched they are never fetched again, and they
 //    are cached when first used, not up front, so nobody downloads a model they never run.
 //  - The SHELL (index.html, the app's JavaScript, the manifest, icons) is small. Network first, so
 //    a new release is picked up on the next visit; the cache is the fallback when offline.
 //
 // Bump VERSION when a heavy file changes under the same name (a model is replaced, the ONNX
-// runtime is upgraded). The app's own .wasm files are content-hashed and need no bump.
-const VERSION = 'v2';
+// runtime or the zxing-wasm reader is upgraded, models/paints.tsv is rebuilt). The app's own .wasm files are content-hashed and need no bump.
+const VERSION = 'v4';
 const SHELL = `stencil-artist-shell-${VERSION}`;
 const HEAVY = `stencil-artist-heavy-${VERSION}`;
 
 const SHELL_FILES = ['./', 'index.html', 'stencil-artist.js', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png'];
+  'icons/icon-192.png', 'icons/icon-512.png', 'scanner.js'];
 
-const isHeavy = (url) => /\.(wasm|onnx)$/.test(url.pathname) || url.pathname.includes('/ort/');
+const isHeavy = (url) => /\.(wasm|onnx|tsv)$/.test(url.pathname) || url.pathname.includes('/ort/') ||
+  url.pathname.includes('/zxing/');
 
 self.addEventListener('install', (event) => {
   // The shell is fetched up front so the very first offline visit has something to show. A file

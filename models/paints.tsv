@@ -1,0 +1,3651 @@
+#stencil-artist-paints	1
+#brand	0	Clash	clashpaint.com
+#brand	1	Dupli-Color	www.duplicolor.com
+#brand	2	Flame	thebutchershop.au
+#brand	3	Ironlak	ironlak.com
+#brand	4	Kobra	kobrapaint.com
+#brand	5	Krylon	www.krylon.com
+#brand	6	Liquitex	www.liquitex.com
+#brand	7	Loop Colors	loopcolors.com
+#brand	8	Molotow	thebutchershop.au
+#brand	9	Montana Cans	www.montana-cans.com
+#brand	10	MTN (Montana Colors)	thebutchershop.au
+#brand	11	Rust-Oleum	www.rustoleum.com
+#line	0	0	Clash 400ml
+#line	1	0	Clash Fluorescent 400ml
+#line	2	0	Clash Puro Water Based 400ml
+#line	3	0	Clash Transparent Varnish 400ml
+#line	4	0	Clash Tyson 600ml
+#line	5	0	Clash Veil 400ml
+#line	6	1	Multi-Purpose Enamel
+#line	7	1	Multi-Purpose Lacquer
+#line	8	1	Vinyl & Fabric Spray
+#line	9	2	Blue
+#line	10	2	Blue Neon
+#line	11	2	Blue Transparent
+#line	12	2	Booster
+#line	13	2	Lightning
+#line	14	2	Orange 400ml
+#line	15	2	Orange 600ml
+#line	16	3	Acrylic Spray Paint 400ml
+#line	17	4	BIG 600ml
+#line	18	4	BIG Black 600ml
+#line	19	4	BIG Krome 600ml
+#line	20	4	DIY Fluo 400ml
+#line	21	4	DIY Metal 400ml
+#line	22	4	HP High Pressure 400ml
+#line	23	4	Low Pressure 400ml
+#line	24	5	Chalky Finish Paint Spray
+#line	25	5	Classic® Lacquer-Based Spray Paint
+#line	26	5	COLORmaxx Metallic Spray Paint
+#line	27	5	COLORmaxx Spray Paint
+#line	28	5	Décor Selects Spray Paint
+#line	29	5	Fusion All-In-One®
+#line	30	5	Fusion All-In-One® Hammered
+#line	31	5	Fusion All-In-One® Metallic
+#line	32	5	Fusion All-In-One® Textured
+#line	33	5	Harmony® Water-Based Spray Paint
+#line	34	5	Rust Tough® Aerosol
+#line	35	5	Rust Tough® Metallic Finish
+#line	36	6	Professional Spray Paint
+#line	37	7	LOOP 400 ml
+#line	38	7	LOOP BLACK ASPHALT 400 ml
+#line	39	7	LOOP FLUO 400 ml
+#line	40	7	LOOP HEAVY METAL 400 ml
+#line	41	7	LOOP HYDRO 400 ml
+#line	42	7	LOOP MAXI 600 ml
+#line	43	7	LOOP MAXI BLACK ASPHALT 600 ml
+#line	44	7	LOOP MAXI HEAVY METAL 600 ml
+#line	45	7	LOOP NEON 400 ml
+#line	46	8	Premium
+#line	47	8	Premium Neon
+#line	48	8	Premium Transparent
+#line	49	9	BLACK 150ml
+#line	50	9	BLACK 400ml
+#line	51	9	BLACK 400ml - Infra Colors
+#line	52	9	BLACK Colors 400ml
+#line	53	9	BLACK Extended 600ml
+#line	54	9	BLACK SPIDER 150ml
+#line	55	9	BLUE 400ml - Colors
+#line	56	9	CHALK 400ml
+#line	57	9	CONCRETE 400ml
+#line	58	9	CRACKLE 400ml
+#line	59	9	GLITTER 400ml
+#line	60	9	GOLD 400ml - Chrome Effect Colors
+#line	61	9	GOLD 400ml - CLASSIC 8300 SAND
+#line	62	9	GOLD 400ml - Colors
+#line	63	9	GOLD 400ml - Fluorescent Colors
+#line	64	9	GOLD 400ml - Metallic Colors
+#line	65	9	GOLD 400ml - Transparent Colors
+#line	66	9	GRANIT 400ml
+#line	67	9	MARBLE 400ml
+#line	68	9	METALLIC 400ml
+#line	69	9	NIGHTGLOW 400ml
+#line	70	9	RUST 400ml
+#line	71	9	STENCIL Spray 400ml
+#line	72	9	ULTRA WIDE 750ml
+#line	73	10	94
+#line	74	10	94 Fluorescent
+#line	75	10	94 Transparent
+#line	76	10	Hardcore
+#line	77	10	Madmaxxx
+#line	78	10	Mega
+#line	79	10	Pocket
+#line	80	10	Vice
+#line	81	10	Water Based
+#line	82	10	WEPRO Chrome Effect
+#line	83	10	WEPRO Erasable Chalk
+#line	84	10	WEPRO Metallic Paint
+#line	85	11	American Accents 2X Flat
+#line	86	11	American Accents 2X Gloss
+#line	87	11	American Accents 2X High Gloss Sprays
+#line	88	11	American Accents 2X Metallic Spray
+#line	89	11	American Accents 2X Primer
+#line	90	11	American Accents 2X Satin
+#line	91	11	American Accents 2X Semi Gloss
+#line	92	11	American Accents 2X Ultra Matte
+#line	93	11	American Accents 2X With Custom Spray 5 In 1
+#line	94	11	Automotive Auto Body Touch Up Universal Touch Up Aerosols
+#line	95	11	Automotive General Purpose Paints Acrylic Enamel
+#line	96	11	Automotive General Purpose Paints Acrylic Enamel 2X
+#line	97	11	Automotive General Purpose Paints Acrylic Lacquer
+#line	98	11	Automotive General Purpose Paints Automotive Enamel
+#line	99	11	Automotive General Purpose Paints Premium Custom Chrome
+#line	100	11	Automotive General Purpose Paints Premium Custom Lacquer
+#line	101	11	Automotive Specialty Paints 500 Degree Engine Enamel
+#line	102	11	Automotive Specialty Paints 600 Degree Engine Enamel
+#line	103	11	Automotive Specialty Paints Bbq And Stove
+#line	104	11	Automotive Specialty Paints Caliper Paint
+#line	105	11	Automotive Specialty Paints Engine Enamel Metallic
+#line	106	11	Automotive Specialty Paints Fabric And Vinyl
+#line	107	11	Automotive Specialty Paints High Heat
+#line	108	11	Automotive Specialty Paints High Heat With Custom Spray 5 In 1
+#line	109	11	Automotive Specialty Paints High Performance Wheel
+#line	110	11	Automotive Specialty Paints High Performance Wheel 3x
+#line	111	11	Automotive Specialty Paints Lens Tint
+#line	112	11	Automotive Specialty Paints Marking Paint
+#line	113	11	Automotive Specialty Paints Matte Finish
+#line	114	11	Automotive Specialty Paints Metallic
+#line	115	11	Automotive Specialty Paints Paint For Plastic
+#line	116	11	Automotive Specialty Paints Roll Bar And Chassis
+#line	117	11	Automotive Specialty Paints Trim And Bumper Paint
+#line	118	11	Chalked Ultra Matte Paint Aerosol
+#line	119	11	Painter's Touch 2X Ultra Cover
+#line	120	11	Specialty Camouflage Spray Paint
+#line	121	11	Specialty Color Shift
+#line	122	11	Specialty Farm And Implement Paint
+#line	123	11	Specialty Fluorescent Spray
+#line	124	11	Specialty Frosted Glass Spray
+#line	125	11	Specialty Glitter
+#line	126	11	Specialty High Heat Spray
+#line	127	11	Specialty High Heat Ultra
+#line	128	11	Specialty Lacquer Spray
+#line	129	11	Specialty Marble Spray Paint
+#line	130	11	Specialty Marking Spray
+#line	131	11	Specialty Matte Finish
+#line	132	11	Specialty Metallic Spray
+#line	133	11	Specialty No Hunting Purple
+#line	134	11	Specialty Outdoor Fabric Paint
+#line	135	11	Specialty Reflective Finish Spray
+#line	136	11	Specialty Triple Thick Glaze
+#line	137	11	Specialty Tub And Tile Aerosol
+#line	138	11	Specialty Vinyl Spray
+#line	139	11	Stops Rust Bright Coat Spray
+#line	140	11	Stops Rust Cold Galvanizing Compound Spray
+#line	141	11	Stops Rust Hammered Spray
+#line	142	11	Stops Rust Multicolor Textured
+#line	143	11	Stops Rust Protective Enamel
+#line	144	11	Stops Rust Stops Rust Protective Enamel Turbo Spray
+#line	145	11	Stops Rust Textured
+#line	146	11	Stops Rust Textured Metallic
+#line	147	11	Stops Rust Universal Bonding Primer
+#line	148	11	Universal Aged Metallic
+#line	149	11	Universal Flat Metallic Spray Paint
+#line	150	11	Universal Flat Spray Paint
+#line	151	11	Universal Forged Hammered Spray Paint
+#line	152	11	Universal Gloss Spray Paint
+#line	153	11	Universal Hammered Spray Paint
+#line	154	11	Universal Matte Metallic Spray Paint
+#line	155	11	Universal Matte Spray Paint
+#line	156	11	Universal Metallic Spray Paint
+#line	157	11	Universal Mist Metallic Spray Paint
+#line	158	11	Universal Satin Spray Paint
+0	69		42-5			
+0	ABSINTH		72-1			
+0	ACIDO ACIDA		78-4			
+0	AGATHE		45-4			
+0	ALADDIN		63-3			
+0	ALCATRAZ		03-7			
+0	ALI		15-7			
+0	AMAZON		66-7			
+0	AMETHIST		45-3			
+0	ANDROMEDA		75-1			
+0	APACHE		33-6			
+0	APRICOT		24-1			
+0	AQUARIUS		54-3			
+0	ARCHIMEDE		12-6			
+0	ARMY		69-4			
+0	ASH		03-3			
+0	AVIO		51-2			
+0	BACON		36-3			
+0	BEAT		09-1			
+0	BERETTA		03-2			
+0	BILE		75-3			
+0	BLACKCHERRY		30-6			
+0	BLOOD		33-5			
+0	BLUEBERRY		45-7			
+0	BLUES		57-7			
+0	BOLOGNA		36-4			
+0	BOREAL		45-6			
+0	BRUISE		42-7			
+0	BULLDOZER		06-4			
+0	BYBLOS		54-4			
+0	CAIPIRINHA		78-3			
+0	CAPPUCCINO		18-1			
+0	CARDINAL		39-7			
+0	CARPENTER		27-3			
+0	CARROT		24-5			
+0	CHARAS		21-7			
+0	CHIANTI		36-7			
+0	CHLOROPHYLL		66-2			
+0	CITRON		12-2			
+0	CLASH BLACK		MM-2			
+0	CLASH BLUE		57-4			
+0	CLASH GREY		03-4			
+0	CLASH MAGENTA		39-4			
+0	CLASH ORANGE		24-4			
+0	CLASH PURPLE		42-4			
+0	CLASH RED		33-4			
+0	CLASH WHITE		MM-1			
+0	CLASH YELLOW		12-4			
+0	CLEAR		54-2			
+0	COLLAPSE		42-6			
+0	COMMODORE		09-2			
+0	CONCRETE		06-2			
+0	CONDOR		09-7			
+0	CONTAGIOUS		27-2			
+0	COPPER		MM-7			
+0	COPPOLA		39-5			
+0	COVID19		75-5			
+0	CUBA		21-4			
+0	CYANIDE		48-2			
+0	DE-NIRO		57-6			
+0	DHAL		15-6			
+0	DOOM		33-2			
+0	DOVE		09-4			
+0	DRAGON		72-6			
+0	DREAM		63-1			
+0	DUB		48-6			
+0	DUST		45-1			
+0	EBOLA		69-6			
+0	ECTOPLASM		78-2			
+0	ELISIR		60-3			
+0	ENCHANT		63-7			
+0	EOSPHERA		63-2			
+0	ESPRESSO		18-5			
+0	ETNA		30-5			
+0	EUCALYPTUS		75-2			
+0	FAIRY		63-4			
+0	FANTASY		63-5			
+0	FASHION		39-3			
+0	FENDER		03-1			
+0	FOGGY		51-1			
+0	FONDANT		18-7			
+0	FOX		24-7			
+0	FRAPPUCCINO		18-3			
+0	FREAK		48-4			
+0	FUNKADELIC		42-3			
+0	GIPSY		42-2			
+0	GIZA		21-1			
+0	GOBI		15-3			
+0	GOLD CHROME		MM-6			
+0	GRASS		75-6			
+0	GRIZZLY		06-7			
+0	HALLOWEEN		27-4			
+0	HAM		36-1			
+0	HATE		51-7			
+0	HAVANA		21-3			
+0	HIPPIE		48-3			
+0	HULK		72-3			
+0	HUMMUS		15-5			
+0	JACKAL		06-5			
+0	JUNKIE		48-5			
+0	JUPITER		30-7			
+0	KEROSENE		33-1			
+0	KETAMA		21-5			
+0	KILLER		60-7			
+0	KOALA		06-6			
+0	KOMBAT		69-7			
+0	LABYRINTH		72-7			
+0	LAGOON		51-5			
+0	LAGUNARE		69-3			
+0	LASER		27-7			
+0	LAVA		30-3			
+0	LEGIONARY		69-2			
+0	LEWINSKY		39-2			
+0	LIME		78-5			
+0	LOBSTER		24-2			
+0	LONDON		03-6			
+0	MACCHIATO		18-4			
+0	MAGIC		63-6			
+0	MANGROVY		66-4			
+0	MARINES		69-5			
+0	MATRIX		72-2			
+0	MEDINA		21-6			
+0	MELODY		60-1			
+0	MERCENARY		69-1			
+0	MERCURY		33-7			
+0	MILANO		03-5			
+0	MOKACCINO		18-6			
+0	MORTADELLA		36-2			
+0	MOSS		75-7			
+0	MOU		18-2			
+0	MYRTLE		36-6			
+0	NAPOLI		57-3			
+0	NAUTILUS		51-6			
+0	OBITORY		66-3			
+0	PACINO		57-1			
+0	PALESTINE		21-2			
+0	PALM		72-5			
+0	PEACE		48-7			
+0	PESTO		72-4			
+0	PIGEON		09-5			
+0	POLAR		06-1			
+0	POND		51-4			
+0	PUMPKIN		24-6			
+0	PUNANI		39-1			
+0	PUNISHMENT		78-1			
+0	QUASAR		45-5			
+0	RED CHICORY		36-5			
+0	RESET		54-1			
+0	RIOT		30-2			
+0	RIVIERA		27-1			
+0	SAMBA		12-5			
+0	SAPPHIRE		57-2			
+0	SATURN		27-5			
+0	SEAWEED		78-7			
+0	SENSIMILIA		78-6			
+0	SHAOLIN		27-6			
+0	SIAMESI		15-1			
+0	SICILIA		24-3			
+0	SILVER BLING		MM-5			
+0	SKUNK		75-4			
+0	SKYWALKER		60-6			
+0	SMURF		57-5			
+0	SPITFIRE		33-3			
+0	SPY		12-3			
+0	SUBMARINE		54-5			
+0	SUN		12-7			
+0	SURGERY		66-5			
+0	SYMPHONY		60-4			
+0	TAIGA		66-6			
+0	TANGO		30-1			
+0	TARANTINO		30-4			
+0	TARIFA		15-2			
+0	TARTARI		15-4			
+0	THE DUDE		09-3			
+0	THUNDER		06-3			
+0	TRANCE		42-1			
+0	TSUNAMI		54-7			
+0	ULTRAMARINE		54-6			
+0	VAPOUR		48-1			
+0	VENEZIA		51-3			
+0	VICE		60-5			
+0	VULTURE		09-6			
+0	WINX		39-6			
+0	WISTARIA		45-2			
+0	YAKUZA		12-1			
+0	ZEUS		60-2			
+0	ZOMBIE		66-1			
+1	FLUO BLUE		FF-6			
+1	FLUO FUCHSIA		FF-4			
+1	FLUO GREEN		FF-7			
+1	FLUO ORANGE		FF-2			
+1	FLUO RED		FF-3			
+1	FLUO VIOLET		FF-5			
+1	FLUO YELLOW		FF-1			
+2	ABSINTH		72-1			
+2	APACHE		33-6			
+2	APRICOT		24-1			
+2	ARCHIMEDE		12-6			
+2	BERETTA		03-2			
+2	BYBLOS		54-4			
+2	CAIPIRINHA		78-3			
+2	CARDINAL		39-7			
+2	CHIANTI		36-7			
+2	CHLOROPHYLL		66-2			
+2	CITRON		12-2			
+2	CLASH BLACK		MM-2			
+2	CLASH GREY		03-4			
+2	CLASH MAGENTA		39-4			
+2	CLASH ORANGE		24-4			
+2	CLASH PURPLE		42-4			
+2	CLASH RED		33-4			
+2	CLASH WHITE		MM-1			
+2	CLASH YELLOW		12-4			
+2	CLEAR		54-2			
+2	CYANIDE		48-2			
+2	DE NIRO		57-6			
+2	DHAL		15-6			
+2	ELISIR		60-3			
+2	EOSPHERA		63-2			
+2	EUCALYPTUS		75-2			
+2	GIPSY		42-2			
+2	HULK		72-3			
+2	JUNKIE		48-5			
+2	KEROSENE		33-1			
+2	LABYRINTH		72-7			
+2	LONDON		03-6			
+2	MEDINA		21-6			
+2	MOKACCINO		18-6			
+2	MOU		18-2			
+2	NAUTILUS		51-6			
+2	OBITORY		66-3			
+2	PALESTINE		21-2			
+2	PALM		72-5			
+2	PUNANI		39-1			
+2	PUNISHMENT		78-1			
+2	QUASAR		45-5			
+2	SATURN		27-5			
+2	SKUNK		75-4			
+2	TARANTINO		30-4			
+2	TARIFA		15-2			
+2	ULTRAMARINE		54-6			
+2	VENEZIA		51-3			
+2	WISTARIA		45-2			
+2	ZEUS		60-2			
+3	TRANSPARENT VARNISH GLOSS		SS-3			
+3	TRANSPARENT VARNISH MATT		SS-2			
+4	ALADDIN		63-3			
+4	BOREAL		45-6			
+4	CLASH BLACK		MM-2			
+4	CLASH BLUE		57-4			
+4	CLASH MAGENTA		39-4			
+4	CLASH ORANGE		24-4			
+4	CLASH RED		33-4			
+4	CLASH WHITE		MM-1			
+4	CLASH YELLOW		12-4			
+4	LIME		78-5			
+4	PACINO		57-1			
+4	PESTO		72-4			
+4	PUNANI		39-1			
+4	SILVER BLING		MM-5			
+4	TARANTINO		30-4			
+5	VEIL BLACK		SS-5			
+5	VEIL WHITE		SS-4			
+6	Black	Flat	DA1605	000000	s	
+6	Black	Gloss	DA1600	000000	s	
+6	Black	Semi-Gloss	DA1603	000000	s	
+6	Cherry Red	Gloss	DA1640	a41d2d	s	
+6	Chrome Aluminum	Gloss	DA1684	5f5f5f	s	
+6	Chrome Yellow	Gloss	DA1687	ffe12a	s	
+6	Leaf Green	Gloss	DA1630	39833f	s	
+6	Leather Brown	Gloss	DA1656	543023	s	
+6	Machinery Gray	Gloss	DA1612	464c51	s	
+6	Medium Gray	Gloss	DA1610	545454	s	
+6	Royal Blue	Gloss	DA1620	154675	s	
+6	School Bus Yellow	Gloss	DA1663	fad935	s	
+6	White	Flat	DA1672	f3f7df	s	
+6	White	Gloss	DA1670	ffffff	s	
+7	Black	Flat	DAL1607	000000	s	
+7	Black	Gloss	DAL1677	000000	s	
+7	Black	Semi-Gloss	DAL1608	000000	s	
+7	Silver Metallic	Gloss	DAL1679	b6b5ba	s	
+7	White	Gloss	DAL1675	ffffff	s	
+8	Black	Flat	HVP106	000000	s	
+8	Black	Gloss	HVP104	000000	s	
+8	Blue		HVP102	0069ac	s	
+8	Burgundy		HVP110	92454d	s	
+8	Charcoal Gray		HVP111	444242	s	
+8	Desert Sand		HVP108	b8a589	s	
+8	Medium Beige		HVP113	b69d8f	s	
+8	Medium Blue		HVP112	4e6280	s	
+8	Medium Gray		HVP109	8a989a	s	
+8	Red		HVP100	d2242a	s	
+8	Silver		HVP103	aeaeae	s	
+8	White	Gloss	HVP105	ffffff	s	
+9	Anthracite Grey		844			4250397612911
+9	Anthracite Grey Dark		846			4250397642352
+9	Anthracite Grey Middle		842			4250397642345
+9	Apricot		210			4250397612430
+9	Aqua		618			4250397615219
+9	Aqua Dark		620			4250397615226
+9	Aqua Light		616			4250397615202
+9	Aqua Pastel		614			4250397615196
+9	Aubergine		322			4250397612485
+9	Beige Brown		704			4250397620121
+9	Blackberry		410			4250397612539
+9	Burgundy		320			4250397612478
+9	Cadmium Yellow		104			4250397612386
+9	Camo Green		658			4250397616131
+9	Cherry Dark		313			4250397642277
+9	Chocolate		710			4250397620152
+9	Cold Peach		208			4250397612423
+9	Cookie Dough		717			4250397642307
+9	Cookie Dough Pastel		716			4250397612782
+9	Copper (Metallic)		908			4250397620176
+9	Cosmos Blue		426			4250397615127
+9	Cosmos Blue Dark		428			4250397615134
+9	Cosmos Blue Light		424			4250397615110
+9	Crazy Cherry		311			4250397642260
+9	Creme Blue		518			4250397612614
+9	Creme Blue Dark		520			4250397612621
+9	Creme Blue Light		516			4250397612607
+9	Currant		412			4250397612546
+9	Dahlia		114			4250397620091
+9	Dark Brown		738			4250397612829
+9	Dark Grey Neutral		840			4250397612904
+9	Deep Black		904			4250397612942
+9	Denim Blue		528			4250397615165
+9	Denim Blue Dark		530			4250397615172
+9	Denim Blue Light		526			4250397615158
+9	Denim Blue Pastel		524			4250397615141
+9	Erica Light		399			4250397642291
+9	Erica Pastel		401			4250397642284
+9	Erica Violet		400			4250397612492
+9	Fern Green		630			4250397612690
+9	Fir Green		636			4250397615233
+9	Fire Red		312			4250397612461
+9	Gold (Metallic)		906			4250397620169
+9	Grape		408			4250397612522
+9	Grass Green		628			4250397612683
+9	Grey Beige		734			4250397612805
+9	Grey Beige Light		732			4250397612799
+9	Grey Neutral		838			4250397642338
+9	Ivory Light		702			4250397620114
+9	Khaki Grey		736			4250397612812
+9	Kiwi		642			4250397612737
+9	Kiwi Dark		644			4250397612744
+9	Kiwi Light		640			4250397612720
+9	Kiwi Pastel		638			4250397615240
+9	Lagoon Blue		604			4250397612645
+9	Lavender		406			4250397615042
+9	Leaf Green		632			4250397612706
+9	Light Blue		508			4250397612560
+9	Light Blue Light		504			4250397612553
+9	Light Grey Neutral		834			4250397612881
+9	Light Orange		204			4250397614991
+9	Lighting Blue		502			4250397615097
+9	Macadamia		719			4250397642321
+9	Macadamia Pastel		718			4250397642314
+9	Melon Yellow		110			4250397612393
+9	Menthol		666			4250397615271
+9	Menthol Dark		668			4250397615288
+9	Menthol Light		664			4250397615264
+9	Menthol Pastel		662			4250397615257
+9	Middle Grey Neutral		836			4250397612898
+9	Moss Green		634			4250397612713
+9	Nut		708			4250397620145
+9	Ocean Blue		606			4250397612652
+9	Ocher		706			4250397620138
+9	Olive		660			4250397616148
+9	Orange		212			4250397612447
+9	Pastel Orange		202			4250397612416
+9	Peach		200			4250397612409
+9	Piglet Pink		310			4250397615035
+9	Piglet Pink Light		308			4250397615028
+9	Pistachio		626			4250397612676
+9	Pistachio Light		624			4250397612669
+9	Primavera Green		654			4250397616117
+9	Pure White		900			4250397612928
+9	Red Orange		214			4250397615004
+9	Riviera		602			4250397612638
+9	Riviera Light		600			4250397615189
+9	Ruby Red		306			4250397612454
+9	Saffron		112			4250397620084
+9	Sapphire Blue		522			4250397615103
+9	Signal Blue		512			4250397612584
+9	Signal Red		304			4250397615011
+9	Signal Yellow		106			4250397614984
+9	Sky Blue		510			4250397612577
+9	Tarzan Green		656			4250397616124
+9	Telemagenta		402			4250397612508
+9	Terracotta Grey		812			4250397612850
+9	Terracotta Grey Light		810			4250397612843
+9	Terracotta Grey Pastel		808			4250397612836
+9	Traffic Purple		404			4250397612515
+9	Traffic Purple Dark		318			4250397620107
+9	True Blue		514			4250397612591
+9	Turquoise		672			4250397612768
+9	Turquoise Dark		674			4250397612775
+9	Turquoise Light		670			4250397612751
+9	Ultra Chrome (Metallic)		902			4250397612935
+9	Vanilla		100			4250397612362
+9	Viola		418			4250397615073
+9	Viola Dark		420			4250397615080
+9	Viola Light		416			4250397615066
+9	Viola Pastel		414			4250397615059
+9	Violet Grey		822			4250397612874
+9	Violet Grey Middle		820			4250397612867
+9	Zinc Yellow		102			4250397612379
+10	Green		1006			4250397620213
+10	Orange		1002			4250397620190
+10	Pink		1004			4250397620206
+10	Yellow		1000			4250397620183
+11	Black		3004			4250397642369
+11	White		3000			4250397642376
+12	Black					4250397664453
+12	Chrome					4250397664460
+13	Thick Black		901			4250397676890
+13	Ultra Chrome		902			4250397676906
+14	Anthracite Grey		844			4250397632964
+14	Apricot		210			4250397637617
+14	Aqua		618			4250397616292
+14	Aqua Light		616			4250397616285
+14	Aqua Pastel		614			4250397637754
+14	Aqua Pastel Light		613			4250397647548
+14	Aubergine		322			4250397623849
+14	Aubergine Dark		323			4250397647425
+14	Beige Brown		704			4250397624006
+14	Blackberry		410			4250397616223
+14	Brown Red		699			4250397642253
+14	Burgundy		320			4250397647418
+14	Cadmium Yellow		104			4250397637587
+14	Cherry Dark		313			4250397632919
+14	Chocolate		710			4250397647579
+14	Cocoa		698			4250397642246
+14	Cocoa Light		697			4250397642239
+14	Cold Peach		208			4250397637631
+14	Coral		307			4250397642093
+14	Coral Red		305			4250397669991
+14	Cosmos Blue		426			4250397637723
+14	Cosmos Blue Dark		428			4250397637730
+14	Cosmos Blue Light		424			4250397637716
+14	Cosmos Blue Pastel		422			4250397670027
+14	Crazy Aqua		615			4250397670034
+14	Crazy Blue		511			4250397642130
+14	Crazy Cherry		311			4250397632902
+14	Crazy Grass		627			4250397632940
+14	Crazy Green		623			4250397632933
+14	Crazy Menthol		667			4250397632926
+14	Crazy Riviera		601			4250397637761
+14	Crazy Violet		397			4250397637662
+14	Cream Blue		518			4250397647524
+14	Cream Blue Dark		520			4250397647531
+14	Cream Blue Light		516			4250397647517
+14	Crocus		415			4250397670010
+14	Currant		412			4250397637693
+14	Curry		113			4250397637600
+14	Dark Grey Neutral		840			4250397616353
+14	Deep Black		904			4250397616377
+14	Deep Violet		398			4250397637679
+14	Deep Violet Dark		403			4250397647456
+14	Emerald Green		675			4250397670065
+14	Erica Light		399			4250397637686
+14	Erica Pastel		401			4250397642109
+14	Erica Pastell Middle		405			4250397647463
+14	Erica Pink		409			4250397670003
+14	Erica Violet		400			4250397623863
+14	Erica Violet Middle		407			4250397647470
+14	Fir Green		636			4250397623986
+14	Fire Red		312			4250397623825
+14	Gold (Metallic)		906			4250397624020
+14	Grape		408			4250397616216
+14	Grass Green		628			4250397623962
+14	Grey Beige		734			4250397637815
+14	Grey Beige Light		732			4250397637808
+14	Ivory Light		702			4250397647562
+14	Juice Green		629			4250397637785
+14	Khaki Green		633			4250397642222
+14	Khaki Grey		736			4250397637822
+14	Kiwi		642			4250397616339
+14	Kiwi Dark		644			4250397623993
+14	Kiwi Light		640			4250397616322
+14	Lagoon Blue		604			4250397616315
+14	Lagoon Blue Dark		605			4250397670041
+14	Leaf Green		632			4250397623979
+14	Light Blue		508			4250397623887
+14	Light Blue Light		504			4250397616254
+14	Light Grey Neutral		834			4250397632957
+14	Light Orange		204			4250397637624
+14	Lighting Blue		502			4250397642123
+14	Melon Dark		111			4250397632896
+14	Melon Light		107			4250397637594
+14	Melon Yellow		110			4250397616162
+14	Menthol		666			4250397623931
+14	Menthol Light		664			4250397623924
+14	Middle Grey Neutral		836			4250397616346
+14	Milk Coffee		703			4250397670119
+14	Mint		663			4250397670058
+14	Mustard		625			4250397642208
+14	Mustard Dark		631			4250397642215
+14	Mustard Light		622			4250397637778
+14	Mustard Middle		621			4250397670072
+14	Nut		708			4250397624013
+14	Ocean Blue		606			4250397623917
+14	Ocher		706			4250397637792
+14	Orange		212			4250397623801
+14	Pastel Orange		202			4250397616179
+14	Peach		200			4250397637648
+14	Peach Middle		198			4250397669977
+14	Pear		639			4250397670096
+14	Pear Dark		641			4250397670102
+14	Pear Light		637			4250397670089
+14	Piglet Pink		310			4250397623856
+14	Piglet Pink Dark		314			4250397647449
+14	Piglet Pink Light		308			4250397616193
+14	Piglet Pink Middle		309			4250397647432
+14	Pistachio Light		624			4250397623955
+14	Pure White		900			4250397616384
+14	Red Orange		214			4250397623818
+14	Red Pastel		303			4250397669984
+14	Riviera		602			4250397616308
+14	Ruby Red		306			4250397623832
+14	Sage		609			4250397642185
+14	Sage Dark		610			4250397642192
+14	Sage Middle		608			4250397642178
+14	Sapphire Blue		522			4250397623900
+14	Sapphire Blue Dark		523			4250397647500
+14	Signal Blue		512			4250397623894
+14	Signal Red		304			4250397616186
+14	Signal Yellow		106			4250397623795
+14	Sky Blue		510			4250397616261
+14	Stone Grey		832			4250397647609
+14	Stone Grey Dark		833			4250397647616
+14	Stone Grey Light		830			4250397647586
+14	Stone Grey Middle		831			4250397647593
+14	Telemagenta		402			4250397616209
+14	Thick Black		901			4250397637839
+14	Traffic Purple		404			4250397623870
+14	Traffic Purple Dark		318			4250397642116
+14	True Blue		514			4250397616278
+14	Turquoise		672			4250397623948
+14	Turquoise Light		670			4250397647555
+14	Ultra Chrome (Metallic)		902			4250397616360
+14	Ultramarine Blue		515			4250397637747
+14	Vanilla		100			4250397637570
+14	Verdigris		533			4250397642161
+14	Verdigris Light		531			4250397642147
+14	Verdigris Middle		532			4250397642154
+14	Viola		418			4250397616230
+14	Viola Dark		420			4250397616247
+14	Viola Light		416			4250397637709
+14	Violet		396			4250397637655
+14	Zinc Yellow		102			4250397616155
+15	Crazy Grass		627			4250397667294
+15	Crazy Riviera		601			4250397667287
+15	Crazy Violet		397			4250397667232
+15	Gold (Metallic)		906			4250397667348
+15	Juice Green		629			4250397667300
+15	Light Blue		508			4250397667263
+15	Orange		212			4250397667218
+15	Signal Red		304			4250397667225
+15	Signal Yellow		106			4250397667201
+15	Telemagenta		402			4250397667249
+15	Thick Black		901			4250397667317
+15	Traffic Purple Dark		318			4250397667256
+15	Ultra Chrome (Metallic)		902			4250397667331
+15	Ultramarine Blue		515			4250397667270
+15	White		900			4250397667324
+16	Appliance White			ffffff	o	
+16	Apsen (White)			ffffff	o	
+16	Askew's Olivia			514e26	o	
+16	Atlantic			336094	o	
+16	Atmosphere			8fc6e7	o	
+16	Autumn			d03238	o	
+16	Banos Asbestos			9c842f	o	
+16	Battleship			717271	o	
+16	Boston			409c7e	o	
+16	Bright Chrome			8b8c8d	o	
+16	Butter			f6c55b	o	
+16	Cameleon			62a744	o	
+16	Cassius			c7b9ab	o	
+16	Chicago			7e9abf	o	
+16	Cuppa			cfa075	o	
+16	Delicious			f49ec4	o	
+16	Earth			513528	o	
+16	Eggplant			604776	o	
+16	Electro			69cada	o	
+16	Eureka			ffb718	o	
+16	Ewok's Froggy			949436	o	
+16	Field			4c8b3f	o	
+16	Flirt			e01382	o	
+16	Fluoro Green			acd58a	o	
+16	Fluoro Orange			ff4500	o	
+16	Fluoro Pink			ce008c	o	
+16	Fluoro Red			f16d78	o	
+16	Fluoro Yellow			ffe500	o	
+16	Fraser			f2dfcd	o	
+16	Frazetta			00b3aa	o	
+16	Frostbite			d0d9e5	o	
+16	Furious			ab6388	o	
+16	Gold (Metallic)			a29061	o	
+16	Guacamole			6d702e	o	
+16	Guava			f06177	o	
+16	Gypsy			c08cbe	o	
+16	Halloween			d3441c	o	
+16	Hitachi			b2b3b2	o	
+16	Huey			1d5632	o	
+16	Hunter			007277	o	
+16	Irwin			e2c19d	o	
+16	Isla Rose			ca5f69	o	
+16	Jarnte			45bc96	o	
+16	Jurne's Micah			9f3122	o	
+16	Keen			c5ab2e	o	
+16	Knockout			96665c	o	
+16	Lazy Grey			383935	o	
+16	Lightning			00abc7	o	
+16	Linz Iceberg			58c2b6	o	
+16	Marsh			6f5722	o	
+16	Matador			8b0e04	o	
+16	Matt Black			231f20	o	
+16	Meks Magic			c6b3d7	o	
+16	Melbourne			545759	o	
+16	Midnight			0f2c52	o	
+16	Moberry			8d0b56	o	
+16	Mocha			a0662c	o	
+16	Mustard			e2ca30	o	
+16	Neverland			004e58	o	
+16	Nitro			f0e048	o	
+16	Ogre			b2ddc9	o	
+16	Ozone			bee0ea	o	
+16	Pacific			1b3c6d	o	
+16	Panther			231b33	o	
+16	Phantom			775ba6	o	
+16	Pineapple Park			ffdd00	o	
+16	Placid			abdcd4	o	
+16	Pose Sushi			9b268f	o	
+16	Potion			ec80a8	o	
+16	Prestige			931d28	o	
+16	Prince			77246c	o	
+16	Punk			b969aa	o	
+16	Purple Reign			3d1951	o	
+16	Reals Sublime			a3cf5e	o	
+16	Reef			008da8	o	
+16	Roarke (Black)			000000	o	
+16	Sasha			a49382	o	
+16	Shamrock			71c6a6	o	
+16	Sharon			7c6755	o	
+16	Sirum Black-Red			571c1f	o	
+16	Smoulder			dbd8d6	o	
+16	Smurf			0076bb	o	
+16	Sofles Violence / Violet			ae95c6	o	
+16	Sorbet			fffac3	o	
+16	Soviet True Red			c21f32	o	
+16	Strawberry			be3b4a	o	
+16	Swiss			64340f	o	
+16	Tango			ff9d6b	o	
+16	Techie Black (Transparent Black)			ffffff	o	
+16	Torquay			009add	o	
+16	True Royal			005189	o	
+16	Tues Afterburn			f58326	o	
+16	Two Cents (Metallic Copper)			8e634a	o	
+16	Vans Kryptonite			cddc29	o	
+16	Venom			4d2f47	o	
+16	Vizie's Smiley Face			ffdb00	o	
+16	Volcano			ff7e2e	o	
+16	Wanyology Blood Orange			e53c2e	o	
+16	Washington			8a8b8c	o	
+16	Whip			ffbe9e	o	
+16	Whizbang			d4e38e	o	
+16	Yankee			172751	o	
+17	APPLE 600ml		KBIG10086	afca11	o	
+17	BAHNHOF 600ml		KBIG10088	9a9e9d	o	
+17	BAOBAB 600ml		KBIG10089	8a462f	o	
+17	BASILICO 600ml		KBIG10087	0a7b35	o	
+17	BLACK SILVER KILLER 600ml		KBIG10072	1d1d1b	o	
+17	COPPER 600ml		KBIG10070	be8c74	o	
+17	GANG 600ml		KBIG10076	ec671b	o	
+17	GOLD 600ml		KBIG10069	e2c274	o	
+17	LIGHT MAGENTA 600ml		KBIG10079	e1408f	o	
+17	LUCE 600ml		KBIG10075	f6e81f	o	
+17	MATT BLACK 600ml		KBIG10074	111110	o	
+17	MENTA 600ml		KBIG10084	59a570	o	
+17	NIAGARA 600ml		KBIG10085	067c65	o	
+17	NOSFERATO 600ml		KBIG10081	231e45	o	
+17	PRUGNA 600ml		KBIG10080	813783	o	
+17	RED WINE 600ml		KBIG10078	541018	o	
+17	SILVER 600ml		KBIG10071	a8a9ab	o	
+17	SKYFALL 600ml		KBIG10082	009ed7	o	
+17	TRINIDAD 600ml		KBIG10077	af182a	o	
+17	WHITE 600ml		KBIG10073	ffffff	o	
+17	ZAFFIRO 600ml		KBIG10083	22386e	o	
+18	BLACK SILVER KILLER 600ml		KBIG10072	1d1d1b	o	
+19	COPPER 600ml		KBIG10070	be8c74	o	
+19	GOLD 600ml		KBIG10069	e2c274	o	
+19	SILVER 600ml		KBIG10071	a8a9ab	o	
+20	FLUO BLUE		KDIY053	00a3f4	o	
+20	FLUO GREEN		KDIY052	e2f900	o	
+20	FLUO ORANGE		KDIY049	ff6700	o	
+20	FLUO PINK		KDIY051	ff008c	o	
+20	FLUO RED		KDIY050	ef1c00	o	
+20	FLUO YELLOW		KDIY048	ffe70d	o	
+21	COPPER		KDIY046	be8c74	o	
+21	GOLD		KDIY045	e2c274	o	
+21	SILVER		KDIY047	a8a9ab	o	
+22	AMANITA		KHP310	f0848f	o	
+22	AMETISTA		KHP4030	592884	o	
+22	APPLE		KHP1320	afca11	o	
+22	BABY ASS		KHP710	f9dccd	o	
+22	BAHNHOF		KHP3030	9a9e9d	o	
+22	BARK		KHP650	b2a982	o	
+22	BASILICO		KHP1350	0a7b35	o	
+22	BINARY		KHP3050	3a4449	o	
+22	BLACK FOREST		KHP1050	083321	o	
+22	BLACK SEA		KHP2070	172843	o	
+22	BLUES		KHP2010	7eceef	o	
+22	BOTTLE		KHP1130	065646	o	
+22	BRUNT GROUND		KHP550	432d20	o	
+22	BULLFROG		KHP1340	099e3c	o	
+22	CIPRIA		KHP720	eab09d	o	
+22	CLOVER		KHP1330	52ae32	o	
+22	DARK MAGENTA		KHP5050	5c133f	o	
+22	DAY		KHP1310	e0ea1b	o	
+22	DEEP		KHP4210	b26fa2	o	
+22	DEEP WATER		KHP1140	05352c	o	
+22	DONATELLO		KHP1210	93a56d	o	
+22	FOREST		KHP1040	035131	o	
+22	FUCISA		KHP5020	e30e82	o	
+22	GANG		KHP220	ec671b	o	
+22	GREEN ISLAND		KHP1370	07301d	o	
+22	INDACO		KHP4020	734d9a	o	
+22	IVORY		KHP610	e8dfb8	o	
+22	JAM		KHP230	e74115	o	
+22	KAKI		KHP240	dc0f17	o	
+22	LAKE		KHP1110	189b70	o	
+22	LEONARDO		KHP1200	d3dbb6	o	
+22	LIGHT BLUE		KHP2000	bae2f6	o	
+22	LIGHT FUCIA		KHP5000	ec75ab	o	
+22	LIGHT GREEN		KHP1000	bbd8b4	o	
+22	LIGHT GREY		KHP3000	f2f3f4	o	
+22	LIGHT MAGENTA		KHP5010	e1408f	o	
+22	LIGHT ORANGE		KHP200	f08339	o	
+22	LILLA		KHP4000	b08cc0	o	
+22	LUCE		KHP110	f6e81f	o	
+22	MAGENTA		KHP5030	ad1269	o	
+22	MATT BLACK		KHP004	111110	o	
+22	MELANZANA		KHP4230	551f55	o	
+22	MENTA		KHP1020	59a570	o	
+22	MICHELANGELO		KHP1230	325625	o	
+22	MIELE		KHP130	f6a219	o	
+22	MOJITO		KHP1010	96c68d	o	
+22	MORA		KHP4240	2f183e	o	
+22	MUSK		KHP430	999440	o	
+22	MUSTARD		KHP150	966218	o	
+22	NAUTILUS		KHP2040	025b92	o	
+22	NIAGARA		KHP1120	067c65	o	
+22	NOSFERATO		KHP4040	231e45	o	
+22	NOTTE		KHP2060	1c2b4c	o	
+22	OCEAN		KHP2030	1488ca	o	
+22	OCRA		KHP140	c68e0b	o	
+22	ORCHIDEA		KHP5040	841758	o	
+22	PAPIRO		KHP740	af755f	o	
+22	PARMESAN		KHP410	eae472	o	
+22	PERA		KHP440	777224	o	
+22	PINK		KHP5060	f8cbe1	o	
+22	PISTACCHIO		KHP450	444018	o	
+22	PLATFORM		KHP3020	cbccce	o	
+22	PRUGNA		KHP4220	813783	o	
+22	PURPLE		KHP4200	e6b0d2	o	
+22	RAFFAELLO		KHP1220	6a8749	o	
+22	RAILWAY		KHP3010	dee1e2	o	
+22	RAPTOR		KHP1360	025227	o	
+22	RASPBERRY		KHP320	e94268	o	
+22	RAY		KHP120	ffd500	o	
+22	RED HOT		KHP350	911828	o	
+22	RED ORANGE		KHP250	bc1820	o	
+22	RED WINE		KHP370	541018	o	
+22	RHEM		KHP420	c6c663	o	
+22	RIVER		KHP1100	8cc9ab	o	
+22	SATIN BLACK		KHP006	111110	o	
+22	SCORPION		KHP330	ca1b4d	o	
+22	SIENA LAND		KHP540	59341b	o	
+22	SIENA MEDIUM		KHP730	c38f76	o	
+22	SILK		KHP600	f9f8e1	o	
+22	SKYFALL		KHP2020	009ed7	o	
+22	SPRINGS		KHP1030	318c57	o	
+22	SUPERGLOSS BLACK		KHP005	000000	o	
+22	SUPERGLOSS WHITE		KHPO03	ffffff	o	
+22	TEAK		KHP660	938961	o	
+22	TNT		KHP260	931914	o	
+22	TORTORA		KHP620	d1c8a1	o	
+22	TRINIDAD		KHP340	af182a	o	
+22	UNDERGROUND		KHP3060	2b2f33	o	
+22	VENOM BLUE		KHP6004	00cfff	o	
+22	VENOM GREEN		KHP6000	afff00	o	
+22	VENOM RED		KHP6001	e5001c	o	
+22	VENOM YELLOW		KHP6003	ffe600	o	
+22	VIOLET		KHP4010	8d72b1	o	
+22	VIPER		KHP270	6a1410	o	
+22	WHITE		KHP001	ffffff	o	
+22	YARD		KHP3040	5d686f	o	
+22	YELLOW		KHP100	f8ed88	o	
+22	YELLOW GREEN		KHP1300	efed9c	o	
+22	ZAFFIRO		KHP2050	22386e	o	
+23	ABYSS		KLP506	051d28	o	
+23	ACID GREEN		KLP541	dadd68	o	
+23	ACTION		KLP531	e2e0c7	o	
+23	ALICE BLUE		KLP481	83cde1	o	
+23	AMAZZONIA		KLP522	cad855	o	
+23	APRICOT		KLP199	f7d5bf	o	
+23	ARIA		KLP501	c7e7f4	o	
+23	ARTIK		KLP503	5d99cc	o	
+23	BABY BLUE		KLP482	57adc5	o	
+23	BABY DOLL		KLP414	d34693	o	
+23	BAMBOO		KLP523	afca11	o	
+23	BAROLO		KLP306	661316	o	
+23	BASE		KLP534	5e6036	o	
+23	BEAVER		KLP624	91774d	o	
+23	BITTER		KLP307	e84241	o	
+23	BLACK RAT		KLP002	000000	o	
+23	BLACK TAROK TRANSPARENT		KLP902	000000	o	
+23	BLADE		KLP702	d8d8d8	o	
+23	BROWNIE		KLP813	5e3418	o	
+23	BROWNIE TRANSP.		KLP908	633c15	o	
+23	CAMOUFLAGE		KLP533	78845e	o	
+23	CHARLIE		KLP604	a38780	o	
+23	CHEEK		KLP810	b57c62	o	
+23	CHOCO BROWN		KLP812	82451c	o	
+23	CHOCOLATE		KLP811	a16140	o	
+23	CIGAR		KLP806	301a0f	o	
+23	CITRINE		KLP124	89781a	o	
+23	CRASH		KLP103	f4d100	o	
+23	CRASH YELLOW TRANSP		KLP905	f9ed35	o	
+23	CURRY		KLP123	a48c14	o	
+23	DARK CHOCOLATE		KLP814	482f1c	o	
+23	DARK FUCHSIA		KLP416	a41879	o	
+23	DARK HOLE		KLP708	1b1b1b	o	
+23	DARK ISLAND		KLP516	081918	o	
+23	DESERT		KLP601	efe6e4	o	
+23	DJANGO		KLP613	bc7771	o	
+23	DOUBLE FACE		KLP404	d78189	o	
+23	DRIBBLE WHITE TRANSPARENT		KLP901	bebdbd	o	
+23	DUNE		KLP621	e5c984	o	
+23	EYELID		KLP808	eabda9	o	
+23	FACE		KLP403	ea929f	o	
+23	FEVER		KLP105	e2ac00	o	
+23	FOG		KLP701	f4f4f4	o	
+23	FRESH VIOLET		KLP423	ab4a95	o	
+23	GARGOYLE		KLP705	6e6d6b	o	
+23	GARNET		KLP615	683838	o	
+23	GINGER		KLP304	d2181c	o	
+23	GINGER RED TRANSP.		KLP903	ee4437	o	
+23	GLASS		KLP511	c5e4e4	o	
+23	GLICINE		KLP422	be97bf	o	
+23	GOLDEN BEIGE		KLP803	d27325	o	
+23	GUM		KLP413	e273ab	o	
+23	HAM		KLP402	f4b8c0	o	
+23	HAZZARD		KLP205	d55015	o	
+23	HIMALAYA		KLP612	dc9f9d	o	
+23	HORNET		KLP102	f9ec6f	o	
+23	ICE		KLP502	6faedd	o	
+23	INDIAN		KLP106	d88c08	o	
+23	INGANNO		KLP305	9b1918	o	
+23	KAMPARI		KLP303	c1314d	o	
+23	KRYPTONITE		KLP528	124f25	o	
+23	LAGOON		KLP514	1d6b71	o	
+23	LANTERN GREEN		KLP518	7eba28	o	
+23	LAPIS LAZULI		KLP484	1d768f	o	
+23	LEATHER		KLP804	ae581f	o	
+23	LIGHT FUCHSIA		KLP412	f195bc	o	
+23	LIGHT IVORY		KLP807	fae9de	o	
+23	LIGHT ORANGE		KLP201	f4a77f	o	
+23	LIGHT PINK		KLP411	f2c9d6	o	
+23	LIGHT RED		KLP301	ee748a	o	
+23	LIGHT VIOLET		KLP421	e1d6e8	o	
+23	LIGHT YELLOW		KLP101	f9eda7	o	
+23	LIME		KLP521	e3e8a3	o	
+23	LION		KLP622	d3b879	o	
+23	LOTO		KLP611	f9cacc	o	
+23	LOVEBIRDS		KLP542	b3ba2e	o	
+23	LOW FUCHSIA		KLP415	b62783	o	
+23	MAGMA		KLP816	77250f	o	
+23	MARINE		KLP507	0086c2	o	
+23	MARY		KLP602	ddcdca	o	
+23	MEDIUM WARM		KLP809	dda285	o	
+23	MILITARY GREEN		KLP526	166c30	o	
+23	MOKA		KLP623	b0955f	o	
+23	MOSS GREEN		KLP544	727322	o	
+23	NATURAL BEIGE		KLP802	efa554	o	
+23	OLD ROSE		KLP406	a94545	o	
+23	OLIVE GREEN		KLP543	919120	o	
+23	ORANGO		KLP204	e56117	o	
+23	PARADISE		KLP515	1f4547	o	
+23	PASSION FLOWER		KLP425	7c226b	o	
+23	PEACH		KLP203	f07e34	o	
+23	PORCELAIN		KLP815	f3e3d6	o	
+23	PREDATOR		KLP525	358334	o	
+23	PURE WHITE		KLP001	ffffff	o	
+23	REAL GREEN		KLP524	70a92e	o	
+23	REAL GREEN TRANSP.		KLP904	3db54b	o	
+23	RED DAHLIA		KLP405	bf7588	o	
+23	RIDDLER GREEN		KLP529	164221	o	
+23	RIVA		KLP513	6ba59b	o	
+23	ROSE		KLP401	f9d7db	o	
+23	SAFARI		KLP603	b9a49e	o	
+23	SAINT PATRICK		KLP527	16682f	o	
+23	SAND		KLP801	ffe4a1	o	
+23	SHADOW		KLP706	52504d	o	
+23	SKY BLUE		KLP483	3a95aa	o	
+23	SKY BLUE TRANSP.		KLP906	00adee	o	
+23	SOFT ORANGE		KLP202	f39556	o	
+23	SOFTAIR		KLP532	aaa981	o	
+23	SPACE VIOLET		KLP424	924983	o	
+23	SPRITZ		KLP302	ea4d6d	o	
+23	SPRITZ TRANSP.		KLP907	ed0a8d	o	
+23	STONE		KLP703	b2b0ad	o	
+23	SUBMARINE		KLP508	104274	o	
+23	SULFUR		KLP122	ccae1a	o	
+23	SURF		KLP504	5288bc	o	
+23	TABOO		KLP707	363635	o	
+23	TAMARINDO		KLP606	75594f	o	
+23	TANK		KLP535	3d3f1e	o	
+23	TAXI		KLP104	edc003	o	
+23	TIGER EYE		KLP107	aa781d	o	
+23	TOBACCO		KLP805	9a3716	o	
+23	TROOP		KLP536	596c4c	o	
+23	TROPICAL		KLP517	6f992e	o	
+23	TURQUOISE		KLP512	a4d5cd	o	
+23	UFO		KLP704	8c8a87	o	
+23	VAMPIRE		KLP426	621a52	o	
+23	VELVET		KLP605	8d6e64	o	
+23	WAVE		KLP505	1b3f90	o	
+23	WHALE		KLP485	0b536d	o	
+23	WILD		KLP614	8f4a4a	o	
+23	ZINC YELLOW		KLP121	f2de4c	o	
+24	Antique Ivory		CLR_20844646	f7e8c7	o	
+24	Anvil Gray		CLR_20844643	3c464f	o	
+24	Black Peppercorn		CLR_23310587	363938	o	
+24	Cashew		CLR_23310584	e5d7bd	o	
+24	Classic White		CLR_20844640	ffffff	o	
+24	Cotton Candy Pink		CLR_20844653	e8b9c3	o	
+24	Gray Seal		CLR_23310585	8da0a8	o	
+24	Green Brook		CLR_23310586	a1c3b1	o	
+24	Mink		CLR_20844645	6c6555	o	
+24	Misty Gray		CLR_20844641	b7b7b5	o	
+24	Slate		CLR_20844642	717b7c	o	
+24	Tidal Blue		CLR_20844649	01818a	o	
+25	Almond		CLR_26802023	eeecdd	o	
+25	Avocado		CLR_26802020	4c5840	o	
+25	Black		CLR_26802014	000000	o	
+25	Bright Gold		CLR_26802024			
+25	Bright Silver		CLR_26802025			
+25	Clover Green		CLR_26802018	007042	o	
+25	Honey Peach		CLR_26802011	fda86c	o	
+25	Icy Grape		CLR_26802019	7f5c7a	o	
+25	Leather Brown		CLR_26802022	524140	o	
+25	Pastel Yellow		CLR_26802012	f2eaa9	o	
+25	Pineapple Yellow		CLR_26802017	ffe200	o	
+25	Regal Blue		CLR_26802021	013765	o	
+25	Scarlet Red		CLR_26802016	ca2128	o	
+25	Sunset Orange		CLR_26802010	d44f01	o	
+25	Surfside Green		CLR_26802013	93d8bb	o	
+25	White		CLR_26802015	ffffff	o	
+26	Metallic Aluminum		CLR_20844674			
+26	Metallic Gold		CLR_20844675			
+26	Metallic Silver		CLR_20844677			
+27	Almond		CLR_20844686	d7d3c8	o	
+27	Banner Red		CLR_20844691	ca2128	o	
+27	Bauhaus Gold		CLR_20844692	dea651	o	
+27	Black		CLR_20844683	000000	o	
+27	Blue Ocean Breeze		CLR_20844693	9ccfd0	o	
+27	Bright Idea		CLR_20844694	f7e67e	o	
+27	Bright White		CLR_20844849	ffffff	o	
+27	Brown Boots		CLR_20844826	8a6747	o	
+27	Burgundy		CLR_20844687	7e1130	o	
+27	Catalina Mist		CLR_20844827	cfe8d5	o	
+27	Cherry Red		CLR_20844697	9c1a32	o	
+27	Citrus Green		CLR_20844798	c7cf53	o	
+27	Classic Gray		CLR_20844799	7c7e79	o	
+27	Coral Isle		CLR_20844847	e57d70	o	
+27	Dover White		CLR_20844800	f8f0d9	o	
+27	Emerald Green		CLR_20844801	126f43	o	
+27	Equestrian		CLR_20844802	54463b	o	
+27	Glacier		CLR_20844822	cde0ff	o	
+27	Gum Drop		CLR_20844804	aea3ce	o	
+27	Hunter Green		CLR_20844688	13564c	o	
+27	Iris		CLR_20844828	3a5393	o	
+27	Island Splash		CLR_20844829	4b9ebc	o	
+27	Italian Olive		CLR_20844830	4c5840	o	
+27	Ivory		CLR_20844684	eeecdd	o	
+27	Ivy Leaf		CLR_20844848	a8b13c	o	
+27	Jade		CLR_20844831	82b4a8	o	
+27	Khaki		CLR_20844805	aea28c	o	
+27	Leather Brown		CLR_20844689	524140	o	
+27	Machinery Gray		CLR_20844841	5d5852	o	
+27	Mambo Pink		CLR_20844806	ed008c	o	
+27	Meringue		CLR_20844832	fff3a9	o	
+27	Navy Blue		CLR_20844807	01274e	o	
+27	Oxford Blue		CLR_20844833	334259	o	
+27	Pebble		CLR_20844834	ceb8ab	o	
+27	Peekaboo Blue		CLR_20844808	a6c1df	o	
+27	Pewter Gray		CLR_20844809	c7cfd2	o	
+27	Pimento		CLR_20844835	c61c25	o	
+27	Pink Taffeta		CLR_21797915	f1d2da	o	
+27	Pistachio		CLR_20844836	96b78a	o	
+27	Pumpkin Orange		CLR_20844810	e66a37	o	
+27	Purple		CLR_20844811	2d2648	o	
+27	Regal Blue		CLR_20844812	013765	o	
+27	Rich Plum		CLR_20844813	60276c	o	
+27	Sand Dollar		CLR_20844842	b1a6a2	o	
+27	Sea Glass		CLR_20844837	2cb7b0	o	
+27	Smoke Gray		CLR_20844815	70737a	o	
+27	Summer Wheat		CLR_20844839	e2b679	o	
+27	Sun Yellow		CLR_20844817	fee253	o	
+27	True Blue		CLR_20844818	1e4d9d	o	
+27	Watermelon		CLR_20844819	ef4f6b	o	
+27	White		CLR_20844685	ffffff	o	
+28	Aqua		CLR_20844866	bedcdc	o	
+28	Black		CLR_20844853	000000	o	
+28	Bright Idea		CLR_20844858	f7e67e	o	
+28	Brown Boots		CLR_20844867	8a6747	o	
+28	Burgundy		CLR_20844869	7b1225	o	
+28	Buttered Hazelnut		CLR_20844871	ffb85e	o	
+28	Cherry Red		CLR_20844856	9c1a32	o	
+28	Citrus Green		CLR_20844859	c7d053	o	
+28	Coffee Bean		CLR_20844863	4a4037	o	
+28	Coral Isle		CLR_20844883	e57d70	o	
+28	Deep Denim Blue		CLR_20844880	314254	o	
+28	Deep Gray		CLR_20844879	7e7d82	o	
+28	Iris		CLR_20844876	3a5393	o	
+28	Island Splash		CLR_20844878	4b9ebc	o	
+28	Ivory		CLR_20844868	eeecdd	o	
+28	Lavender		CLR_20844877	caa9c8	o	
+28	Leather Brown		CLR_20844881	513c37	o	
+28	Mambo Pink		CLR_20844857	ed008c	o	
+28	Matcha Green		CLR_20844872	85ce72	o	
+28	Meringue		CLR_20844882	fff3a9	o	
+28	Naval Blue		CLR_20844861	01274e	o	
+28	Olive Green		CLR_20844860	969d40	o	
+28	Oxford Blue		CLR_20844875	334259	o	
+28	Peekaboo Blue		CLR_20844862	a6c1df	o	
+28	Pewter Gray		CLR_20844855	c7cfd2	o	
+28	Pimento		CLR_20844870	c61c25	o	
+28	Sea Glass		CLR_20844874	2cb7b0	o	
+28	Surf		CLR_20844865	286987	o	
+28	Velvet Pine Green		CLR_20844873	01534d	o	
+28	White		CLR_20844854	ffffff	o	
+28	Wild Rose		CLR_20844864	bfa49d	o	
+29	Baby Blue		CLR_20844952	7bd9f3	o	
+29	Beach Glass		CLR_20844916	12b7b1	o	
+29	Black		CLR_20844910	000000	o	
+29	Blue Hyacinth		CLR_20844958	405896	o	
+29	Bluebird		CLR_23288074	4e9ccc	o	
+29	Brick		CLR_20844917	97300f	o	
+29	Bright White		CLR_20844965	ffffff	o	
+29	Burgundy		CLR_20844968	7e1130	o	
+29	Clamshell		CLR_20844951	eae3d3	o	
+29	Coffee Bean		CLR_20844956			
+29	Dark Pearl		CLR_23288075	4e535b	o	
+29	Deep Gray		CLR_20844957	7e7d82	o	
+29	Dover White		CLR_20844959	f8f0d9	o	
+29	Elderberry		CLR_23288076	9f848e	o	
+29	Espresso		CLR_20844911	5d352b	o	
+29	Fire Red		CLR_20844936	c13b30	o	
+29	Glacier Gray		CLR_20844937	c7ced6	o	
+29	Harbor Blue		CLR_23288077	2b658e	o	
+29	Hot Pink		CLR_20844923	ed008c	o	
+29	Hunter Green		CLR_20844943	13564c	o	
+29	Icy Grape		CLR_20844960	7f5c7a	o	
+29	Ink Blue		CLR_20844938	394f62	o	
+29	Ivory		CLR_20844912	eeecdd	o	
+29	Jungle Green		CLR_20844961	96bb47	o	
+29	Khaki		CLR_20844913			
+29	Lagoon Blue		CLR_20844966	33abc3	o	
+29	Lavender Haze		CLR_25846603	c3bac8	o	
+29	Midnight Garden		CLR_23288079	5e7278	o	
+29	Navy		CLR_20844962	0d2c5b	o	
+29	Otter Brown		CLR_20844947	5c5451	o	
+29	Pale Sage		CLR_20844939	76857e	o	
+29	Patriotic Blue		CLR_20844924	1d4e9d	o	
+29	Peacock Blue		CLR_20844945	335561	o	
+29	Pewter Gray		CLR_20844931	a8a7a3	o	
+29	Popsicle Orange		CLR_20844964	f47234	o	
+29	Purple		CLR_20844926	2d2648	o	
+29	Red Pepper		CLR_20844922	ca2128	o	
+29	Red Plum		CLR_23288080	83304b	o	
+29	River Rock		CLR_20844919	abab9f	o	
+29	Rolling Surf		CLR_20844914	2b7f81	o	
+29	Sea Green		CLR_20844940	d7ebcf	o	
+29	Smoke Gray		CLR_20844927	70737a	o	
+29	Soft Pink		CLR_20844963	e5ccd0	o	
+29	Spanish Moss		CLR_20844948	485647	o	
+29	Spiced Amber		CLR_20844934	c97944	o	
+29	Spring Grass		CLR_20844918	007042	o	
+29	Sunbeam		CLR_20844921	ffe200	o	
+29	Terracotta		CLR_20844935	8e432e	o	
+29	Vintage Blue		CLR_20844949	c1d5d3	o	
+29	Vintage Gray		CLR_20844920	81817f	o	
+29	Vintage Rose		CLR_25846604	d8b09d	o	
+29	White		CLR_20844915	ffffff	o	
+29	Wild Honey		CLR_20844942	ffc059	o	
+30	Hammered Black		CLR_20844969			
+30	Hammered Brown		CLR_20844970			
+30	Hammered Cocoa Brown		CLR_20844971			
+30	Hammered Copper		CLR_20844972			
+30	Hammered Dark Bronze		CLR_20844973			
+30	Hammered Gold		CLR_20844975			
+30	Hammered Matte Cast Iron		CLR_20844976			
+30	Hammered Silver		CLR_20844974			
+31	Metallic Aluminum		CLR_20844978			
+31	Metallic Black Stainless		CLR_20844984			
+31	Metallic Copper		CLR_20844980			
+31	Metallic Dark Copper		CLR_20844979			
+31	Metallic Dark Metal		CLR_20844986			
+31	Metallic Gold		CLR_20844987			
+31	Metallic Oil Rubbed Bronze		CLR_20844988			
+31	Metallic Rose Gold		CLR_20844977			
+31	Metallic Rust		CLR_20844983			
+31	Metallic Satin Nickel		CLR_20844989			
+31	Metallic Silver		CLR_20844981			
+32	Textured Black		CLR_20844990			
+32	Textured Burnt Sienna		CLR_20844991			
+32	Textured Dark Bronze		CLR_20844992			
+32	Textured Desert Sand		CLR_20844998			
+32	Textured Granite		CLR_20844997			
+32	Textured Raw Clay		CLR_20844993			
+32	Textured Sandstone		CLR_20844994			
+32	Textured Soapstone		CLR_20844995			
+33	Arctic White		CLR_26802009	ffffff	o	
+33	Black Raven		CLR_26802008	000000	o	
+33	Cool Sand		CLR_26802007	a48b79	o	
+33	Ember		CLR_26801997	9e3c2a	o	
+33	Fossil Gray		CLR_26802006	616264	o	
+33	Great Lakes		CLR_26802003	2d3d4b	o	
+33	Grove Green		CLR_26801998	034033	o	
+33	Icy Mist		CLR_26802000	98b1b3	o	
+33	Mossy Meadow		CLR_26801996	056037	o	
+33	Ruby Slippers		CLR_26801994	971804	o	
+33	Sandstone		CLR_26802004	ddc2ae	o	
+33	Silver Fern		CLR_26802002	b5bcac	o	
+33	Soft Sage		CLR_26801999	a79b50	o	
+33	Tangerine		CLR_26801995	e36122	o	
+33	Umber		CLR_26802005	3e3938	o	
+33	Wineberry		CLR_26802001	4b2429	o	
+34	Almond		CLR_21237711	d7c799	o	
+34	Black		CLR_21237708	000000	o	
+34	Burgundy		CLR_21237715	5e1113	o	
+34	Cherry Red		CLR_21237718	891b0f	o	
+34	Classic Gray		CLR_21237701	767570	o	
+34	Forest Green		CLR_21237714	004226	o	
+34	Hunter Green		CLR_21237716	002009	o	
+34	Leather Brown		CLR_21237702	3f1e00	o	
+34	Light Gray		CLR_21237703	c2c6be	o	
+34	Machinery Gray		CLR_25653949	5f6869	o	
+34	Navy Blue		CLR_21237704	14234b	o	
+34	Orange		CLR_21237705	e45c0f	o	
+34	Radiant - Safety Red		CLR_21237712	7e1a24	o	
+34	Safety Blue		CLR_21237706	1f7eff	o	
+34	Sun - Safety Yellow		CLR_21237713	f3bf0c	o	
+34	True Blue		CLR_21237717	006395	o	
+34	White		CLR_21237707	ffffff	o	
+35	Aluminum		CLR_21802827	abb1ad	o	
+35	Gold		CLR_21802829	b49e73	o	
+35	Silver		CLR_21802828	b3bab8	o	
+36	Brilliant Blue		570	0198cd	s	884955024232
+36	Brilliant Purple		590	9179b7	s	884955024065
+36	Brilliant Yellow Green		840	a3d769	s	884955024317
+36	Burnt Sienna		127	6a3428	s	884955024454
+36	Burnt Umber		128	352b2a	s	884955024485
+36	Cadmium Orange Hue		720	f57921	s	884955023846
+36	Cadmium Orange Hue 2		2720	d85f26	s	884955023853
+36	Cadmium Red Deep Hue		311	ac1f30	s	884955023969
+36	Cadmium Red Light Hue		510	d32429	s	884955023884
+36	Cadmium Red Medium Hue		151	cc2030	s	884955023921
+36	Cadmium Yellow Deep Hue		163	f9a11c	s	884955023808
+36	Cadmium Yellow Deep Hue 1		1163	876929	s	884955023822
+36	Cadmium Yellow Light Hue		159	fcde70	s	884955023716
+36	Cadmium Yellow Medium Hue		830	ffcb05	s	884955023761
+36	Carbon Black		337	1e1e1e	s	884955024546
+36	Cerulean Blue Hue		470	005095	s	884955024225
+36	Cerulean Blue Hue 6		6470	38b5e3	s	884955024218
+36	Chromium Oxide Green		166	235937	s	884955024348
+36	Cobalt Blue Hue		381	2756a6	s	884955024089
+36	Dioxazine Purple		186	321d55	s	884955024041
+36	Emerald Green		450	007a51	s	884955024294
+36	Fluorescent Blue		984	01aed9	s	884955024683
+36	Fluorescent Green		985	53da3f	s	884955024676
+36	Fluorescent Orange		982	ff993a	s	884955024652
+36	Fluorescent Red		983	fe535b	s	884955024645
+36	Fluorescent Yellow		981	e3e100	s	884955024669
+36	Hooker’s Green Hue Permanent		224	294f38	s	884955024324
+36	Iridescent Antique Gold		237	917b4c	s	884955024638
+36	Iridescent Rich Silver		239	84888b	s	884955024621
+36	Medium Magenta		500	c42695	s	884955024034
+36	Neutral Gray 3		3599	35424a	s	884955024553
+36	Neutral Gray 5		5599	82898f	s	884955024560
+36	Neutral Gray 7		7599	c5c6c8	s	884955024577
+36	Neutral Gray 8		8599	c5cdd1	s	884955024584
+36	Parchment		436	e3d8b8	s	884955024607
+36	Phthalocyanine Blue Green Shade		316	007abd	s	884955024164
+36	Phthalocyanine Green 7 Blue Shade		7317	73d1b7	s	884955024256
+36	Prussian Blue Hue		320	002a42	s	884955024157
+36	Quinacridone Crimson		110	c91e48	s	884955024010
+36	Quinacridone Magenta 6		6114	ea95bf	s	884955024003
+36	Raw Sienna		330	a05325	s	884955024423
+36	Raw Umber		331	665545	s	884955024515
+36	Titanium White		432	ffffff	s	884955024591
+36	Transparent Black		260			884955024690
+36	Transparent Mixing White		430			884955024706
+36	Turquoise		176	006a84	s	884955024201
+36	Unbleached Titanium		434	eedebc	s	884955024614
+36	Vivid Lime Green		740	67bc29	s	884955024300
+36	Yellow Medium Azo		412	ffe001	s	884955023754
+36	Yellow Oxide		416	d28e01	s	884955024409
+37	AJACCIO		LP-218	1f2a44	o	
+37	AMADORA		LP-162	9e174f	o	
+37	AMSTERDAM		LP-120	f3991b	o	
+37	ARNHEM		LP-128	e75811	o	
+37	ATHENS		LP-222	004155	o	
+37	AUSTIN		LP-350	5f4444	o	
+37	BADEN		LP-312	2b1307	o	
+37	BALTIMORE		LP-367	453536	o	
+37	BARCELONA		LP-107	ffec65	o	
+37	BARI		LP-280	725f1d	o	
+37	BASEL		LP-221	1d327b	o	
+37	BEJA		LP-159	f095a7	o	
+37	BELGRADE		LP-305	5c4826	o	
+37	BERGAMO		LP-252	13a9a1	o	
+37	BERLIN		LP-313	f0d0b1	o	
+37	BERN		LP-329	8c5b34	o	
+37	BIRMINGHAM		LP-147	ff6699	o	
+37	BLACK		LP-104	000000	o	
+37	BLACK GLOSS		LP-105	000000	o	
+37	BLACK MATT		LP-103	000000	o	
+37	BOLOGNA		LP-260	1e5142	o	
+37	BOLZANO		LP-255	002e28	o	
+37	BONN		LP-324	775135	o	
+37	BORDEAUX		LP-209	69ced6	o	
+37	BOSTON		LP-353	c2c3c9	o	
+37	BRATISLAVA		LP-301	ddd491	o	
+37	BREDA		LP-125	f8b14c	o	
+37	BREMEN		LP-315	efa368	o	
+37	BRESCIA		LP-253	007b77	o	
+37	BREST		LP-208	0e1a45	o	
+37	BRIGHTON		LP-144	da0531	o	
+37	BRISBANE		LP-372	cf9684	o	
+37	BRISTOL		LP-143	e53049	o	
+37	BRUSSELS		LP-131	ff3300	o	
+37	BUCAREST		LP-302	cbbf5c	o	
+37	BUDAPEST		LP-303	aa8413	o	
+37	CAGLIARI		LP-271	bfcdb2	o	
+37	CALAIS		LP-207	142754	o	
+37	CAMBRIDGE		LP-141	4e0f0f	o	
+37	CATANIA		LP-273	2d4823	o	
+37	CATANZARO		LP-281	534a19	o	
+37	CHICAGO		LP-354	abaab4	o	
+37	CHRISTCHURCH		LP-373	b4857b	o	
+37	COIMBRA		LP-160	e85a82	o	
+37	COMO		LP-249	a5d6d1	o	
+37	COPENHAGEN		LP-190	5b0e45	o	
+37	COPPER		LP-402	aa6255	o	
+37	CORK		LP-156	8f443c	o	
+37	DALLAS		LP-349	9f7d74	o	
+37	DERBY		LP-142	e8586d	o	
+37	DETROIT		LP-366	644e41	o	
+37	DORTMUND		LP-317	a55520	o	
+37	DUBAI		LP-378	89c275	o	
+37	DUBLIN		LP-150	faede2	o	
+37	DUESSELDORF		LP-328	522a00	o	
+37	DUNDALK		LP-152	ee847f	o	
+37	EINDHOVEN		LP-124	ffdca3	o	
+37	EL PASO		LP-351	403439	o	
+37	FALUN		LP-185	320939	o	
+37	FARO		LP-158	f4b2c1	o	
+37	FERRARA		LP-261	163b2b	o	
+37	FIRENZE		LP-266	4e9825	o	
+37	FLUO BLUE		LP-409	0081c7	o	
+37	FLUO GREEN		LP-414	57ab27	o	
+37	FLUO ORANGE		LP-411	f08a00	o	
+37	FLUO PINK		LP-413	e30045	o	
+37	FLUO RED		LP-412	e53517	o	
+37	FLUO YELLOW		LP-410	ffed00	o	
+37	FOGGIA		LP-279	9fa72d	o	
+37	FORT MYERS		LP-362	382e2c	o	
+37	FRANKFURT		LP-323	6f4629	o	
+37	GALWAY		LP-151	f5b9a6	o	
+37	GENEVA		LP-220	005d80	o	
+37	GLOSS WHITE		LP-101	ffffff	o	
+37	GOLD		LP-401	d5a940	o	
+37	GOTEBORG		LP-183	8b5d8e	o	
+37	GRAZ		LP-311	543b25	o	
+37	GRENOBLES		LP-211	5188a4	o	
+37	HALLE		LP-318	613b23	o	
+37	HAMBURG		LP-314	eaa77d	o	
+37	HANNOVER		LP-316	d56112	o	
+37	HARLEM		LP-121	e78010	o	
+37	HELMOND		LP-126	f2921f	o	
+37	HELSINKI		LP-187	ecc0be	o	
+37	HOUSTON		LP-347	e5d4c5	o	
+37	INDIANAPOLIS		LP-368	8a87ac	o	
+37	INNSBRUCK		LP-327	b59253	o	
+37	ISTANBUL		LP-299	c0b561	o	
+37	JACKSONVILLE		LP-360	76685c	o	
+37	KALMAR		LP-181	c9a7cb	o	
+37	KEY WEST		LP-361	564c42	o	
+37	KOLN		LP-325	3b1612	o	
+37	KRASONDAR		LP-377	ff6a39	o	
+37	KREMS		LP-307	ddc69e	o	
+37	LA SPEZIA		LP-262	d8df74	o	
+37	LAS VEGAS		LP-365	8c7464	o	
+37	LECCE		LP-283	445321	o	
+37	LEEDS		LP-140	7b1417	o	
+37	LEIPZIG		LP-326	e08741	o	
+37	LENS		LP-204	1e74a7	o	
+37	LILLE		LP-205	004a7c	o	
+37	LIMASSOL		LP-223	1d2e3f	o	
+37	LIMERICK		LP-154	f8cbcd	o	
+37	LINZ		LP-308	d3a96b	o	
+37	LISBOA		LP-163	761329	o	
+37	LIVERPOOL		LP-137	d33118	o	
+37	LIVORNO		LP-268	224a1e	o	
+37	LONDON		LP-146	330000	o	
+37	LONG BEACH		LP-346	444342	o	
+37	LOS ANGELES		LP-340	ece9e1	o	
+37	LUCCA		LP-265	86b5a4	o	
+37	LYON		LP-212	004868	o	
+37	MADRID		LP-106	fbf193	o	
+37	MAINZ		LP-322	7b3f2c	o	
+37	MALAGA		LP-110	f9b300	o	
+37	MALMO		LP-182	ad83af	o	
+37	MANCHESTER		LP-136	e33617	o	
+37	MARSEILLE		LP-213	c9dbe9	o	
+37	MELBOURNE		LP-370	f8c8b7	o	
+37	MESSINA		LP-272	8e9e75	o	
+37	METALIZED BLACK		LP-428	000000	o	
+37	METS		LP-203	3e8eb7	o	
+37	MIAMI		LP-357	d8d5c2	o	
+37	MILANO		LP-251	61bebc	o	
+37	MODENA		LP-258	71b26d	o	
+37	MONACO		LP-199	93d5f5	o	
+37	MONTPELLIER		LP-215	7c97b4	o	
+37	MORA		LP-184	591861	o	
+37	MORIMONDO		LP-276	e5e14c	o	
+37	MOSCOW		LP-375	ffa38b	o	
+37	MOSS		LP-191	6d2c75	o	
+37	MUNCHEN		LP-319	f8e3cc	o	
+37	NANCY		LP-201	a4cad9	o	
+37	NANTES		LP-210	77a5bf	o	
+37	NAPOLI		LP-277	dad627	o	
+37	NEW YORK		LP-352	d7d8d7	o	
+37	NEWCASTLE		LP-138	be2c1c	o	
+37	NICE		LP-217	0e2d52	o	
+37	NIMES		LP-214	b1c4d4	o	
+37	NOTTINGHAM		LP-148	ef7c71	o	
+37	NURNBERG		LP-321	ac825d	o	
+37	OAKLAND		LP-344	7e7970	o	
+37	ODENSE		LP-195	32174e	o	
+37	ORLANDO		LP-358	b8b39e	o	
+37	OSLO		LP-189	ab5265	o	
+37	OSS		LP-130	e24415	o	
+37	OULU		LP-188	d78a8c	o	
+37	OXFORD		LP-145	963034	o	
+37	PALERMO		LP-274	29341b	o	
+37	PARIS		LP-200	cee6ec	o	
+37	PARMA		LP-257	9acb9e	o	
+37	PERPIGNAN		LP-224	001b36	o	
+37	PERUGIA		LP-269	183419	o	
+37	PHILLY		LP-355	5f536d	o	
+37	PIACENZA		LP-256	d2e8d6	o	
+37	PISA		LP-263	c1d678	o	
+37	PORTLAND		LP-364	b6a18b	o	
+37	PORTO		LP-161	c63d65	o	
+37	PRAGA		LP-304	917022	o	
+37	PRATO		LP-264	b6ca70	o	
+37	REGGIO EMILIA		LP-259	438b51	o	
+37	RENNES		LP-206	003361	o	
+37	RIGA		LP-193	663366	o	
+37	RIMINI		LP-282	002c15	o	
+37	ROMA		LP-275	ebe886	o	
+37	ROSENDHAL		LP-127	eb6d0f	o	
+37	ROTTERDAM		LP-123	bb4914	o	
+37	SACRAMENTO		LP-345	5a5551	o	
+37	SALERNO		LP-278	b9cd28	o	
+37	SALZBURG		LP-310	6d4b2a	o	
+37	SAN ANTONIO		LP-348	d1b4a2	o	
+37	SAN DIEGO		LP-341	ccc9c1	o	
+37	SAN FRANCISCO		LP-343	a9a5a0	o	
+37	SAN JOSE		LP-342	bdb9b0	o	
+37	SAN MARINO		LP-248	004553	o	
+37	SANTIAGO		LP-380	ea4890	o	
+37	SAO PAULO		LP-379	1652a1	o	
+37	SASSARI		LP-270	dce3d1	o	
+37	SEATTLE		LP-363	d8ccc1	o	
+37	SEVILLA		LP-109	fdce07	o	
+37	SIDNEY		LP-371	deaa9a	o	
+37	SIENA		LP-267	638234	o	
+37	SILVER		LP-400	bec2c5	o	
+37	SKAGEN		LP-192	600d20	o	
+37	SLIGO		LP-157	cc727c	o	
+37	ST. PETERSBURG		LP-376	ff8d6d	o	
+37	STOCKHOLM		LP-186	efd1cf	o	
+37	STRASBOURG		LP-202	7cb3cd	o	
+37	STUTTGART		LP-320	d4b99c	o	
+37	SWORDS		LP-155	e7a4a9	o	
+37	TALLINN		LP-194	330033	o	
+37	TAMPA		LP-359	9b937b	o	
+37	TAVERNY		LP-219	4471b2	o	
+37	THESSALONIKI		LP-164	7e1e47	o	
+37	TILBURG		LP-129	e04d14	o	
+37	TIRANA		LP-298	5a4711	o	
+37	TORINO		LP-250	bbdfd8	o	
+37	TOULOUSE		LP-216	4f6d91	o	
+37	TRANSPARENT BLACK		LP-391	000000	o	
+37	TRANSPARENT BLUE		LP-394	020504	o	
+37	TRANSPARENT BROWN		LP-392	43291d	o	
+37	TRANSPARENT GREEN		LP-393	ffffff	o	
+37	TRANSPARENT RED		LP-395	ffffff	o	
+37	TRANSPARENT WHITE		LP-390	ffffff	o	
+37	UTRECHT		LP-122	ec6f07	o	
+37	VALENCIA		LP-108	ffdd00	o	
+37	VENEZIA		LP-254	005155	o	
+37	VIENNA		LP-306	f6e4c2	o	
+37	VILNIUS		LP-180	d5d8ee	o	
+37	WARSAW		LP-149	b50156	o	
+37	WASHINGTON		LP-356	3a3740	o	
+37	WATERFORD		LP-153	bd4140	o	
+37	WELLINGTON		LP-374	8b554c	o	
+37	WELS		LP-309	8a5623	o	
+37	WHITE		LP-100	ffffff	o	
+37	YORK		LP-139	a6241c	o	
+37	ZAGREB		LP-300	f4edb3	o	
+37	ZURICH		LP-330	c4763f	o	
+38	ASPHALT		LP-438	000000	o	
+39	Fluo Blue		LP-409	00afeb	o	
+39	Fluo Green		LP-414	35ff1f	o	
+39	Fluo orange		LP-411	ff8c00	o	
+39	Fluo Pink		LP-413	ff1f9a	o	
+39	Fluo Red		LP-412	ff2600	o	
+39	Fluo Yellow		LP-410	e5ff00	o	
+40	COPPER		LP-402	aa6255	o	
+40	GOLD		LP-401	d5a940	o	
+40	SILVER		LP-400	bec2c5	o	
+41	Barcelona		LP-H611	fff065	o	
+41	Belgrade		LP-H695	5a4711	o	
+41	Birmingham		LP-H630	ff6699	o	
+41	Black		LP-H602	000000	o	
+41	Bologna		LP-H689	1a8e5c	o	
+41	Boston		LP-H732	c6cdd9	o	
+41	Bremen		LP-H706	fd9d69	o	
+41	Brescia		LP-H676	008f9d	o	
+41	Brest		LP-H670	002177	o	
+41	Bucarest		LP-H691	f9cd00	o	
+41	Budapest		LP-H693	bf9e00	o	
+41	Coimbra		LP-H642	ff59b5	o	
+41	Falun		LP-H652	341a5a	o	
+41	Faro		LP-H640	fe9ab9	o	
+41	Goteberg		LP-H650	7d6bae	o	
+41	Indianapolis		LP-H734	7e88a9	o	
+41	Kalmar		LP-H648	bcadd3	o	
+41	Lens		LP-H665	009cf0	o	
+41	Lille		LP-H667	045cff	o	
+41	Linz		LP-H699	ceaa6c	o	
+41	Long Beach		LP-H726	262d2b	o	
+41	Lucca		LP-H681	77c664	o	
+41	Mainz		LP-H716	753829	o	
+41	Malaga		LP-H613	f9ae2d	o	
+41	Manchester		LP-H623	ff381c	o	
+41	Milano		LP-H674	66cece	o	
+41	Nottingham		LP-H631	ef7c71	o	
+41	Oakland		LP-H724	4e5b58	o	
+41	Oslo		LP-H657	b068a8	o	
+41	Oss		LP-H622	f14e25	o	
+41	Oulu		LP-H656	c98bbe	o	
+41	Parma		LP-H686	92dab6	o	
+41	Philly		LP-H735	41486d	o	
+41	Porto		LP-H643	f20085	o	
+41	Reggio Emilia		LP-H688	2eb47e	o	
+41	Riga		LP-H658	663366	o	
+41	Rosendhal		LP-H619	ef7d00	o	
+41	San Diego		LP-H721	b0bdb5	o	
+41	San Francisco		LP-H723	7a908b	o	
+41	San Marino		LP-H678	004151	o	
+41	Siena		LP-H683	489535	o	
+41	Strasbourg		LP-H663	79daff	o	
+41	Thessaloniki		LP-H645	860650	o	
+41	Vienna		LP-H697	faecd8	o	
+41	Wels		LP-H701	846320	o	
+41	White		LP-H600	ffffff	o	
+41	York		LP-H626	df0005	o	
+41	Zurich		LP-H708	c5743f	o	
+42	BLACK ASPHALT		LP-435	000000	o	
+42	CHROME - HEAVY METAL		LP-436	bec2c5	o	
+42	FIRENZE		LP-445	007429	o	
+42	GOLD - HEAVY METAL		LP-440	d5a940	o	
+42	MAXI BERGAMO		LP-429	13a9a1	o	
+42	MAXI BLACK		LP-416	000000	o	
+42	MAXI BREST		LP-425	0e1a45	o	
+42	MAXI DUNDALK		LP-420	ee847f	o	
+42	MAXI LEEDS		LP-426	781417	o	
+42	MAXI LENS		LP-423	1e74a7	o	
+42	MAXI LIVERPOOL		LP-419	d33118	o	
+42	MAXI LUCCA		LP-424	86b54b	o	
+42	MAXI MADRID		LP-433	fbf193	o	
+42	MAXI MALMO		LP-428	ad83af	o	
+42	MAXI MORA		LP-422	591861	o	
+42	MAXI MOSS		LP-443	693e91	o	
+42	MAXI PERUGIA		LP-427	183419	o	
+42	MAXI PORTO		LP-421	c63d65	o	
+42	MAXI ROSENDHAL		LP-418	eb6d0f	o	
+42	MAXI SACRAMENTO		LP-446	413f49	o	
+42	MAXI SAN FRANCISCO		LP-434	a9a5a0	o	
+42	MAXI TILBURG		LP-442	eb5d0b	o	
+42	MAXI VALENCIA		LP-417	ffdd00	o	
+42	MAXI VENEZIA		LP-444	005c72	o	
+42	MAXI WHITE		LP-415	ffffff	o	
+43	BLACK ASPHALT		LP-435	000000	o	
+44	Chrome - HEAVY METAL		LP-428	c8cbce	o	
+44	Gold - HEAVY METAL		LP-440	d5a940	o	
+45	NEON GREEN		LP-500	f7f7db	o	
+46	Alga		116			4015962732261
+46	Amaranth Red		061			4015962732995
+46	Amazonas		171			4015962732520
+46	Anthracite Grey		223			4015962733480
+46	Anthracite Grey Dark		222-1			4015962729278
+46	Anthracite Grey Middle		223-1			4015962729285
+46	Antique Pink		050			4015962733299
+46	Aqua		115			4015962728752
+46	Aquamarine		133			4015962732544
+46	Autumn Leaf		036			4015962732117
+46	Avocado		163			4015962728844
+46	Azure Blue		090			4015962728721
+46	Azure Blue Light		089			4015962728714
+46	beige brown		194			4015962733510
+46	Black Forest Green		135			4015962732551
+46	Black Green		167			4015962732957
+46	Black Grey Dark		222			4015962733497
+46	Black Grey Neutral		215			4015962733039
+46	Black Turquoise		130			4015962732902
+46	Black Violet		072			4015962732452
+46	Blackberry		068			4015962728639
+46	Brilliant Green		152			4015962732612
+46	Burgundy		019			4015962732865
+46	Butterfly Green		168			4015962732568
+46	Cadmium Yellow		003			4015962732827
+46	Calypso Light		137			4015962732681
+46	Calypso Middle		138			4015962732698
+46	Camouflage		172			4015962728875
+46	Candy		053			4015962728554
+46	CAPARSO Middle Grey Neutral		217			4015962733015
+46	Cappuccino		186			4015962728950
+46	Caramel		205			4015962732919
+46	Caribbean		121			4015962733145
+46	Ceramic Pastel		099			4015962732292
+46	Chocolate Brown		208			4015962733527
+46	Chromium Oxide Green		166			4015962733442
+46	Cliff Green		157			4015962732650
+46	Clover Green		158			4015962728837
+46	CMP Dark Brown		209			4015962732933
+46	Cocoa		204			4015962733268
+46	Cocoa Light		202			4015962733695
+46	Crazy Plum		070			4015962732445
+46	Cream Blue		113			4015962733138
+46	Crocus		064			4015962728592
+46	Currant		069			4015962732421
+46	DARE Orange		014			4015962732858
+46	DARE orange light		013			4015962728448
+46	Dark Grey Neutral		216			4015962733022
+46	Deep Black		221			4015962732803
+46	Deep-Sea Blue Dark		109			4015962733046
+46	Dolphin Blue		111			4015962732223
+46	ECB Prussian Blue Dark		106			4015962733053
+46	Espresso		187			4015962732940
+46	Fern Green		164			4015962733428
+46	Fuchsia Pink		058			4015962733367
+46	Furwhite		184-7			4015962729261
+46	Gale Green		131			4015962732537
+46	Garnet		020			4015962728455
+46	GESER Black Red		021			4250397677729
+46	Gold Dollar (Metallic)		220-1			4015962729117
+46	Golden Yellow		009			4015962732834
+46	Granite		225			4015962728967
+46	Grape		067			4015962728622
+46	Grapefruit		046			4015962733220
+46	Grapefruit Light		045			4015962728523
+46	Grasshopper		153			4015962732643
+46	Green Tea		169			4015962728868
+46	Grey Blue Dark		224			4015962733794
+46	Grey Blue Light		228			4015962733770
+46	Grey Blue Middle		226			4015962733787
+46	Hazelnut		207			4015962732926
+46	Hemp		179			4015962732506
+46	Indigo		105			4015962728707
+46	Ivory Light		184			4015962733671
+46	Jasmin Yellow		001			4015962732018
+46	Jeans Blue		100			4015962732308
+46	Juice Green		159			4015962732667
+46	KACAO77 UNIVERSES Green		146			4015962728813
+46	Khaki		183			4015962732780
+46	Kiwi		150			4015962733183
+46	Kiwi Light		149			4015962733190
+46	Kiwi Pastel		148			4015962733206
+46	Labrador		196			4015962728936
+46	Lagoon Blue		126			4015962732742
+46	Lavender		065			4015962728608
+46	Leaf Green		161			4015962733435
+46	Leaf Green Middle		160-1			4015962729193
+46	Light Grey Neutral		218			4015962733008
+46	Lilac		066			4015962728615
+46	LINDAS Sunset		015			4015962733329
+46	Lobster		029			4015962732100
+46	Lobster Light		027			4015962733718
+46	LOOMITS Apricot		040			4015962732094
+46	LOOMITS Apricot Light		038			4015962732810
+46	LOOMITS apricot pastel		037			4015962728493
+46	LOOMITS Aubergine		022			4015962732469
+46	MACrew Purple		062			4015962733534
+46	MAD C Cherry Red		032			4015962728486
+46	MAD C Psycho Pink		059			4015962728585
+46	Marble		230			4015962728998
+46	MARTHA Marine		127			4015962733558
+46	Mauve		048			4015962733091
+46	Melon Yellow		010			4015962732070
+46	Menthol		145			4015962733237
+46	Menthol Light		144			4015962733244
+46	MIGHTY Green		162			4015962732629
+46	Milk Coffee		185			4015962732759
+46	MISTER GREEN		160			4015962732964
+46	mocca		188			4015962733732
+46	Moss Green		165			4015962728851
+46	Nature White		005			4015962732797
+46	Navy Blue		102			4015962728691
+46	Night SEEN Blue		079			4015962732414
+46	Nori		129			4015962728783
+46	Nougat		193			4015962732773
+46	Ocher Brown		198			4015962733503
+46	Olympia Blue		114			4015962732216
+46	Orange Brown		201			4015962732766
+46	Orange Brown Middle		200			4015962733824
+46	papyrus		192			4015962728929
+46	Pastel Orange		012			4015962733336
+46	Peach		025			4015962733176
+46	Peach Pastel		023			4015962728462
+46	Pear		181			4015962733572
+46	Pebble Grey		229			4015962728981
+46	Petrol		107			4015962732278
+46	Petrol Blue		112			4015962733077
+46	Piglet Pink		052			4015962732124
+46	Piglet Pink Light		051			4015962733688
+46	Poison Green		174			4015962732599
+46	Purple		055			4015962733305
+46	Purple Violet		063			4015962733381
+46	Pussy Pink		042			4015962732872
+46	Quartz Sand		184-4			4015962729230
+46	Quartz Sand Light		184-6			4015962729254
+46	Quartz Sand Middle		184-5			4015962729247
+46	Quince		008			4015962732032
+46	Raspberry Red		043			4015962733374
+46	Riviera Dark		125			4015962732735
+46	Riviera Light		123			4015962732728
+46	Riviera Middle		124			4015962728776
+46	Riviera Pastel		122			4015962728769
+46	Rock Grey		227			4015962728974
+46	Ruby Red		018			4015962733664
+46	Sahara Beige		191			4015962732056
+46	sahara beige light		189			4015962728905
+46	sahara beige middle		190			4015962728912
+46	Sand		184-3			4015962729148
+46	Sand Light		184-1			4015962729124
+46	Sand Middle		184-2			4015962729131
+46	Sangria		044			4015962733060
+46	Sapphire Blue		104			4015962732346
+46	SEAK Future Green		143			4015962733459
+46	Shock Blue		094			4015962732322
+46	Shock Blue Light		092			4015962733626
+46	Shock Blue Middle		093			4015962733619
+46	Shock Blue Pastel		091			4015962733633
+46	Shock Orange		031			4015962732889
+46	Signal Red		033			4015962732148
+46	Signal White		231			4015962733602
+46	Signal Yellow		004			4015962733657
+46	Silver Dollar (Metallic)		220			4015962733589
+46	SLIDER Light Orange		011			4015962732841
+46	SOTEN Light Blue		098			4015962732315
+46	Stone Grey Dark		211			4015962733763
+46	Stone Grey Light		213			4015962733749
+46	Stone Grey Middle		212			4015962733756
+46	Storm Blue Dark		106-3			4015962729186
+46	Storm Blue Middle		106-1			4015962729162
+46	Swamp		134			4015962729018
+46	SWET 100 Traffic Red		016			4015962732131
+46	Tar Black		210			4015962733596
+46	Telemagenta		060			4015962733640
+46	TILT Bubble Pink		057			4015962728578
+46	TOAST Signal Black		214			4015962733800
+46	Tornado Red		017			4015962732988
+46	Tulip Blue		097			4015962732339
+46	Tulip Blue Light		095			4015962728738
+46	Tulip Blue Middle		096			4015962728745
+46	Turquoise Dark		128			4015962733565
+46	Turquoise Green		140			4015962728790
+46	Turquoise Green Dark		142			4015962728806
+46	Turquoise Green Middle		141			4015962733725
+46	Ultramarine Blue		103			4015962732247
+46	Vanilla		006			4015962733152
+46	Vermillion		030			4015962733350
+46	Viola		077			4015962733107
+46	Viola Light		075			4015962733114
+46	Viola Middle		076			4015962728653
+46	Violet Dark		071			4015962732438
+46	Walnut		206			4015962733831
+46	Wasabi		156			4015962728820
+46	Wild WANE Blue		101			4015962733541
+46	Zinc Yellow		002			4015962732063
+47	ANTISTATIK Neon Red		236-1			4015962729155
+47	Neon Blue		235			4015962729094
+47	Neon Green		236			4015962729100
+47	Neon Orange		233			4015962729070
+47	Neon Pink		234			4015962729087
+47	Neon Turquoise		235-1			4015962729346
+47	Neon Violet		234-1			4015962729339
+47	Neon Yellow		232			4015962729063
+48	Signal White Transparent		251			4015962733930
+48	TOAST Signal Black Transparent		249			4015962733954
+49	Black		BLK 9001	030506	o	4048500314414
+49	Code Red		BLK 2093	e3001b	o	4048500314438
+49	Irish Green		BLK 6045	51ab27	o	4048500314445
+49	Light Blue		BLK 5030	00a2d3	o	4048500314452
+49	Outline Silver			c0c0c0	o	4048500314469
+49	White		BLK 9105	fbfcf6	o	4048500314421
+50	Acid		BLK 6005	c9d215	o	4048500263569
+50	After		BLK 8210	9f6b5a	o	4048500321801
+50	Amethyst		BLK 4290	5b2c40	o	4048500352041
+50	Ant		BLK 7080	48403d	o	4048500321634
+50	Arabian		BLK 8110	c2a875	o	4048500321764
+50	Atlantis		BLK 6240	007f64	o	4048500264108
+50	Atom´s Megablast		BLK 2120	eb6a27	o	4048500289965
+50	B.A Bosko		BLK 6930	3f3e2a	o	4048500264252
+50	Baby Blue		BLK 5020	6bc8e7	o	4048500263972
+50	Bamboo		BLK 6610	d1c782	o	4048500321580
+50	Banknote		BLK 6065	003613	o	4048500386459
+50	Beast		BLK 3148	e94190	o	4048500386404
+50	Beetle		BLK 6420	bec695	o	4048500321504
+50	Beige		BLK 8020	d9b980	o	4048500264122
+50	Black		BLK 9001	030506	o	4048500264368
+50	BLK TR 1000 True Yellow			f9e900	o	4048500264399
+50	BLK TR 1010 True Yel. 50%			fff562	o	4048500352201
+50	BLK TR 4000 True Magenta			e51175	o	4048500264382
+50	BLK TR 4010 True Mag. 50%			e75d98	o	4048500352218
+50	BLK TR 5000 True Cyan			00b8d2	o	4048500264375
+50	BLK TR 5010 True Cyan 50%			86cedc	o	4048500352225
+50	Bloody Mary		BLK 3330	ba0f3e	o	4048500263750
+50	Blue Lagoon		BLK 5230	5f97c6	o	4048500264009
+50	Blue Velvet		BLK 4130	a98dbd	o	4048500263910
+50	Boa		BLK 6625	8f8534	o	4048500386497
+50	Bombay		BLK 1140	6f592a	o	4048500386398
+50	Boston		BLK 6055	008132	o	4048500263606
+50	Brunhilde		BLK 4320	a2b0ce	o	4048500321368
+50	Bubble Bath		BLK 3995	c59fc6	o	4048500352003
+50	Candy Bar		BLK 8250	5b2607	o	4048500352188
+50	Cardinal		BLK 3062	6d0827	o	4048500263729
+50	Celtic		BLK 6060	025a27	o	4048500263613
+50	Cherry		BLK 3070	331028	o	4048500263736
+50	Chocolate		BLK 8060	7c5035	o	4048500264184
+50	Clockwork Orange		BLK 2070	ef800d	o	4048500263668
+50	Cocktail		BLK 3200	f7c0b7	o	4048500263637
+50	Code Red		BLK 2093	e3001b	o	4048500263705
+50	Cool Cologne		BLK 6130	4aadc4	o	4048500264061
+50	Copper Copperchrome			806031	o	4048500272073
+50	Copper Green		BLK 6340	007764	o	4048500386480
+50	Cremino		BLK 8040	cb916c	o	4048500264160
+50	Dark Indigo		BLK 5092	00173a	o	4048500263934
+50	Delhi		BLK 1130	a18114	o	4048500386350
+50	Dove		BLK 5125	aec2c0	o	4048500264283
+50	Drops		BLK 6180	6bdbcf	o	4048500352096
+50	Dumbo		BLK 7340	645b5c	o	4048500352133
+50	Dummy		BLK 4260	dbb4c6	o	4048500352010
+50	E2E Green		BLK 6210	9ac776	o	4048500264085
+50	Easter Yellow		BLK 1010	ffe668	o	4048500263453
+50	Edelgard		BLK 4310	cdd2db	o	4048500321351
+50	Face		BLK 6905	d6d1af	o	4048500321627
+50	Falling		BLK 8240	b94709	o	4048500352171
+50	Fire Rose		BLK 3020	c4091c	o	4048500263712
+50	Fog		BLK 6510	a5b29c	o	4048500321535
+50	Frappé		BLK 8050	b27a59	o	4048500264177
+50	Freak		BLK 3150	aa0073	o	4048500351952
+50	Galaxy		BLK 4060	511b57	o	4048500263873
+50	Gambetta		BLK 7110	c7bba8	o	4048500321641
+50	Ghetto		BLK 7320	a89e9f	o	4048500352126
+50	Gobi		BLK 8120	ab9269	o	4048500321788
+50	Gold Goldchrome			826107	o	4048500295607
+50	Good Times		BLK 3160	ad0f6c	o	4048500351969
+50	Gut		BLK 4210	aa959c	o	4048500264214
+50	Halloween		BLK 2085	e85011	o	4048500263699
+50	Hannibal		BLK 6910	a2a682	o	4048500264276
+50	Hazle		BLK 1060	a34c2e	o	4048500263507
+50	Hemp		BLK 6620	a3903f	o	4048500321597
+50	Hippie		BLK 6075	28c842	o	4048500352065
+50	Hope		BLK 6320	b0d7be	o	4048500321450
+50	Horizon		BLK 5070	0070b8	o	4048500263958
+50	Houdini		BLK 7210	a69fa2	o	4048500321702
+50	Ice Blue		BLK 5200	c9e0f2	o	4048500263989
+50	Iced Coffee		BLK 8030	daac92	o	4048500264153
+50	Illusion		BLK 3920	a8438f	o	4048500351983
+50	Imperator		BLK 3170	7e154e	o	4048500351976
+50	Indian Spice		BLK 1110	e0a600	o	4048500386329
+50	Industriilor		BLK 7140	524038	o	4048500321689
+50	Irish Green		BLK 6045	51ab27	o	4048500263590
+50	Irmgard		BLK 4340	4d599a	o	4048500321399
+50	Ivory		BLK 8000	f2e8c4	o	4048500264139
+50	Jawa		BLK 8070	49201a	o	4048500264191
+50	Jaws		BLK 7010	eef1e6	o	4048500264344
+50	Kicking Yellow		BLK 1025	ffda15	o	4048500263460
+50	Kidney		BLK 4230	836976	o	4048500264221
+50	Knock Out Blue		BLK 5250	00579e	o	4048500264016
+50	Koi		BLK 8230	df5105	o	4048500352164
+50	Lambrate		BLK 7130	7d7268	o	4048500321672
+50	Lavender		BLK 4115	b1a0ca	o	4048500263927
+50	Lennox		BLK 7120	9d9283	o	4048500321665
+50	Lenor		BLK 5210	97c4e1	o	4048500263996
+50	Light Blue		BLK 5030	00a2d3	o	4048500263965
+50	Liver		BLK 4250	664b5c	o	4048500264245
+50	Lollipop		BLK 3320	e74963	o	4048500263767
+50	Lost Island		BLK 6720	718428	o	4048500263538
+50	Magic		BLK 3940	9d197e	o	4048500351990
+50	Marlin		BLK 5185	577492	o	4048500386435
+50	Maroon		BLK 1080	612316	o	4048500263514
+50	Masala		BLK 1120	b69822	o	4048500386336
+50	Melon Yellow		BLK 1045	f59e01	o	4048500263484
+50	Merlot		BLK 3065	3f2224	o	4048500351945
+50	Mermaid		BLK 6150	0086a1	o	4048500264054
+50	Mescaline		BLK 6080	29b419	o	4048500352072
+50	Miss Piggy		BLK 3100	f5b8c5	o	4048500263781
+50	Mist		BLK 6520	778b7b	o	4048500321566
+50	Monster		BLK 4020	8c4a91	o	4048500263859
+50	Morpheus		BLK 7220	847c82	o	4048500321719
+50	Mouse		BLK 7030	c7c8b8	o	4048500264337
+50	Mr. Crab		BLK 3220	f29a84	o	4048500263644
+50	Ms. Jackson		BLK 4000	b68fbc	o	4048500263842
+50	Mud		BLK 8260	512320	o	4048500386510
+50	Murdock		BLK 6920	808460	o	4048500264269
+50	Nappies		BLK 6190	3dc6ac	o	4048500352102
+50	Neptune		BLK 6170	013c4a	o	4048500264030
+50	Nostradamus		BLK 7230	57515a	o	4048500321726
+50	Oasis		BLK 6012	a1a324	o	4048500321405
+50	Olymp		BLK 6310	c7dbc8	o	4048500321443
+50	Outline Silver			c0c0c0	o	4048500272080
+50	Pan		BLK 6630	705a39	o	4048500321603
+50	Patina		BLK 6330	64b699	o	4048500321467
+50	Patpong		BLK 3305	f3a7b1	o	4048500386411
+50	Pear Green		BLK 6710	bab526	o	4048500263545
+50	Pecan Nut		BLK 1070	6f2f23	o	4048500386312
+50	Pimp Violet		BLK 4040	6d2c7e	o	4048500263866
+50	Pink Cadillac		BLK 3120	ef8eb0	o	4048500263798
+50	Pink Lemonade		BLK 3310	eb727b	o	4048500263774
+50	Pink Panther		BLK 3130	e7478a	o	4048500263804
+50	Pistachio		BLK 6000	e3de2a	o	4048500263552
+50	Plant		BLK 6095	00752d	o	4048500386466
+50	Plum		BLK 4280	986d81	o	4048500352034
+50	Power Blue		P5000	003084	o	4048500264436
+50	Power Green		P6000	458f04	o	4048500264429
+50	Power Orange		P2000	df4008	o	4048500352195
+50	Power Pink		P4000	c4397d	o	4048500264757
+50	Power Red		P3000	af1201	o	4048500264405
+50	Power Violet		P4100	2a0a4d	o	4048500265372
+50	Power Yellow		P1000	fbb601	o	4048500264412
+50	Punk Pink		BLK 3145	c1005e	o	4048500263828
+50	Pure Orange		BLK 2075	ea640c	o	4048500263682
+50	Purple Rain		BLK 3155	981569	o	4048500263835
+50	Reseda		BLK 6430	a3ac7c	o	4048500321511
+50	Revolt Green		BLK 6220	50ae58	o	4048500264092
+50	Rhino		BLK 7070	5e6460	o	4048500264313
+50	Riffs		BLK 6175	002a32	o	4048500386473
+50	Royal Blue		BLK 5077	054b90	o	4048500263941
+50	Royal Purple		BLK 4155	62579b	o	4048500263903
+50	Rust		BLK 8080	902c2e	o	4048500264207
+50	Sand		BLK 8010	b89247	o	4048500264115
+50	Seal		BLK 5140	52676c	o	4048500264290
+50	Shark		BLK 7050	999a92	o	4048500264320
+50	Silver Silverchrome			999999	o	4048500264764
+50	Slate		BLK 7360	352c2d	o	4048500352140
+50	Slimer		BLK 6010	a9c707	o	4048500263576
+50	Smash137´s Potato		BLK 1005	f4e593	o	4048500289941
+50	Snail		BLK 8220	f5ac8c	o	4048500352157
+50	Snow White		BLK 9100	ffffff	o	4048500321818
+50	Sorrento Blue		BLK 5270	24327d	o	4048500352058
+50	Space		BLK 5160	364958	o	4048500264306
+50	Spring		BLK 6013	cbd56c	o	4048500321412
+50	Storm		BLK 6530	4c6043	o	4048500321573
+50	Surgery		BLK 6195	0c8e76	o	4048500352119
+50	Sushi		BLK 3240	ee8363	o	4048500263651
+50	Syrian		BLK 8130	90754f	o	4048500321795
+50	TAG Green		BLK 6070	003c1a	o	4048500263620
+50	Tiffany		BLK 6110	91d1da	o	4048500264078
+50	Toad		BLK 6730	28401c	o	4048500263521
+50	Tomorrow		BLK 2110	f08c48	o	4048500321344
+50	Topaz		BLK 1050	d37e0a	o	4048500263491
+50	Trabi		BLK 6410	d1d5bc	o	4048500321498
+50	Troops		BLK 6725	565b21	o	4048500386503
+50	Trout		BLK 5180	98b0c6	o	4048500386428
+50	Ultramarine		BLK 5080	00326d	o	4048500264023
+50	Universe		BLK 4182	0c0940	o	4048500263880
+50	Waltraut		BLK 4330	6f89bc	o	4048500321375
+50	Whale		BLK 5190	264b68	o	4048500386442
+50	White		BLK 9105	fbfcf6	o	4048500264351
+50	Wild Lime		BLK 6015	b5cc22	o	4048500263583
+50	Winegum		BLK 3080	510029	o	4048500263743
+50	Wizard		BLK 4160	554189	o	4048500263897
+50	Woodstock		BLK 6090	25900c	o	4048500352089
+50	Yellow		BLK 1030	fcc000	o	4048500263477
+51	Infra Green		IN 6000	25f54e	o	
+51	Infra Orange		IN 2000	fd5f00	o	
+51	Infra Pink		IN 4000	ea27c2	o	
+51	Infra Red		IN 3000	ff0000	o	
+51	Infra Violet		IN 4500	cc33ff	o	
+51	Infra Yellow		IN 1000	fdfd0b	o	
+52	Juice		BLK 2060	f49f24	o	4048500321337
+53	Baby Blue		BLK 5020	6bc8e7	o	4048500278358
+53	Black		BLK 9001	030506	o	4048500278402
+53	Boston		BLK 6055	008132	o	4048500278389
+53	Cool Cologne		BLK 6130	4aadc4	o	4048500282676
+53	Easter Yellow		BLK 1010	ffe668	o	4048500282638
+53	Goldchrome			826107	o	4048500298738
+53	Halloween		BLK 2085	e85011	o	4048500278310
+53	Pink Cadillac		BLK 3120	ef8eb0	o	4048500282652
+53	Power Green		P6000	67b028	o	4048500395222
+53	Power Red		P3000	e22218	o	4048500282683
+53	Royal Purple		BLK 4155	62579b	o	4048500282669
+53	Shark		BLK 7050	999a92	o	4048500278396
+53	Ultramarine		BLK 5080	00326d	o	4048500278365
+53	White		BLK 9105	fbfcf6	o	4048500278419
+54	Black			000000	o	4048500325489
+55	Adriatic Blue		BLU 5460	057277	o	
+55	Anthracite		BLU 7080	192120	o	
+55	Asphalt		BLU 7130	a19f9a	o	
+55	Autumn Leaf		BLU 2170	9c4937	o	
+55	Basalt		BLU 7160	55524c	o	
+55	Beige		BLU 8025	dab781	o	
+55	Bittersweet		BLU 8150	4b3225	o	
+55	Black		BLU 9000	000000	o	
+55	Blood Orange		BLU 2290	df3924	o	
+55	BLU F1000 Fluor Yellow			f7ff72	o	
+55	BLU F2000 Flour Orange			fe7545	o	
+55	BLU F3000 Fluor Red			fe0000	o	
+55	BLU F4000 Fluor Pink			ff00ff	o	
+55	BLU F6000 Fluor Green			4ff684	o	
+55	Blue Diamond		BLU 5020	68aee1	o	
+55	Blue Tang		BLU 5050	215faa	o	
+55	Blue Velvet		BLU 4150	362d69	o	
+55	Brownies		BLU 8140	784a3a	o	
+55	Bulls Red		BLU 3005	da0f23	o	
+55	Buzzard		BLU 7120	d7d5cb	o	
+55	Cabernet		BLU 3060	541112	o	
+55	Caramelo		BLU 8130	ca957a	o	
+55	Cherry Blossom		BLU 3260	8b195e	o	
+55	Chilled Blue		BLU 5010	acd6ef	o	
+55	Clockwork Orange		BLU 2240	f08208	o	
+55	Coffee Creme		BLU 8120	dbb7a1	o	
+55	Corny		BLU 1040	e89d18	o	
+55	Cosmopolitan		BLU 3140	e14e73	o	
+55	Crocus		BLU 4205	cdb7d4	o	
+55	Daft Pink		BLU 3220	eda9c0	o	
+55	Doughy		BLU 8110	efd3bf	o	
+55	Duck Season		BLU 8040	ab9276	o	
+55	Dungeon		BLU 7050	474a50	o	
+55	Flirt		BLU 3240	d14a94	o	
+55	Frogger		BLU 6020	9ed342	o	
+55	Grey Parrot		BLU 7020	bfbfc2	o	
+55	Groove Orange		BLU 2150	ea542d	o	
+55	Grotto		BLU 5340	0c7e92	o	
+55	Ivory		BLU 8005	f6ecca	o	
+55	Juicy Grass		BLU 6040	2e7c2e	o	
+55	Kirby		BLU 3230	e57caf	o	
+55	Korma		BLU 1060	cb7e36	o	
+55	Light Lilac		BLU 4120	a99ac7	o	
+55	Mamba		BLU 6010	c4ea71	o	
+55	Mango Tango		BLU 1030	f4c123	o	
+55	Megalodon		BLU 7030	8f8f92	o	
+55	Miami		BLU 5440	04aeb2	o	
+55	Midsummer		BLU 6030	5aad25	o	
+55	Morpho		BLU 5030	377ec2	o	
+55	Noble Red		BLU 3030	811f28	o	
+55	Pebble		BLU 7005	f1efea	o	
+55	Pepperoni Hot		BLU 6150	8c852f	o	
+55	Petrol		BLU 5470	063e44	o	
+55	Polar Light		BLU 5410	aceae1	o	
+55	Pomelo		BLU 6130	c8bb59	o	
+55	Poppy		BLU 2130	f4a09d	o	
+55	Powder Blush		BLU 3210	efc9dd	o	
+55	Pure Orange		BLU 2260	e9640b	o	
+55	Purple Fantasy		BLU 3250	af3477	o	
+55	Salsa		BLU 3020	b7283d	o	
+55	Sand		BLU 8030	c6985b	o	
+55	Sardinia		BLU 5310	71d7e2	o	
+55	Shining Mint		BLU 5420	6bd6ce	o	
+55	Shock Blue		BLU 5060	074c91	o	
+55	Sky Blue		BLU 5040	008cc8	o	
+55	Slushy		BLU 2140	ee7064	o	
+55	Smaragd Green		BLU 6070	0d4a26	o	
+55	Soft Bloom		BLU 2120	f7bbb0	o	
+55	Sorbet		BLU 1005	fff3b2	o	
+55	Space Jam		BLU 5070	2d3e64	o	
+55	Sports Grey		BLU 7010	e0e2e2	o	
+55	Stuart Yellow		BLU 1020	ffe611	o	
+55	Surf		BLU 5320	00c2cc	o	
+55	Teal		BLU 5350	37626d	o	
+55	Teen Spirit		BLU 4140	7c6ead	o	
+55	Tunnel Grey		BLU 7040	68696a	o	
+55	Valerie		BLU 4250	6f3180	o	
+55	Viola		BLU 4220	ac86b7	o	
+55	White		BLU 9100	ffffff	o	
+55	White Lilac		BLU 4105	d2c1dd	o	
+55	Woodland		BLU 6060	395941	o	
+55	Yellogree		BLU 6110	cfd83e	o	
+56	Black		CH 9000	030506	o	4048500376221
+56	Blue		CH 5050	3147c8	o	4048500376153
+56	Green		CH 6050	29c425	o	4048500376177
+56	Orange		CH 2010	ff5a00	o	4048500376092
+56	Pink		CH 4050	ee28e7	o	4048500376122
+56	Red		CH 3000	e22118	o	4048500376115
+56	Turquoise		CH 6120	00a0ab	o	4048500376184
+56	Violet		CH 4150	a046e6	o	4048500376139
+56	White		CH 9100	ffffff	o	4048500376238
+56	Yellow		CH 1020	ffdf00	o	4048500376085
+57	Concrete City Hall		ECO7010			
+57	Concrete Empire		ECO7120			
+57	Concrete Pantheon		ECO7150			
+58	Begonia Pink		EC3010			
+58	Blue Denim		EC5220			
+58	Copper Brown		EC8004	8d4931	o	4048500418471
+58	Gentian Blue		EC5010			
+58	Patina Green		EC6000	3c7460	o	4048500418457
+58	Pure White		EC9010	ffffff	o	4048500418488
+58	Rich Lilac		EC4130			
+58	Squirrel Grey		EC7000	7a888e	o	4048500418464
+58	Traffic Black		EC9017	2a292a	o	4048500418495
+58	Yellow Cab		EC1220			
+59	Glitter Amethyst			5917a4	o	4048500495106
+59	Glitter Cosmos			06aedb	o	4048500495175
+59	Glitter Dusty Gold			fdd784	o	4048500495076
+59	Glitter Silver					4048500415425
+59	Glitter X-Mas Red			990d1a	o	4048500495083
+60	Copperchrome		M 2000	996633	o	
+60	Goldchrome		M 3000	af9a6a	o	
+60	Silverchrome		M 1000			
+61	Sand		CLASSIC 8300	b89247	o	4048500283765
+62	100% Cyan		2000	00aec7	o	4048500285578
+62	100% Magenta		3000	d00065	o	4048500285585
+62	100% Yellow		1000	ffee00	o	
+62	Ancient Pink		G4030	824150	o	4048500284489
+62	Anthracite		G8145	192120	o	4048500285509
+62	Aqua		G6260	0086a2	o	4048500285219
+62	Asia		G1040	e5bf00	o	4048500283949
+62	Asphalt		G7250	a09f9a	o	
+62	Aubergine		G8085	351e1f	o	4048500285448
+62	Baby Blue		G5020	6fc8e6	o	4048500284823
+62	Banana		G1030	eabf00	o	4048500283932
+62	Banana Joe		G1120	ddcf1e	o	
+62	Basalt		G7270	55524d	o	
+62	Bazooka Joe		G3010	ed8798	o	4048500284328
+62	Bermuda		G5030	00afd8	o	4048500284830
+62	Black		SHOCK 9000	0c0c0a	o	4048500285783
+62	Black Purple		G4260	321440	o	4048500284700
+62	Black Red		G3080	3e1511	o	4048500284397
+62	Blast Orange		G2030	f4a34a	o	4048500284236
+62	Blood Orange		G2095	dc0824	o	4048500284304
+62	Blue		SHOCK 5010	004d91	o	4048500285707
+62	Blue Dark		SHOCK 5020	05356c	o	4048500285714
+62	Blue Light		SHOCK 5000	7fc5d3	o	4048500285691
+62	Blue Magic		G5060	006ead	o	4048500284861
+62	Blue Note		G5085	003457	o	4048500284892
+62	Blue Velvet		G4170	2c3068	o	4048500284571
+62	Bone		G1400	f7ead9	o	4048500284137
+62	Brain		G8180	d6c4bf	o	4048500285547
+62	Brick		G3050	971c24	o	4048500284366
+62	Brimstone		G1110	f4e600	o	4048500283994
+62	Brown		SHOCK 8010	5a3121	o	4048500285769
+62	Brown Dark		SHOCK 8020	312111	o	4048500285776
+62	Brown Light		SHOCK 8000	b1592a	o	4048500285752
+62	Butta		G1100	fdf07a	o	4048500283987
+62	Buzzard		G7230	d5d3ca	o	
+62	Cacao		G8120	54311f	o	4048500285493
+62	Can2 Cool Candy		G6210	c1e2e0	o	4048500285189
+62	Cappucino		G1420	ecc6a8	o	4048500284151
+62	Capri		G2060	ee7412	o	4048500284267
+62	Cassis		G4190	10182a	o	4048500284601
+62	Ceramic		G7220	e8e4db	o	
+62	Cherry Blossom		G3150	8e135f	o	4048500284441
+62	Chestnut		CLASSIC 8320	4e1a1b	o	4048500283802
+62	Citrus		G1020	ffd900	o	4048500283925
+62	Coke		G7090	0e1514	o	4048500285332
+62	Concrete		G8150	353028	o	4048500285516
+62	Creme Orange		G2020	f9c173	o	4048500284229
+62	Crocus		G4200	cdb7d5	o	4048500284618
+62	Curry		G1050	c6a018	o	4048500283956
+62	Deep Forest		G6090	00301f	o	4048500285110
+62	Deep Purple		G4250	5c3154	o	4048500284687
+62	Deep Sea		G5160	0b353f	o	4048500285004
+62	Denim		CLASSIC 5210	99c6e3	o	4048500283659
+62	Denim Light		CLASSIC 5200	c9e1f3	o	4048500283642
+62	Denim Stonewashed		CLASSIC 5220	6598c6	o	4048500283666
+62	Dirty Apricot		G8080	d78366	o	4048500285424
+62	Dolomite		G7210	f2eee7	o	
+62	Dolphins		G6250	50adc5	o	4048500285202
+62	Duck Season		G8040	b29260	o	4048500285400
+62	Dusty Pink		G4020	99536a	o	4048500284472
+62	Easter Yellow		G1010	ffe363	o	4048500283918
+62	Elm		G8000	f7f0ce	o	4048500285349
+62	Everglade		G1080	7e6430	o	4048500283970
+62	Fern Green		G6060	006030	o	4048500285080
+62	Fjord		G5150	255162	o	4048500284991
+62	Flesh		G8190	d5bfb9	o	4048500285554
+62	Flipper		G5000	cce8f0	o	4048500284717
+62	Fresh Blue		G5010	a3d7e8	o	4048500284731
+62	Frozen Raspberry		G3110	efa9c2	o	4048500284427
+62	Frozen Strawberry		G3100	f9d2db	o	4048500284410
+62	Golden Yellow		G1240	eb8904	o	4048500284106
+62	Gonzo		G4160	39377e	o	4048500284540
+62	Gravel		G7060	626969	o	4048500285295
+62	Green		SHOCK 6010	007a37	o	4048500285738
+62	Green Apple		G6020	a3c96d	o	4048500285042
+62	Green Dark		SHOCK 6020	00612f	o	4048500285745
+62	Green Light		SHOCK 6000	7eb627	o	4048500285721
+62	Greenery		G6050	008332	o	4048500285073
+62	Hazelnut		CLASSIC 8310	80441e	o	4048500283796
+62	Himalaya		G5110	8acadc	o	4048500284960
+62	Hot Chocolate		G1450	885845	o	4048500284182
+62	Iron Curtain		G7030	acaaa3	o	4048500285271
+62	Jungle Green		G6080	003b24	o	4048500285103
+62	Kent Blood Red		SHOCK 3020	af151a	o	4048500285653
+62	Ketchup		G3040	ba1829	o	4048500284359
+62	Lakers		G4240	522158	o	4048500284670
+62	Latte		G1410	f6e2c9	o	4048500284144
+62	Lavender		G4150	55428a	o	4048500284533
+62	Lawn Green		G6040	7eb125	o	4048500285066
+62	Liberty		G6100	eef5e3	o	4048500285127
+62	Light Blue		G5040	00a1d1	o	4048500284847
+62	Light Lilac		G4110	a999c6	o	4048500284519
+62	Lilac		SHOCK 4220	312c66	o	4048500285684
+62	Lime		G6030	adc70b	o	4048500285059
+62	Linden Green		G6010	c5dda8	o	4048500285035
+62	Lip		G8170	934d54	o	4048500285523
+62	Louie Lilac		CLASSIC 4300	1e2357	o	4048500283635
+62	Lychee		G3000	f7bfc1	o	4048500284311
+62	Make-Up		G1430	daac92	o	4048500284168
+62	Malachite		G6130	65b79a	o	4048500285141
+62	Malachite Dark		G6150	3a8469	o	4048500285158
+62	Malachite Light		G6120	afd8c1	o	4048500285134
+62	Manila Dark		CLASSIC 6420	46412c	o	4048500283758
+62	Manila Green		CLASSIC 6410	838663	o	4048500283741
+62	Manila Light		CLASSIC 6400	a7a97a	o	4048500283734
+62	Marble		G7010	e1e2e2	o	4048500285257
+62	Meteorite		G7260	76726b	o	
+62	Military Green		G1180	252a22	o	4048500284052
+62	Mortadella		G4010	d1a3ad	o	4048500284465
+62	Mt. Everest		G5120	60a1b8	o	4048500284977
+62	Mt. Fuji		G5140	477283	o	4048500284984
+62	Mushroom		G1260	523b1c	o	4048500284120
+62	Mustard		G1060	a98715	o	4048500283963
+62	Nato		G1170	46432b	o	4048500284045
+62	Nautilus		G5090	0c2337	o	4048500284908
+62	Navy		G5170	062331	o	4048500285011
+62	Nougat		G8090	b77452	o	4048500285455
+62	Olive Green		CLASSIC 6340	494f1f	o	4048500283727
+62	Orange		G2070	ec6415	o	4048500284274
+62	Orange		SHOCK 2010	ea5b18	o	4048500285622
+62	Orange Brown		G8100	7d3924	o	4048500285462
+62	Orange Dark		SHOCK 2020	e6301d	o	4048500285639
+62	Orange Ice		G2010	fee9d9	o	4048500284212
+62	Orange Light		SHOCK 2000	ef7d0a	o	4048500285615
+62	Orangina		G2050	f08217	o	4048500284250
+62	Pale Pink		G4000	e1c3cc	o	4048500284458
+62	Palish Brown		G1470	6e4e34	o	4048500284199
+62	Paris		G8175	cbb5bf	o	4048500285530
+62	Pebble		G7000	f1efea	o	4048500285240
+62	Pepperoni Hot		G1140	8b812f	o	4048500284021
+62	Pepperoni Mild		G1130	bbb62f	o	4048500284014
+62	Petrol		G6280	00363f	o	4048500285233
+62	Pine		G6160	006d58	o	4048500285165
+62	Pink		SHOCK 4010	c73475	o	4048500285677
+62	Pink Light		SHOCK 4000	e888b2	o	4048500285660
+62	Pink Pink		G3130	d84389	o	4048500284434
+62	Poison		CLASSIC 6320	c8d215	o	4048500283703
+62	Poison Dark		CLASSIC 6330	adc70b	o	4048500283710
+62	Poison Light		CLASSIC 6310	e4e028	o	4048500283697
+62	Poison Pastel		CLASSIC 6300	eee436	o	4048500283680
+62	Polar Blue		G5100	d8eded	o	4048500284915
+62	Pool		G6230	93d1d9	o	4048500285196
+62	Powder Pink		G4040	792b3e	o	4048500284496
+62	Pudding		G1200	ffdd70	o	4048500284069
+62	Pure Orange		G2080	ea5818	o	4048500284281
+62	Purple Red		G3070	5b181c	o	4048500284380
+62	Raspberry		G3030	d6053e	o	4048500284342
+62	Red		SHOCK 3000	cb0d1f	o	4048500285646
+62	Red Orange		G2090	e43e1d	o	4048500284298
+62	Reed		G1150	625e25	o	4048500284038
+62	Reef		G6270	006275	o	4048500285226
+62	Roof		G7050	7c7e7c	o	4048500285288
+62	Royal Red		G3060	721e23	o	4048500284373
+62	Rusto Coat		G8110	912b2f	o	4048500285479
+62	Sahara Beige		G8020	daba7f	o	4048500285394
+62	Sahara Yellow		G8010	e5d49c	o	4048500285363
+62	Salmon		G8070	f3a68c	o	4048500285417
+62	Scampi		G2040	f29530	o	4048500284243
+62	Shrimp		CLASSIC 2120	f29c86	o	4048500283611
+62	Shrimp Dark		CLASSIC 2130	ef8464	o	4048500283628
+62	Shrimp Pastel		CLASSIC 2100	f8bdb2	o	4048500283604
+62	Signal Blue		G5075	005089	o	4048500284878
+62	Sky Blue		G5050	008cc7	o	4048500284854
+62	Smaragd Green		G6070	005129	o	4048500285097
+62	Stealth		G7070	313c3f	o	4048500285318
+62	Strawberry		G3020	e73c4e	o	4048500284335
+62	Summit		G5105	b9e0ea	o	4048500284922
+62	Sweet Dream		G4220	8e4d91	o	4048500284649
+62	Teen Spirit		G4130	7c6eac	o	4048500284526
+62	Terra		G1250	c87620	o	4048500284113
+62	Toffee		G1440	cd926e	o	4048500284175
+62	Ultramarine		G5080	003a6f	o	4048500284885
+62	Valerie		G4230	6f317f	o	4048500284656
+62	Vampirella		G3085	271619	o	4048500284403
+62	Vanilla		G1000	ffee9b	o	
+62	Venice		G6200	e5f1e6	o	4048500285172
+62	Venom		G6000	e5eece	o	4048500285028
+62	Viola		G4210	b08ebd	o	4048500284625
+62	Wall		G7020	c6c7c6	o	4048500285264
+62	Welsh		G4180	1d1938	o	4048500284595
+62	White		SHOCK 9100	ffffff	o	4048500285790
+62	White Cream		SHOCK 9110	f8f5e9	o	4048500285806
+62	White Lilac		G4100	d2c1dd	o	4048500284502
+62	White Orange		G2000	fbe9cf	o	4048500284205
+62	White Pure		SHOCK 9120	ffffff	o	4048500285820
+62	Wine Red		G8115	3e161b	o	4048500285486
+62	Yellow		SHOCK 1010	fcbc00	o	4048500285608
+62	Yellow Cab		G1220	fbb800	o	4048500284083
+62	Yellow Light		SHOCK 1000	ffde09	o	4048500285592
+62	Yellow Submarine		G1210	fecc33	o	4048500284076
+62	Yolk		G1230	f6a000	o	4048500284090
+62	Yosemite		G7240	dad7c9	o	
+63	Acid Green		F6000	4ef684	o	4048500283888
+63	Active Cyan		F6200	00fef5	o	
+63	Disco White		F9100	f7fcff	o	4048500439537
+63	Fire Red		F3000	fe0001	o	4048500283833
+63	Flame Blue		F5000	00afff	o	4048500283864
+63	Flash Yellow		F1000	f7ff73	o	
+63	Gleaming Pink		F4000	ff00ff	o	
+63	Power Orange		F2000	ff7545	o	4048500283826
+64	METALLIC 1100 Silver Matt			9b9b9b	o	
+64	METALLIC 3010 Gold Matt			806e44	o	
+65	Transparent Black		T9000	030201	o	
+65	Transparent Cherry Blossom		T3150	8c0b5e	o	
+65	Transparent Gravel		T7060	8c9393	o	
+65	Transparent Hazelnut		T8310	905c3b	o	
+65	Transparent Ketchup		T3040	b80d25	o	
+65	Transparent Olive Green		T6340	6c753f	o	
+65	Transparent Ultramarine		T5080	2569b1	o	
+65	Transparent White		T9100	e7e2e2	o	
+65	Transparent Yellow Cab		T1220	ffd571	o	
+66	Black		EG9000	000000	o	4048500415401
+66	Brown		EG8000	8b4513	o	4048500415418
+66	Grey		EG7050	5e5e5e	o	4048500415395
+66	Light Grey		EG7000			4048500415388
+67	Black		EM9000	000000	o	4048500415357
+67	Blue		EM5000	0174df	o	
+67	EMCOP Copper			b87333	o	
+67	EMGOLD Gold			b59757	o	4048500508134
+67	EMSILVER Silver			c0c0c0	o	4048500415371
+67	Grey		EM7000	808080	o	
+67	Pastel Green		EM6100			
+67	Red		EM3000	fe2e2e	o	
+67	White		EM9100			
+67	Yellow		EM1000	ffd800	o	
+68	Metallic Avocado Green		EMC6040	71a871	o	
+68	Metallic Aztec Gold		EMC1030	c39953	o	
+68	Metallic Black		EMC9000	000000	o	
+68	Metallic Caribbean		EMC6250	46aeb2	o	
+68	Metallic Champagner		EMC2010	f7e7ce	o	
+68	Metallic Copper		EMC2050	b87333	o	
+68	Metallic Gold		EMC1050			
+68	Metallic Graphit		EMC7060	a19e99	o	
+68	Metallic Ice Blue		EMC5030	d4f0ff	o	
+68	Metallic Plum		EMC4230	7a378b	o	
+68	Metallic Red		EMC3020	ff0000	o	
+68	Metallic Rosé		EMC3110	eeb4b4	o	
+68	Metallic Silver		EMC7010	d3d3d3	o	
+68	Metallic Tennessee		EMC6210	2fd1db	o	
+68	Metallic Titanium		EMC1010	b2b3b7	o	
+69	Luminescent Green		NG1000	aef6c4	o	4048500448485
+69	Luminescent Orange		NG2000	ffce5e	o	4048500448492
+70	Brown		ER8100			
+70	Orange Brown		ER8000			
+71	Black		Stencil 9000	000000	o	
+71	White		Stencil 9100	ffffff	o	
+72	ULTRA WIDE Black			000000	o	4048500346774
+72	ULTRA WIDE Blue			004c91	o	4048500383625
+72	ULTRA WIDE Halloween			e85011	o	
+72	ULTRA WIDE Kicking Yellow			ffda15	o	4048500520464
+72	ULTRA WIDE Light Blue			00a2d3	o	4048500533464
+72	ULTRA WIDE Nappies			3dc6ac	o	4048500486951
+72	ULTRA WIDE Power Green			68b028	o	4048500533457
+72	ULTRA WIDE Red			cb031c	o	4048500383632
+72	ULTRA WIDE Royal Purple			62579b	o	4048500486968
+72	ULTRA WIDE Shark			999a92	o	
+72	ULTRA WIDE Silverchrome			8d8d8d	o	4048500344459
+72	ULTRA WIDE Snow White			ffffff	o	4048500520471
+73	Acai Red					8427744411459
+73	Amazonas Green					8427744412166
+73	Angel Blue					8427744411503
+73	Anger Red					8427744411947
+73	Anthracite Grey					8427744412142
+73	April Violet					8427744156190
+73	Argo Blue					8427744411558
+73	Arlet Violet					8427744156206
+73	Babel Green					8427744411657
+73	Babylon Blue					8427744151843
+73	Balboa Grey					8427744156022
+73	Bali Green					8427744411190
+73	Barcelona Blue					8427744411220
+73	Bean Brown					8427744411107
+73	Beryl Green					8427744412432
+73	Bishop Violet					8427744151744
+73	Bitacora Red					8427744411992
+73	Black					8427744411367
+73	Blood Red					8427744411039
+73	Bone White					8427744411282
+73	Bonsai Green					8427744412449
+73	Bordeaux Red					8427744411893
+73	Boreal Pink					8427744411978
+73	Borneo Green					8427744412357
+73	Canarias Yellow					8427744411121
+73	Chernobyl Grey					8427744156077
+73	Cherokee Red					8427744411909
+73	Chewing Gum					8427744411886
+73	Chiapas Brown					8427744411091
+73	Chocolate Brown					8427744156220
+73	Clandestine Red					8427744411060
+73	Cloud Grey					8427744156039
+73	Coffee Brown					8427744411466
+73	Comarca Green					8427744412340
+73	Community Violet					8427744411251
+73	Compact Red					8427744411985
+73	Copper (Metallic)					8427744159436
+73	Cosmos Violet					8427744412111
+73	Cyan					8427744151850
+73	Dalai Orange					8427744411701
+73	Dancer Blue					8427744156138
+73	Dark Blue					8427744411800
+73	Deep Blue					8427744412241
+73	Destiny Violet					8427744411268
+73	Dharma Green					8427744412364
+73	Dingo Brown					8427744411848
+73	Disco Pink					8427744151751
+73	Dragon Green					8427744411671
+73	Ebony Brown					8427744411879
+73	Eldorado					8427744412470
+73	Electra Violet					8427744412104
+73	Electric Blue					8427744411046
+73	Emerald Green					8427744412425
+73	Era Green					8427744412326
+73	Erasmus Green					8427744411404
+73	Erika					8427744411312
+73	Eureka Blue					8427744412227
+73	Europe Blue					8427744411213
+73	Euskadi Green					8427744411411
+73	Fever Red					8427744411602
+73	Formentera Blue					8427744151683
+73	Frame Gold (Metallic)					8427744144005
+73	Freedom Blue					8427744411206
+73	Frisco Green					8427744411572
+73	Gaudi Red					8427744412012
+73	Gemini Green					8427744411183
+73	Genesis Blue					8427744151676
+73	Glory Blue					8427744412272
+73	Gondola Brown					8427744411794
+73	Guacamole Green					8427744411053
+73	Hercules Blue					8427744412296
+73	Hulk Green					8427744151782
+73	Hydra Blue					8427744412197
+73	Icarus Grey					8427744412401
+73	Iguana Green					8427744151713
+73	Inca Brown					8427744411169
+73	Infinity Green					8427744412371
+73	Interrail Brown					8427744412043
+73	Ipanema Yellow					8427744411510
+73	Jaima Brown					8427744411831
+73	Jase Blue					8427744412234
+73	Java Green					8427744412418
+73	Jaws Grey					8427744156053
+73	Joker Pink					8427744151768
+73	Koala Grey					8427744156008
+73	Kraft Brown					8427744411176
+73	Krypton Green					8427744411022
+73	Labyrinth Green					8427744412463
+73	Laos Green					8427744151805
+73	Laser Green					8427744151799
+73	Lava Orange					8427744411435
+73	Lemon Yellow					8427744411619
+73	Light Red					8427744411589
+73	Light Yellow					8427744411299
+73	London Grey					8427744411374
+73	Luminouse Green					8427744411336
+73	Madrid Red					8427744151836
+73	Magenta					8427744411015
+73	Malta White					8427744411749
+73	Mandala Violet					8427744156213
+73	Mango					8427744151829
+73	Mantra					8427744156183
+73	Marrakech					8427744411763
+73	Marron Glace					8427744411398
+73	Mars Orange					8427744411114
+73	Marsellie Blue					8427744156145
+73	Martinez Blue					8427744156114
+73	Maya Green					8427744411688
+73	Medium Yellow					8427744151874
+73	Metropolis Grey					8427744412135
+73	Mint Green					8427744151706
+73	Mission Green					8427744411664
+73	Montserrat					8427744411862
+73	Mosquito Brown					8427744412098
+73	Mustard					8427744412159
+73	Mystic Green					8427744151690
+73	Native Grey					8427744156015
+73	Navy Blue					8427744412173
+73	Neon Green					8427744411145
+73	Night Red					8427744411916
+73	Oak Brown					8427744412036
+73	Odyssey Blue					8427744412210
+73	Orange					8427744411008
+73	Orchid Pink					8427744411541
+73	Oregano Green					8427744411152
+73	Pandora Red					8427744412005
+73	Party Yellow					8427744411633
+73	Peach					8427744151867
+73	Pearl Grey					8427744411343
+73	Pegasus Blue					8427744412289
+73	Penelope Brown					8427744411824
+73	Persai Violet					8427744411473
+73	Perseus Blue					8427744411237
+73	Phoenix Orange					8427744411732
+73	Pistachio Green					8427744411626
+73	Placebo Grey					8427744155995
+73	Plancton					8427744412067
+73	Plural Orange					8427744411718
+73	Porto Blue					8427744156152
+73	Poseydon Blue					8427744412258
+73	Psycho Green					8427744151645
+73	Rain Blue					8427744412180
+73	Raval Violet					8427744151737
+73	Republic Violet					8427744156084
+73	Respect Pink					8427744412074
+73	Reverend Violet					8427744151720
+73	Rioja Red					8427744411930
+73	Rita Grey					8427744411138
+73	Rosa Stereo					8427744411077
+73	Rosario Pink					8427744151775
+73	Rosemary Blue					8427744156121
+73	Safari Brown					8427744411756
+73	Sagan Blue					8427744156107
+73	Saudade Pink					8427744411961
+73	Scarlett Brown					8427744412081
+73	Sensible Brown					8427744411817
+73	Sequoia Brown					8427744411770
+73	Shining Green					8427744412333
+73	Shiva Violet					8427744411527
+73	Siberian Grey					8427744412395
+73	Silver Jewel (Metallic)					8427744144012
+73	Single Pink					8427744411084
+73	Solar Orange					8427744411725
+73	Sonar Green					8427744151638
+73	Stardust Grey					8427744412388
+73	Stendhal Red					8427744412029
+73	Sulfur Yellow					8427744151652
+73	Sultan Violet					8427744151812
+73	Sundance					8427744411695
+73	Supernova Pink					8427744411923
+73	Tana Brown					8427744411855
+73	Tangerine					8427744411442
+73	Taurus Red					8427744411954
+73	Thai Green					8427744412456
+73	Thalassa Blue					8427744412203
+73	Tibet					8427744412487
+73	Tofu Grey					8427744155988
+73	Tokyo Pink					8427744411534
+73	Topo Brown					8427744411787
+73	Toscana Green					8427744412319
+73	Tramontana Blue					8427744151669
+73	Tuareg Blue					8427744156176
+73	Turquoise Blue					8427744411329
+73	Tutti Frutti					8427744411428
+73	Twister Blue					8427744411565
+73	Ultraviolet					8427744411480
+73	Valley Green					8427744411596
+73	Vampire Violet					8427744412128
+73	Venus Violet					8427744411497
+73	Vespa Green					8427744412302
+73	Virgin Green					8427744412265
+73	Vivid Red					8427744411305
+73	Warrior Brown					8427744412050
+73	Ween					8427744156169
+73	Whale Grey					8427744156060
+73	White					8427744411350
+73	Winter Grey					8427744156046
+73	Wolf Grey					8427744411381
+73	Woodstock Violet					8427744156091
+73	Yosemite Yellow					8427744411640
+74	Fluorescent Blue					8427744123161
+74	Fluorescent Green					8427744123185
+74	Fluorescent Orange					8427744123260
+74	Fluorescent Pink					8427744123208
+74	Fluorescent Red					8427744123222
+74	Fluorescent Violet					8427744156312
+74	Fluorescent Yellow					8427744123246
+75	Air White					8427744143855
+75	Atmosphere Blue					8427744143862
+75	Aura Violet					8427744143909
+75	Breeze Green					8427744143879
+75	Ethereal Yellow					8427744143824
+75	Haze Orange					8427744143886
+75	Judea Brown					8427744143893
+75	Shadow Black					8427744143848
+75	Shadow Grey					8427744156329
+75	Soul Red					8427744143831
+76	Copper (Metallic)					8427744140274
+76	Gold (Metallic)					8427744140267
+76	Matte Black					8427744141998
+76	Matte White					8427744142001
+76	R-7040 Pearl Grey					8427744140847
+76	RV-1013 Bone White					8427744154523
+76	RV-1017 Peach					8427744140663
+76	RV-1021 Light Yellow					8427744140670
+76	RV-1028 Medium Yellow					8427744140687
+76	RV-11 Ganges Yellow					8427744140106
+76	RV-13 Himalayan Blue					8427744158347
+76	RV-14 Planet Blue					8427744140113
+76	RV-15 Apple Green					8427744141837
+76	RV-16 Pistachio Green					8427744141691
+76	RV-18 Rust Red					8427744158224
+76	RV-20 Party Yellow					8427744140137
+76	RV-2003 Pastel Orange					8427744140694
+76	RV-2004 Orange					8427744140700
+76	RV-206 Atacama Yellow					8427744140281
+76	RV-207 Mango					8427744140298
+76	RV-208 Pumpkin					8427744140304
+76	RV-209 Calcutta Orange					8427744140311
+76	RV-21 Surgical Green					8427744140144
+76	RV-210 Prometheus Orange					8427744140328
+76	RV-211 Love Pink					8427744140335
+76	RV-212 Akari Red					8427744140342
+76	RV-213 Merlot Red					8427744140359
+76	RV-214 Violet					8427744140366
+76	RV-215 Prophet Violet					8427744140373
+76	RV-216 Anonymous Violet					8427744140380
+76	RV-217 Avatar Blue					8427744140397
+76	RV-218 Neptune Blue					8427744140403
+76	RV-219 Paris Green					8427744140410
+76	RV-220 UFO Green					8427744140427
+76	RV-221 Persephone Green					8427744140434
+76	RV-222 Beach Yellow					8427744140441
+76	RV-224 Witch Violet					8427744140465
+76	RV-225 Geisha Violet					8427744140472
+76	RV-226 Tube Violet					8427744140489
+76	RV-227 Waimea Blue					8427744140496
+76	RV-228 Zeppelin Blue					8427744140502
+76	RV-229 Andromeda Blue					8427744140519
+76	RV-230 Leviathan Blue					8427744140526
+76	RV-231 Cousteau Blue					8427744140533
+76	RV-232 Glacier Blue					8427744140540
+76	RV-233 Christiania Blue					8427744140557
+76	RV-234 Indigo Blue					8427744140564
+76	RV-235 Poison Green					8427744140571
+76	RV-236 Mojito Green					8427744140588
+76	RV-237 Cologno Green					8427744140595
+76	RV-239 Luxor Yellow					8427744140618
+76	RV-24 Golden Green					8427744158446
+76	RV-241 Madrid Red					8427744140632
+76	RV-242 Soviet Red					8427744140649
+76	RV-243 Babylon Blue					8427744140656
+76	RV-246 Druid Brown					8427744141776
+76	RV-247 Tepuy Brown					8427744141783
+76	RV-248 Baobab Brown					8427744141790
+76	RV-249 Greyhound Brown					8427744141806
+76	RV-250 Rambo Green					8427744141813
+76	RV-251 Forest Green					8427744141820
+76	RV-252 Unicorn Yellow					8427744144388
+76	RV-253 Element Green					8427744144395
+76	RV-254 Max Green					8427744144401
+76	RV-255 Patagonia Blue					8427744144418
+76	RV-256 Malva					8427744144425
+76	RV-257 Princess Violet					8427744144432
+76	RV-258 Manga Pink					8427744144449
+76	RV-259 Flamingo					8427744144456
+76	RV-260 Iroko Red					8427744144463
+76	RV-261 Pangea Brown					8427744144470
+76	RV-262 Matter Grey					8427744144487
+76	RV-263 Sputnik Grey					8427744144494
+76	RV-264 Galaxy Violet					8427744145583
+76	RV-27 Vampire Violet					8427744140151
+76	RV-272 Mint Green					8427744158477
+76	RV-29 Arctic Blue					8427744144524
+76	RV-3 Blue Violet					8427744140076
+76	RV-30 Electric Blue					8427744140175
+76	RV-3001 Vivid Red					8427744140717
+76	RV-3004 Bordeaux Red					8427744140724
+76	RV-3020 Light Red					8427744140731
+76	RV-32 Lewis Blue					8427744158316
+76	RV-33 Colorado Red					8427744140182
+76	RV-34 Guacamole Green					8427744140199
+76	RV-348 Alice Pink					8427744158248
+76	RV-349 Treze Violet					8427744158255
+76	RV-35 Chocolate Brown					8427744144500
+76	RV-350 Pure Purple					8427744158262
+76	RV-351 Hortensia Blue					8427744158286
+76	RV-352 Gala Blue					8427744158293
+76	RV-353 Julione Blue					8427744158309
+76	RV-354 Universe Blue					8427744158323
+76	RV-355 Fukushima Blue					8427744158354
+76	RV-356 Vintage Blue					8427744158361
+76	RV-357 Iceberg Blue					8427744158378
+76	RV-358 Water Lily Blue					8427744158385
+76	RV-359 Mururoa Blue					8427744158392
+76	RV-360 Major Blue					8427744158415
+76	RV-361 Potosi Green					8427744158439
+76	RV-362 Mantis Green					8427744158460
+76	RV-363 Natura Green					8427744158484
+76	RV-364 Reggae Green					8427744158491
+76	RV-365 Puchineli White					8427744158514
+76	RV-366 Squatter Grey					8427744158576
+76	RV-39 Ripley Grey					8427744158569
+76	RV-4 Light Green					8427744158453
+76	RV-40 Nazgul Grey					8427744158552
+76	RV-4003 Erika					8427744140748
+76	RV-4007 Cherry					8427744140762
+76	RV-4010 Magenta					8427744140779
+76	RV-42 Regina Grey					8427744158545
+76	RV-5 Lutecia Green					8427744144517
+76	RV-5002 Ultramarine Blue					8427744140786
+76	RV-5005 Dark Blue					8427744140793
+76	RV-5020 Ocean Blue					8427744158422
+76	RV-5021 Caribbean Blue					8427744158408
+76	RV-55 Arkalis Grey					8427744158521
+76	RV-57 City Grey					8427744158538
+76	RV-6 Light Grey					8427744140083
+76	RV-6003 Olive Green					8427744141844
+76	RV-6009 Amazonas Green					8427744154530
+76	RV-6013 Khaki Green					8427744141851
+76	RV-6016 Dark Green					8427744140809
+76	RV-6018 Valley Green					8427744140816
+76	RV-6019 Pale Green					8427744158507
+76	RV-7 Cream					8427744158217
+76	RV-7016 Anthracite Grey					8427744140823
+76	RV-7031 Dark Grey					8427744140830
+76	RV-73 Aurora Blue					8427744158279
+76	RV-74 Costa Brava Blue					8427744158330
+76	RV-75 Nostromo Blue					8427744140205
+76	RV-8 Carlota Light Blue					8427744140090
+76	RV-8002 Toasted Brown					8427744141868
+76	RV-8017 Tobacco Brown					8427744154653
+76	RV-8023 Mustard					8427744140854
+76	RV-9 Apricot					8427744158231
+76	RV-9010 Divinity White (Gloss)					8427744140861
+76	RV-9011 Gloss Black					8427744140878
+76	Satin Black					8427744142018
+76	Satin White					8427744142025
+76	Silver Chrome (Metallic)					8427744140250
+77	Anonymous Violet					8427744158033
+77	Black					8427744154868
+77	Carlota Light Blue					8427744165345
+77	Electric Blue					8427744157814
+77	Guacamole Green					8427744165314
+77	Love Pink					
+77	Matte White					8427744158026
+77	Paris Green					8427744158040
+77	Pastel Orange					8427744165338
+77	Silver (Metallic)					8427744154875
+77	Vivid Red					8427744158019
+78	Black					8427744690113
+78	White					8427744690106
+79	Black					8437744390111
+79	Electric Blue					8427744300302
+79	Light Red					8427744330200
+79	Light Yellow					8427744310219
+79	Silver					8427744301019
+79	White					8427744390105
+80	Alive Orange					8427744197520
+80	Atmos Violet					8427744197711
+80	Bhutan Orange					8427744197551
+80	Bougainville Pink					8427744197629
+80	Bunker Grey					8427744197957
+80	Butterfly Grey					8427744197940
+80	Costla Green					8427744197858
+80	Delivery Yellow					8427744197506
+80	Drank Purple					8427744197667
+80	Durango Blue					8427744197735
+80	Electric Blue					8427744197742
+80	Elephant Pink					8427744197605
+80	Exit Green					8427744197780
+80	Fox Red					8427744197599
+80	Freight Brown					8427744197919
+80	Frog Green					8427744197827
+80	Haze Purple					8427744197674
+80	Kink Purple					8427744197643
+80	Lis Violet					8427744197681
+80	Lizard Green					8427744197865
+80	Loyalty Violet					8427744197698
+80	Madrid Red					8427744197582
+80	Palanca Red					8427744197575
+80	Paradise Pink					8427744197636
+80	Piggy Brown					8427744197889
+80	Saint-Denis Green					8427744197773
+80	Sashimi					8427744197568
+80	Schredder Grey					8427744197926
+80	Skinny Yellow					8427744197483
+80	Sleepless Violet					8427744197650
+80	Smurf Blue					8427744197728
+80	Sniper Green					8427744197810
+80	Snoop Blue					8427744197759
+80	Snotty Green					8427744197797
+80	Squirtle Green					8427744197766
+80	Submarine Yellow					8427744197513
+80	Tasmania Green					8427744197834
+80	Teddy Brown					8427744197896
+80	Thumb Green					8427744197872
+80	Tony Orange					8427744197544
+80	Toxic Green					8427744197841
+80	Travis Yellow					8427744197490
+80	Trinidad Green					8427744197803
+80	Tusi Pink					8427744197612
+80	Ursula Violet					8427744197704
+80	Vanta Black					8427744197964
+80	Vest Orange					8427744197537
+80	Wallaby Brown					8427744197902
+80	White Lines					8427744197971
+80	Wire Grey					8427744197933
+81	Abyss Blue					8427744194574
+81	Air White (Transparent)					8427744192389
+81	Anthracite Grey					8427744194819
+81	Anubis Brown					8427744194758
+81	April Violet					8427744164652
+81	Arctic Blue					8427744192112
+81	Avatar Blue					8427744192129
+81	Beach Yellow					8427744191917
+81	Black					8427744192402
+81	Bone White					8427744192235
+81	Bonsai Green					8427744194727
+81	Bordeaux Red					8427744192013
+81	Buddha Red					8427744191993
+81	Calcutta Orange					8427744191986
+81	Comarca Green					8427744194734
+81	Cosmos Violet					8427744194550
+81	Dalai Orange					8427744164621
+81	Dream Blue					8427744192143
+81	East Orange					8427744194475
+81	Eldorado Yellow					8427744191931
+81	Electric Blue					8427744192136
+81	Elephant Grey					8427744194765
+81	Era Green					8427744164690
+81	Eva Green					8427744194659
+81	Fiji Blue					8427744194598
+81	Fluorescent Blue					8427744192341
+81	Fluorescent Fuchsia					8427744192327
+81	Fluorescent Green					8427744192334
+81	Fluorescent Red					8427744192310
+81	Fluorescent Yellow					8427744192303
+81	Frame Gold (Metallic)					8427744192365
+81	Geisha Violet					8427744194529
+81	Guacamole Green					8427744192211
+81	Guernica Green					8427744194666
+81	Gumball Blue					8427744164669
+81	Hawaii Blue					8427744194581
+81	Hope Blue					8427744192150
+81	Indigo Blue					8427744194628
+81	Jericho Yellow					8427744191955
+81	Jewel Silver (Metallic)					8427744192358
+81	Kathmandu Blue					8427744164676
+81	Klan Blue					8427744194857
+81	Koala Grey					8427744194772
+81	Kraft Brown					8427744192259
+81	Kruger Brown					8427744191948
+81	Lesbos Blue					8427744194864
+81	Light Grey					8427744164713
+81	Light Red					8427744192006
+81	Light Yellow					8427744191924
+81	Love Pink					8427744192020
+81	Madrid Red					8427744164638
+81	Magenta					8427744192037
+81	Max Green					8427744192174
+81	Medusa Red					8427744194482
+81	Merlot Red					8427744192044
+81	Mojito Green					8427744192204
+81	Mykonos Blue					8427744194833
+81	Nebraska Green					8427744194741
+81	Ona Blue					8427744194840
+81	Orange					8427744191979
+81	Paris Green					8427744192181
+81	Pearl Grey					8427744192280
+81	Persephone Green					8427744164683
+81	Peyote Green					8427744194710
+81	Pinocchio Grey					8427744194796
+81	Planet Blue					8427744194611
+81	Poison Green					8427744194642
+81	Reef Blue					8427744194604
+81	Rioja Red					8427744194536
+81	Safari Brown					8427744192242
+81	Sequoia Brown					8427744164706
+81	Serengeti Green					8427744194673
+81	Shadow Black (Transparent)					8427744192372
+81	Siberian Grey					8427744192273
+81	Sputnik Grey					8427744192297
+81	Surgical Green					8427744192198
+81	Tangerine					8427744191962
+81	Taurus Red					8427744194543
+81	Twister Blue					8427744194567
+81	UFO Green					8427744194635
+81	Ultramarine Blue					8427744192167
+81	Ultraviolet					8427744192099
+81	Valley Green					8427744192228
+81	Venus Violet					8427744192105
+81	Vera Green					8427744194697
+81	Vice Pink					8427744164645
+81	Violet					8427744192082
+81	Volcano Brown					8427744192266
+81	White					8427744192396
+81	Wine Red					8427744194499
+81	Witch Violet					8427744192051
+82	Copper					8427744157616
+82	Gold					8427744157609
+82	Silver					8427744157593
+83	Black					8427744156404
+83	Blue					8427744156336
+83	Gold (Metallic)					8427744156428
+83	Green					8427744156381
+83	Magenta					8427744156374
+83	Orange					8427744156350
+83	Red					8427744156367
+83	Silver (Metallic)					8427744156411
+83	White					8427744156398
+83	Yellow					8427744156343
+84	Aluminium					8427744155087
+84	Black					8427744155070
+84	Blue					8427744155025
+84	Champagne					8427744164768
+84	Dark Blue					8427744155063
+84	Gold					8427744155056
+84	Gold Pink					8427744155001
+84	Green					8427744155032
+84	Pearl White					8427744164775
+84	Red					8427744155049
+84	Violet					8427744155018
+85	Flat Black	Matte	327866	000000	o	
+85	Flat White	Matte	327868	ffffff	o	
+86	Gloss Almond	Gloss	327891	e8e5c4	o	
+86	Gloss Apple Red	Gloss	327875	e80000	o	
+86	Gloss Berry Pink	Gloss	327876	d53b77	o	
+86	Gloss Black	Gloss	327870	000000	o	
+86	Gloss Brilliant Blue	Gloss	327892	0075c1	o	
+86	Gloss Candy Pink	Gloss	327885	f5b9d2	o	
+86	Gloss Citrus Green	Gloss	327887	b4be5a	o	
+86	Gloss Colonial Red	Gloss	327877	880019	o	
+86	Gloss Coral	Gloss	327903	ff756f	o	
+86	Gloss Cottage White	Gloss	327882	fef9e5	o	
+86	Gloss Cranberry	Gloss	327893	910122	o	
+86	Gloss Dark Gray	Gloss	327886	646368	o	
+86	Gloss Deep Blue	Gloss	327878	013589	o	
+86	Gloss Deep Turquoise	Gloss	327902	014e58	o	
+86	Gloss Dreamy Lavender		365056	9986a1	o	
+86	Gloss Golden Sunset	Gloss	327884	ffc21f	o	
+86	Gloss Grape	Gloss	327894	5d3a8b	o	
+86	Gloss Hunter Green	Gloss	327879	004a25	o	
+86	Gloss Ivory	Gloss	327895	efe7de	o	
+86	Gloss Key Lime	Gloss	327871	b4cc3a	o	
+86	Gloss Khaki		355032	cb9c64	o	
+86	Gloss Kona Brown	Gloss	327872	1e0405	o	
+86	Gloss Marigold	Gloss	327896	f2ae19	o	
+86	Gloss Meadow Green	Gloss	327897	035d3a	o	
+86	Gloss Modern Mint		329203	cbe0d1	o	020066378462
+86	Gloss Navy Blue	Gloss	327898	061b3a	o	
+86	Gloss Ocean Mist	Gloss	327905	cfe3e2	o	
+86	Gloss Pink Peony		329202	e6d8d5	o	020066378455
+86	Gloss Purple	Gloss	327899	250548	o	
+86	Gloss Real Orange	Gloss	327873	e56117	o	
+86	Gloss Seaside	Gloss	327883	71c7d9	o	
+86	Gloss Solstice Blue		342063	89a3b4	o	020066432553
+86	Gloss Spa Blue	Gloss	327890	81b4e3	o	
+86	Gloss Spring Green	Gloss	327888	00c76d	o	
+86	Gloss Sun Yellow	Gloss	327880	fae937	o	
+86	Gloss White	Gloss	327874	ffffff	o	
+86	Gloss Winter Gray	Gloss	327900	9aa4ad	o	
+86	Phantom Gray		371768	797874	o	020066495206
+87	High Gloss Black	Gloss	328374	000000	o	
+87	High Gloss Desert Rose	Gloss	328378	9f1e38	o	
+87	High Gloss Emerald Isle		365055	416353	o	
+87	High Gloss Macaw Blue		344689			
+87	High Gloss Majestic Red		371767	8a272a	o	020066495190
+87	High Gloss Morning Waterfall	Gloss	328379	00a0ca	o	
+87	High Gloss Prickly Pear		328376	d23163	o	
+87	High Gloss St Tropez	Gloss	328377	00c5ce	o	
+87	High Gloss Strawberry Fields	Gloss	328395	ed001d	o	
+87	High Gloss Thunder Cloud		344687			
+87	High Gloss Tropical Leaf		328394	99b53e	o	
+87	High Gloss Turquoise Sky	Gloss	328380	89cec6	o	
+87	High Gloss White	Gloss	328373	ffffff	o	
+87	High Gloss White Sand		344688	d8d8d0	o	020066437336
+87	High Gloss Yellow Ginger		344692	e4a90f	o	020066437091
+88	Metallic Aluminum	Gloss	327907			
+88	Metallic Gold	Gloss	327909			
+88	Metallic Oil Rubbed Bronze	Gloss	327906			
+88	Metallic Silver	Gloss	327910			
+89	Flat Red	Flat	327913	79433e	o	
+90	Satin Apple Red	Satin	327938	e80000	o	
+90	Satin Aqua	Satin	327915	60cee5	o	
+90	Satin Aubergine		376184	6f3465	o	
+90	Satin Blossom White	Satin	327918	ffffff	o	
+90	Satin Canyon Black	Satin	327916	000000	o	
+90	Satin Charcoal Gray		342064	3e4548	o	
+90	Satin Cinnamon	Satin	327932	b06041	o	
+90	Satin Claret Wine	Satin	327940	601925	o	
+90	Satin Cloud Blue		398627	b6c6c6	o	
+90	Satin Colonial Red	Satin	327943	b32f45	o	
+90	Satin Dark Walnut	Satin	327941	212121	o	
+90	Satin Deep Forest		342065	48615e	o	020066432577
+90	Satin Deep Purple	Satin	393535	453d55	o	020066037666
+90	Satin Deep Timber	Satin	393537	223a3a	o	020066037727
+90	Satin Eden	Satin	327933	6a812f	o	
+90	Satin Espresso	Satin	327919	493336	o	
+90	Satin Fire Orange	Satin	327930	bf2d19	o	
+90	Satin Fossil		355298	c2baa5	o	
+90	Satin French Blue	Satin	327925	b0c3d2	o	
+90	Satin French Lilac	Satin	327926	9e9be0	o	
+90	Satin French Truffle	Satin	393568	563433	o	020066037734
+90	Satin Granite	Satin	327931	666d70	o	
+90	Satin Green Apple	Satin	327946	cfe1a9	o	
+90	Satin Harvest peach		365057	fab323	o	
+90	Satin Hunt Club Green		354706	3f504a	o	
+90	Satin Ink Blue	Satin	327937	000d98	o	
+90	Satin Ivory Silk		327944	edddcd	o	
+90	Satin Lagoon	Satin	327921	187db1	o	
+90	Satin London Gray		354728	736864	o	
+90	Satin Magenta	Satin	327949	e11281	o	
+90	Satin Marsh Green		398626	b0ab97	o	
+90	Satin Midnight Blue		355087	2f3c69	o	
+90	Satin Moss Green		354729	709278	o	
+90	Satin Nutmeg	Satin	327917	8d6b3e	o	
+90	Satin Oasis Blue	Satin	327942	009ddc	o	
+90	Satin Oregano	Satin	327945	787444	o	
+90	Satin Paprika		366083 - Satin Paprika	b4342b	o	
+90	Satin Petal Pink		398625	d5c2c4	o	
+90	Satin Poppy Red	Satin	327928	ff033c	o	
+90	Satin Renew	Satin	393536	d7ebe2	o	020066037673
+90	Satin Rustic Orange	Satin	327927	df5900	o	
+90	Satin Seaside	Satin	327939	00c2d9	o	
+90	Satin Silver Lilac		329205	9f8fa9	o	020066436704
+90	Satin Slate Blue		354731	90a1b2	o	
+90	Satin Smokey Beige	Satin	327934	c8b3a2	o	
+90	Satin Stone Gray		355085	c2c1bd	o	
+90	Satin Summer Squash	Satin	327947	fadb80	o	
+90	Satin Sweet Pea		354730	d9b0be	o	
+90	Satin Vintage Blush	Satin	327935	caa3a8	o	
+90	Satin Vintage Teal		354707	01a4ab	o	
+90	Satin Warm Caramel	Satin	327924	ba724a	o	
+90	Satin Wildflower Blue	Satin	327936	4c6faf	o	
+91	Semi-Gloss Black	Semi-Gloss	327950	000000	o	
+91	Semi-Gloss Hunter Green	Semi-Gloss	327952	004a25	o	
+91	Semi-Gloss Ivory Bisque		355086	e3ded8	o	
+91	Semi-Gloss White	Semi-Gloss	327951	ffffff	o	
+92	Down to Earth		371770	846a59	o	020066495428
+92	Matte Black	Matte	328392	000000	o	020066377502
+92	Matte Coastal Sage		344684	8da8a3	o	020066437077
+92	Matte Deep Teal	Matte	328397	084d54	o	020066377458
+92	Matte Evening Navy	Matte	328393	162e46	o	020066377496
+92	Matte Golden Leaf	Matte	328398	d1b02d	o	020066377441
+92	Matte Harvest Grape		328401	732443	o	020066376314
+92	Matte Joshua Tree		352595			
+92	Matte Nantucket Blue	Matte	328400	0078bf	o	020066377427
+92	Matte Perfect Gray	Matte	328396	a39f9c	o	020066377465
+92	Matte Red Currant		331058	b1262d	o	020066381530
+92	Matte Rustic Pink		352597			
+92	Matte Slate	Matte	328399	21262a	o	020066377434
+92	Matte True Navy		344686	1b283b	o	020066437084
+92	Matte White	Matte	328391	e4e4e4	o	020066377519
+92	Sand Dollar		371769	c4c0b7	o	020066495213
+92	Ultra Matte Burnt Sienna		365119	9a3e1d	o	
+92	Ultra Matte White		368921			
+93	Flat Black		398802	000000	o	
+93	Flat White		368928	ffffff	o	
+93	Gloss Black		398801	000000	o	
+93	Gloss White		398806	ffffff	o	
+93	Ultra Matte Black		398803	000000	o	
+93	Ultra Matte White		368921	ffffff	o	
+94	Bright White	Gloss	292325	ffffff	o	
+94	Gloss Black	Gloss	292320	000000	o	
+94	Gloss Blue		362919	121748	o	
+94	Matte Black		363390	000000	o	
+94	Universal Silver	Gloss	292326	969aa2	o	
+95	Flat Black	Flat	248647	000000	o	020066185893
+95	Gloss Black	Gloss	248643	000000	o	020066185855
+96	Aluminum		314030	999ba1	o	
+96	Flat Black	Flat	271918	000000	o	020066231057
+96	Gloss Black	Gloss	271903	000000	o	020066231026
+96	Gloss Blue	Gloss	271942	254d8a	o	
+96	Gloss Orange	Gloss	271921	e56117	o	
+96	Gloss Red	Gloss	271920	c40926	o	020066231071
+96	Gloss White	Gloss	271919	ffffff	o	020066231064
+96	Gloss Yellow	Gloss	316890	fae937	o	
+96	Semi-Gloss Black	Semi-Gloss	271915	000000	o	020066231040
+96	Ultra Matte Black	Matte	372699	000000	o	
+96	Ultra Matte Charcoal	Matte	382599	000000	o	
+96	Ultra Matte Red	Matte	382598	a32229	o	
+96	Ultra Matte White	Matte	372700	ffffff	o	
+97	Gloss Black	Gloss	253365	000000	o	020066195069
+97	Gloss White	Gloss	253364	ffffff	o	020066195052
+98	Gloss Black	Gloss	252462			020066194031
+98	Gloss White	Gloss	252468	ffffff	o	020066194079
+99	Chrome Black		343346	000000	o	020066434762
+99	Chrome Blue		340457			
+99	Chrome Bronze		363516	9e7656	o	
+99	Chrome Red		340561	bc1f18	o	020066430269
+99	Chrome Silver		340558	a8a9a9	o	020066429980
+99	Gold Chrome		363517	d1c8b3	o	
+100	Gloss Black	Gloss	382887	000000	o	
+100	Gloss Camo Green	Gloss	382596	152717	o	
+100	Gloss Desert Sand	Gloss	382597	9e8661	o	
+100	Gloss Nardo Gray	Gloss	363515	42484b	o	020066482305
+100	Gloss Navy	Gloss	363513	141f38	o	020066482282
+100	Gloss Neon Green	Gloss	323349	60bb46	o	
+100	Gloss Red	Gloss	363514	be0002	o	
+100	Gloss White	Gloss	352722	ffffff	o	020066453923
+100	Matte Black	Matte	332289	000000	o	
+100	Matte Blue	Matte	311485	0063a7	o	
+100	Matte Emerald Green	Matte	340562	008b53	o	020066430016
+100	Matte Racing Orange	Matte	340564	ff5a00	o	020066430337
+100	Matte Red	Matte	311484	a20b32	o	
+100	Matte Silver Gray	Matte	340569	a8b2b7	o	020066430382
+100	Metallic Black Stainless Steel	Metallic	323354			
+100	Metallic Gold	Metallic	323352			
+100	Metallic Silver	Metallic	323351			
+100	Rugged Black	Textured	323350			
+101	Aluminum		248949	827d79	o	020066186630
+101	Black Gloss		248932	000000	o	020066186548
+101	Cast Coat Aluminum		248953	b0b1ac	o	020066186661
+101	Cast Coat Iron		248955	504b48	o	
+101	Chevy Orange		248941	e1321d	o	020066186579
+101	Ford Blue		248945	016bb5	o	020066186593
+101	Ford Red		248948	c50922	o	020066186623
+101	Grabber Green		248951	5df25a	o	020066186647
+101	Low Gloss Black		248938	000000	o	020066186562
+101	Semi-Gloss Black		248936	000000	o	020066186555
+102	Cast Coat Aluminum		366429	b0b1ac	o	
+102	Cast Coat Iron		366437	504b48	o	
+102	Engine Aluminum		366428	827d79	o	
+102	Flat Black		363571	000000	o	
+102	Flat Gray Primer		363573	504b48	o	
+102	Gloss Black		363567	000000	o	
+102	Gloss Blue		363574	003183	o	
+102	Gloss Chevy Orange		363570	e1321d	o	
+102	Gloss Chevy Orange-Red		366433	f56200	o	
+102	Gloss Daytona Yellow		366434	f2dc1c	o	
+102	Gloss Grabber Green		366436	5df25a	o	
+102	Gloss Gray		366435	4b5457	o	
+102	Gloss Industrial Red		366432	bb0002	o	
+102	Gloss Light Blue		366431	355b9d	o	
+102	Gloss Red		363569	c50922	o	
+102	Gloss Universal White		366430	ffffff	o	
+102	Satin Black		363568	000000	o	
+103	BBQ Black		249310	202020	o	020066188610
+104	Black		251592	000000	o	020066191757
+104	Red	Gloss	251591	901319	o	020066191740
+105	Metallic Copper	Metallic	257388	a55e2c	o	
+105	Metallic Gold	Metallic	257384	b5a26a	o	
+106	Flat Black	Semi-Gloss	248919	000000	o	020066186425
+106	Gloss Black	Gloss	248918			020066186418
+106	Gloss White	Semi-Gloss	248922	ffffff	o	020066186456
+107	Flat Aluminum		248904	d6d6d6	o	020066186302
+107	Flat Black		248903	000000	o	020066186296
+107	White		254858	ffffff	o	020066198954
+108	Flat Aluminum	Flat	400091	929ca5	o	
+108	Flat Black	Flat	400090	000000	o	
+108	Flat White	Flat	400093	ffffff	o	
+109	Graphite		248930	413c39	o	020066186531
+109	Matte Black		248928	000000	o	020066186517
+109	Steel		248927	827d79	o	020066186500
+110	Gloss Black		368076	000000	o	
+110	Graphite		366441	413c39	o	
+110	Matte Black		366438	000000	o	
+110	Metallic Gold		368077	97633c	o	
+110	Steel		366440	827d79	o	
+111	Translucent Black	Semi-Transparent	253256	202020	o	020066194864
+112	Fluorescent Orange	Flat	249274	e7521a	o	020066188290
+113	Matte Black	Matte	263422	000000	o	020066214081
+114	Metallic Chrome	Semi-Gloss	248652			020066185947
+114	Metallic Gold	Semi-Gloss	248653			020066185954
+115	Black		248649	000000	o	020066185916
+115	Plastic Aluminum		257389	858a94	o	
+115	Plastic Red		248651	811214	o	020066202200
+116	Gloss Black		263377	000000	o	020066213862
+116	Satin Black		275231	000000	o	020066236342
+117	Black	Matte	251574	000000	o	020066191474
+118	Aged Gray	Matte	302592	b6b9be	o	
+118	Black Abyss	Matte	392046	000000	o	
+118	Blue Harbor	Matte	374164	8ca8a9	o	
+118	Blush Pink	Matte	302594	e2cdcc	o	
+118	Charcoal	Matte	302590	363b3e	o	
+118	Chiffon Cream	Matte	302596	fbf6e0	o	
+118	Coastal Blue	Matte	302598	486682	o	
+118	Cocoa Bean	Matte	329194	5e4741	o	
+118	Country Gray	Matte	302593	8e948a	o	
+118	Farmhouse Red	Matte	329193	c0292b	o	
+118	Linen White	Matte	302591	f6f7f9	o	
+118	Oat Latte	Matte	392047	958e86	o	
+118	Rainforest Green	Matte	392078	41594c	o	
+118	Sandstone	Matte	398639	e2d7b0	o	
+118	Serenity Blue	Matte	302595	accecd	o	
+118	Tate Green	Matte	374163	a5a78f	o	
+118	Terracotta	Matte	398638	ce834c	o	
+118	Tidal Pond	Matte	302597	357a7f	o	
+119	Aluminum	Satin	334058	acadb0	o	
+119	Black	High Gloss	331172	000000	o	020066381295
+119	Charcoal Gray	Satin	350373	4b5255	o	020066432539
+119	Citrus Fields	High Gloss	331173	e9df3e	o	020066381301
+119	Deep Forest	Satin	350372	41524c	o	020066432546
+119	Desert Rose	High Gloss	331176	c70041	o	020066381639
+119	Emerald Isle	High Gloss	366989	234b31	o	
+119	Flat Black	Flat	334020	000000	o	020066187811
+119	Flat Black Primer	Flat	249846	000000	o	020066189242
+119	Flat White	Flat	334021	ffffff	o	020066187804
+119	Gloss Almond	Gloss	334023	e8e5c4	o	020066187798
+119	Gloss Apple Red	Gloss	334024	c40926	o	020066187781
+119	Gloss Berry Pink	Gloss	334025	d53b77	o	020066187774
+119	Gloss Black	Gloss	334026	000000	o	020066187767
+119	Gloss Brilliant Blue	Gloss	334027	0075c1	o	020066187743
+119	Gloss Candy Pink	Gloss	334028	f5b9d2	o	020066187736
+119	Gloss Chestnut	Gloss	249847	724f33	o	020066189266
+119	Gloss Colonial Red	Gloss	334030	920122	o	020066187705
+119	Gloss Coral	Gloss	334052	dd7167	o	
+119	Gloss Cottage White	Gloss	334040	fef9e5	o	020066187552
+119	Gloss Cranberry	Gloss	334051	910122	o	020066189365
+119	Gloss Dark Gray	Gloss	334031	646368	o	020066187699
+119	Gloss Deep Blue	Gloss	334032	254d8a	o	020066187682
+119	Gloss Dreamy Lavender	Gloss	366991	b68ca2	o	
+119	Gloss Golden Sunset	Gloss	334054	ffc21f	o	
+119	Gloss Grape	Gloss	334033	5d3a8b	o	020066187675
+119	Gloss Hunter Green	Gloss	334034	004a25	o	020066187651
+119	Gloss Ivory	Gloss	334035	fff0db	o	020066187644
+119	Gloss Key Lime	Gloss	334036	b4cc3a	o	020066187613
+119	Gloss Khaki	Gloss	334037	cb9c64	o	020066187606
+119	Gloss Kona Brown	Gloss	334038	1e0405	o	020066187590
+119	Gloss Latte	Gloss	383203	83654d	o	
+119	Gloss Marigold	Gloss	346955	f2ae19	o	020066189358
+119	Gloss Meadow Green	Gloss	334039	035d3a	o	020066187569
+119	Gloss Modern Mint	Gloss	329200	dce9d7	o	
+119	Gloss Navy Blue	Gloss	334041	061b3a	o	020066187545
+119	Gloss Ocean Mist	Gloss	334053	cfe3e2	o	
+119	Gloss Phantom Gray	Gloss	372273	7a7974	o	
+119	Gloss Pink Peony	Gloss	329198	e8dad1	o	
+119	Gloss Purple	Gloss	334042	250548	o	020066187538
+119	Gloss Real Orange	Gloss	334043	e56117	o	020066187521
+119	Gloss Sage Green	Gloss	249094	4e745b	o	020066187514
+119	Gloss Seaside	Gloss	334050	71c7d9	o	020066222291
+119	Gloss Spa Blue	Gloss	334045	74a8da	o	020066187507
+119	Gloss Spring Green	Gloss	334055	00c76d	o	020066345822
+119	Gloss Sun Yellow	Gloss	334046	fae937	o	020066187491
+119	Gloss Warm Yellow	Gloss	249091	fadf6c	o	020066187484
+119	Gloss White	Gloss	334048	ffffff	o	020066187477
+119	Gloss Winter Gray	Gloss	334049	9aa4ad	o	020066187460
+119	Gray Primer	Flat	334017	ececec	o	020066187453
+119	Macaw Blue	High Gloss	355057			
+119	Majestic Red	High Gloss	372272	923234	o	
+119	Matte Black	Matte	331182	000000	o	020066381677
+119	Matte Burnt Sienna	Matte	366987	b24a23	o	
+119	Matte Deep Teal	Matte	331185	0e4f5b	o	020066381707
+119	Matte Down to Earth	Matte	372275	897260	o	
+119	Matte Evening Navy	Matte	331183	1a3957	o	020066381684
+119	Matte Golden Leaf	Matte	331186	f7c655	o	020066381714
+119	Matte Harvest Grape	Matte	331189	631b37	o	020066381745
+119	Matte Nantucket Blue	Matte	331188	1f6481	o	020066381738
+119	Matte Perfect Gray	Matte	331184	d2d2ce	o	020066381691
+119	Matte Red Currant	Matte	331190	ac2542	o	020066381752
+119	Matte Rustic Pink	Matte	355035	e0afa0	o	
+119	Matte Sand Dollar	Matte	372274	c2bdb7	o	
+119	Matte Slate	Matte	331187	423f47	o	020066381721
+119	Matte White	Matte	331181	ffffff	o	020066381660
+119	Morning Waterfall	High Gloss	331177	00a2cf	o	020066385576
+119	Prickly Pear	High Gloss	331174	d12f60	o	020066381318
+119	Red Primer	Flat	334018	79301f	o	020066187439
+119	Satin Apple Red	Satin	334094	e80000	o	020066346911
+119	Satin Aqua	Satin	334059	60cee5	o	020066187422
+119	Satin Aubergine	Satin	257419	6f3465	o	020066202446
+119	Satin Blossom White	Satin	346950	ffffff	o	020066189013
+119	Satin Canyon Black	Satin	346951	000000	o	020066189228
+119	Satin Cinnamon	Satin	334061	b06041	o	020066187415
+119	Satin Claret Wine	Satin	334062	601925	o	020066187408
+119	Satin Cloud Blue	Satin	399550	b7c7c7	o	
+119	Satin Colonial Red	Satin	334063	880019	o	020066187392
+119	Satin Dark Walnut	Satin	334064	212121	o	020066202460
+119	Satin Deep Purple	Satin	393569	443c53	o	020066037741
+119	Satin Deep Timber	Satin	393570	223a3a	o	020066037758
+119	Satin Eden	Satin	334065	6a812f	o	020066202439
+119	Satin Espresso	Satin	334066	493336	o	020066187385
+119	Satin Eucalyptus	Satin	383201	3d7a59	o	
+119	Satin Fire Orange	Satin	263149	bf2d19	o	020066213619
+119	Satin Fossil	Satin	334067	beb898	o	020066187378
+119	Satin French Blue	Satin	334088	71abd1	o	020066345839
+119	Satin French Lilac	Satin	249079	9e9be0	o	020066187361
+119	Satin French Truffle	Satin	393572	553332	o	020066037772
+119	Satin Granite	Satin	334069	666d70	o	020066187354
+119	Satin Green Apple	Satin	334070	becc74	o	020066187347
+119	Satin Harvest Peach	Satin	366993	eda711	o	
+119	Satin Heirloom White	Satin	334071	f1ede4	o	020066187330
+119	Satin Hunt Club Green	Satin	334072	2d443c	o	020066187316
+119	Satin Ink Blue	Satin	334093	17366f	o	020066345846
+119	Satin Iris	Satin	383202	51649c	o	
+119	Satin Ivory Silk	Satin	334073	f9e7cf	o	020066187309
+119	Satin Lagoon	Satin	334074	187db1	o	020066202453
+119	Satin Leafy Green	Satin	249072	5a8a58	o	020066187293
+119	Satin Lemon Grass	Satin	334081	f1df01	o	020066213602
+119	Satin London Gray	Satin	346953	6c5f57	o	020066189310
+119	Satin Magenta	Satin	334087	9e0059	o	020066270988
+119	Satin Marsh Green	Satin	399549	b0ab97	o	
+119	Satin Midnight Blue	Satin	334091	001b51	o	020066189297
+119	Satin Moss Green	Satin	334075	3d7a59	o	020066187286
+119	Satin Nutmeg	Satin	334076	8d6b3e	o	020066187279
+119	Satin Oasis Blue	Satin	334085	009ddc	o	020066242800
+119	Satin Oregano	Satin	334077	787444	o	020066187262
+119	Satin Paprika	Satin	249068	9e242f	o	020066187255
+119	Satin Petal Pink	Satin	399548	d5c2c4	o	
+119	Satin Poppy Red	Satin	334084	d81d2f	o	020066242817
+119	Satin Renew	Satin	393571	b0c7bd	o	020066037765
+119	Satin Rustic Orange	Satin	334089	df5900	o	020066348137
+119	Satin Seaside	Satin	334095	00c2d9	o	020066346904
+119	Satin Seaweed Green	Satin	383200	0b4922	o	
+119	Satin Silver Lilac	Satin	329201	988899	o	020066378448
+119	Satin Slate Blue	Satin	249066	748aa1	o	020066187231
+119	Satin Stone Gray	Satin	334086	b1adaa	o	020066189303
+119	Satin Strawflower	Satin	249065	f0d995	o	020066187224
+119	Satin Summer Squash	Satin	334079	fadb80	o	020066187217
+119	Satin Sweet Pea	Satin	249063	f9b5cc	o	020066187200
+119	Satin Vintage Teal	Satin	334090	00a7b0	o	020066348182
+119	Satin Warm Caramel	Satin	334083	cf8a49	o	020066222307
+119	Satin Wildflower Blue	Satin	334080	4c6faf	o	020066187187
+119	Semi-Gloss Black	Semi-Gloss	334097	000000	o	020066187170
+119	Semi-Gloss Hunter Green	Semi-Gloss	249853	004a25	o	020066189280
+119	Semi-Gloss Ivory Bisque	Semi-Gloss	249860	f6f1dd	o	020066189341
+119	Semi-Gloss White	Semi-Gloss	334098	ffffff	o	020066187163
+119	Smokey Beige	Satin	334092	d2c4bb	o	020066317577
+119	Solstice Blue	Gloss	342060	93a9bd	o	020066432522
+119	St Tropez	High Gloss	331175	00c6cb	o	020066381622
+119	Strawberry Fields	High Gloss	331180	f30019	o	020066384494
+119	Thunder Cloud	High Gloss	355060			
+119	Tropical Leaf	High Gloss	331179	abba00	o	020066381653
+119	Vintage Blush	Satin	299887	b68482	o	020066317584
+119	White	High Gloss	331171	ffffff	o	020066381288
+119	White Primer	Flat	334019	ffffff	o	020066187156
+119	White Sand	High Gloss	348856	d6d3ca	o	020066445379
+120	Flat Army Green	Flat	279176	6d6541	o	
+120	Flat Black	Flat	279179	000000	o	
+120	Flat Deep Forest Green	Flat	279175	323834	o	
+120	Flat Earth Brown	Flat	279178	443232	o	
+120	Flat Khaki	Flat	279177	958470	o	
+120	Flat Sand	Flat	339004	b6b093	o	
+121	Blue Cosmos		372479			
+121	Green Copper		372478			
+121	Iridescent		384335			
+121	Lime Lagoon		398585			
+121	Mermaid		398584			
+121	Pink Champagne		372467			
+122	Allis Chalmers Orange	Gloss	280135	ef4023	o	
+122	Caterpillar Yellow	Gloss	280140	f0ac1d	o	
+122	Ford Blue	Gloss	280131	095b80	o	
+122	Ford Gray	Gloss	280138	cacbc5	o	
+122	Ford Red	Gloss	280136	cc2223	o	
+122	Gloss Black	Gloss	280123	140b0e	o	
+122	Gloss White	Gloss	280132	ffffff	o	
+122	Gray Primer		280146	a8a9ad	o	
+122	Husqvarna Orange	Gloss	303472	cf4330	o	
+122	International Harvester Red	Gloss	280127	a92c3a	o	
+122	JD Green	Gloss	280124	1f7840	o	
+122	JD Yellow	Gloss	280129	ffd504	o	
+122	Kubota Orange	Gloss	280142	fe4940	o	
+122	Low Gloss Black		280130	3a3839	o	
+122	Massey Ferguson Gray	Gloss	280133	5d5552	o	
+122	Massey Ferguson Red	Gloss	280134	be1228	o	
+122	New Holland Yellow	Gloss	280144	fdc85e	o	
+122	Red Oxide Metal Primer		280137	77574a	o	
+122	Transport Yellow	Gloss	280145	f4bc03	o	
+122	Troy Bilt Red	Gloss	303473	89002b	o	
+123	Fluorescent Blue	Flat	398583	0190dc	o	020066051747
+123	Fluorescent Green	Flat	342417	5df25a	o	020066193287
+123	Fluorescent Orange	Flat	342568	e66716	o	
+123	Fluorescent Pink	Flat	342569	e00377	o	
+123	Fluorescent Red-Orange	Flat	1955830	e35515	o	020066195588
+123	Fluorescent Yellow	Flat	342571	efec00	o	
+124	Frosted Glass	Semi-Transparent	342600	e6e5e9	o	
+125	Bright Pink	Glitter	301818			020066323813
+125	Gold	Glitter	301495			020066223441
+125	Kelly Green	Glitter	277781			
+125	Midnight Black	Glitter	299424			
+125	Multicolor Purple	Glitter	342607			020066242978
+125	Pearl White	Glitter	299426			
+125	Rainbow	Glitter	398582			
+125	Red	Glitter	268045			020066223762
+125	Rose Gold	Glitter	344697			
+125	Royal Blue	Glitter	299425			
+125	Silver	Glitter	301814			020066223434
+125	Turquoise	Glitter	302573			
+126	Almond	Flat	7750830	d4c195	o	020066775087
+126	BBQ Black	Flat	7778830	202020	o	020066777883
+126	Silver	Flat	7716830	b6c0c9	o	020066771683
+126	White	Flat	7751830	fafbf6	o	020066775186
+127	Aged Copper	Semi-Gloss	241232			020066163587
+127	Black	Semi-Gloss	241169	202020	o	020066163563
+127	Silver	Semi-Gloss	270201			020066227456
+128	Gloss Black	Gloss	1905830	000000	o	020066190583
+128	Gloss White	Gloss	1904830	ffffff	o	020066190484
+129	Black Marble		372484			020066510077
+129	White Marble		372487			
+130	Bright Yellow	Flat	1997830	f6ef00	o	020066199784
+130	Fluorescent Orange	Flat	1987830	e66716	o	020066198787
+130	Fluorescent Pink	Flat	1988830	e1017b	o	020066198886
+130	Fluorescent Red	Flat	1991830	e55318	o	020066199180
+130	White	Flat	1985830	ffffff	o	020066198589
+131	267028	Matte	267028	ffffff	o	020066222185
+132	Brass	Metallic	1936830			020066193683
+132	Copper	Metallic	1937830			020066193782
+132	Gold	Metallic	340647			020066430856
+132	Silver	Metallic	340648			020066430863
+133	Purple	Gloss	270970	5d3a8a	o	020066228828
+134	Burnt Orange	Matte	352122	ce4e0d	o	
+134	Chili Red	Matte	379554	8b2a21	o	
+134	Coral		390001	dc7974	o	
+134	Dark Red	Matte	358831	5b1520	o	020066467043
+134	Forest Green		390003	445b3f	o	
+134	Khaki	Matte	358834	c7a76a	o	020066467074
+134	Marina Blue	Matte	379551	6b919a	o	
+134	Medium Gray	Matte	358839	a8a08b	o	020066467104
+134	Navy	Matte	358832	23314b	o	020066467050
+134	Olive Green	Matte	358833	747645	o	020066467067
+134	Turquoise	Matte	358842	00939a	o	
+135	Reflective	Matte	214944	ffffff	o	020066133221
+136	Triple Thick Glaze	Clear	301416	ffffff	o	
+137	Gloss Coastal Fog	Gloss	385291	d0cfcd	o	
+137	Gloss White	Gloss	280882	ffffff	o	020066247201
+138	Black	Gloss	1909830	000000	o	020066190989
+138	White	Gloss	1911830	ffffff	o	020066191184
+139	Aluminum	Gloss	7715830			020066771584
+139	Chrome	Gloss	7718830			020066771881
+139	Copper	Gloss	314417			
+139	Dark Bronze	Gloss	7713830			020066771386
+139	Gold	Gloss	7710830			020066771089
+139	Rose Gold	Metallic	344733			
+140	Gray	Flat	7785830	c4c4c4	o	020066778583
+141	Black	Gloss	7215830			020066721589
+141	Brown	Gloss	210880			020066126834
+141	Copper	Gloss	210849			020066126827
+141	Dark Bronze	Gloss	7218830			020066721886
+141	Gold Rush	Gloss	7210830			020066721084
+141	Gray	Gloss	7214830			020066721480
+141	Matte Black	Matte	300607			
+141	Matte Brown	Matte	314418			
+141	Silver	Gloss	7213830			020066721381
+141	White Hammered	Gloss	248072			020066181789
+142	Aged Iron	Textured	223525			020066137441
+142	Autumn Brown	Textured	223523			020066137427
+142	Caribbean Sand	Textured	239121			020066161316
+142	Desert Bisque	Textured	223524			020066137434
+142	Rustic Umber	Textured	239122			020066161323
+143	Flat Black	Flat	7776830	23272a	o	020066777685
+143	Flat Brown	Flat	214085	5e4a41	o	020066131838
+143	Flat White	Flat	7790830	ffffff	o	020066779085
+143	Gloss Almond	Gloss	7770830	e8e5c4	o	020066777081
+143	Gloss Antique White	Gloss	7794830	f8f1d5	o	020066779481
+143	Gloss Black	Gloss	7779830	000000	o	020066777982
+143	Gloss Burgundy	Gloss	7768830	861835	o	020066776886
+143	Gloss Canvas White	Gloss	7789830	fff7ee	o	020066778989
+143	Gloss Carnival Red	Gloss	7763830	b42435	o	020066776381
+143	Gloss Charcoal Gray	Gloss	7784830	263039	o	020066778484
+143	Gloss Cherry	Gloss	248568	d50301	o	020066185725
+143	Gloss Cypress	Gloss	369183	172212	o	
+143	Gloss Dark Hunter Green	Gloss	7733830	013a0d	o	020066773380
+143	Gloss Dark Walnut	Gloss	262661	271403	o	020066213169
+143	Gloss Hunter Green	Gloss	7738830	004a25	o	020066773885
+143	Gloss Ink Black	Gloss	371670	384042	o	
+143	Gloss Laurel Green	Gloss	365146	9bb18b	o	
+143	Gloss Leather Brown	Gloss	7775830	45342a	o	020066777586
+143	Gloss Maui Blue	Gloss	269292	0098ca	o	020066225537
+143	Gloss Navy	Gloss	7723830	061f58	o	020066772383
+143	Gloss Orange	Gloss	214084	e66716	o	020066131821
+143	Gloss Poppy Pink	Gloss	347026	dd1576	o	
+143	Gloss Pure White	Gloss	250702	ffffff	o	020066189556
+143	Gloss Regal Red	Gloss	7765830	7f0011	o	020066776589
+143	Gloss Royal Blue	Gloss	7727830	085394	o	020066772789
+143	Gloss Sail Blue	Gloss	7724830	006cb4	o	020066772482
+143	Gloss Sand	Gloss	7771830	c4a587	o	020066777180
+143	Gloss Smoke Gray	Gloss	7786830	727778	o	020066778682
+143	Gloss Sunburst Yellow	Gloss	7747830	f7db00	o	020066774783
+143	Gloss Sunrise Red	Gloss	7762830	be0127	o	020066776282
+143	Gloss Tuscan Sun	Gloss	298537	f1b230	o	
+143	Gloss White	Gloss	7792504	ffffff	o	020066779252
+143	Gloss White	Gloss	7792830	ffffff	o	020066779283
+143	Matte Black	Matte	401641	000000	o	
+143	Matte Peppercorn	Matte	369178	1e1f1e	o	
+143	Matte Spcied Cocoa	Matte	369195	452e24	o	
+143	Matte White	Matte	401642	ffffff	o	
+143	Satin Almond	Satin	7758830	e8e5c4	o	
+143	Satin Artic White	Satin	371669	e6ebee	o	
+143	Satin Black	Satin	7777830	000000	o	
+143	Satin Brick Red	Satin	371671	753f35	o	
+143	Satin Canyon Green	Satin	371673	52694f	o	
+143	Satin Coastal Gray	Satin	312819	909398	o	
+143	Satin Dark Brown	Satin	241239	45342a	o	
+143	Satin Earlthy Green	Satin	369192	586a53	o	
+143	Satin Heritage Red	Satin	7760830	800011	o	
+143	Satin Hunter Green	Satin	7732830	024a25	o	
+143	Satin Midnight Blue	Satin	369179	263c4e	o	
+143	Satin Tumeric	Satin	369193	da7941	o	
+143	Satin White	Satin	7791830	ffffff	o	
+143	Semi-Gloss Anodized Bronze	Semi-Gloss	7754830	413d3a	o	020066775483
+143	Semi-Gloss Black	Semi-Gloss	7798830	000000	o	020066779887
+143	Semi-Gloss White	Semi-Gloss	7797830	ffffff	o	020066779788
+144	Flat Black	Flat	376298	000000	o	
+144	Flat Light Gray Auto Primer	Flat	393379	c2c2c2	o	
+144	Gloss Black	Gloss	334128	000000	o	020066386795
+144	Gloss Hunter Green	Gloss	398661	3e5545	o	
+144	Gloss Leather Brown	Gloss	398662	5f4c46	o	
+144	Gloss Sail Blue	Gloss	398660	2e74af	o	
+144	Gloss Smoke Gray	Gloss	393377	898f9b	o	
+144	Gloss Sunburst Yellow	Gloss	393376	f4d002	o	
+144	Gloss Sunrise Red	Gloss	393375	b9212e	o	
+144	Gloss White	Gloss	334133	ffffff	o	020066386818
+144	Rusty Metal Red Primer	Flat	353346	5b3834	o	
+144	Satin Black	Satin	393378	000000	o	
+144	Universal Bonding Primer	Flat	398663	ffffff	o	020066051938
+145	Black Textured	Textured	7220830			020066722081
+145	Dark Brown Textured	Textured	241255			020066164010
+145	White Textured	Textured	7225830			020066722586
+146	Galaxy		252303			020066193553
+146	Metallic Silver		251053			
+147	Gray	Flat	330491	c2c2c2	o	
+147	White	Flat	285011	ffffff	o	020066277123
+148	Aged Metallic Rust	Metallic	285072			020066277338
+148	Vintage Gold	Metallic	342918	e4be4f	o	
+149	Flat Burnished Amber	Metallic	271472			020066229818
+149	Flat Chestnut	Metallic	271471			020066229801
+149	Flat Soft Iron	Metallic	271473			020066229825
+150	Flat Black	Flat	245198	000000	o	020066172466
+150	Flat White	Flat	247564	ffffff	o	020066175702
+151	Antique Pewter	Hammered	271481			
+151	Burnished Amber	Hammered	271480			020066229894
+151	Chestnut	Hammered	271479			
+152	Gloss Black	Gloss	245196	23272a	o	020066172442
+152	Gloss White	Gloss	245199	ffffff	o	020066172473
+153	Black Hammered	Hammered	245217			020066172565
+153	Brown Hammered	Hammered	245218			020066172572
+153	Copper Hammered	Hammered	247567			020066175733
+153	Dark Bronze Hammered	Hammered	258199			
+153	Silver Hammered	Hammered	245219			020066172589
+153	White Hammered	Hammered	267298			020066222963
+154	Gold	Metallic	387992	c2a564	o	
+154	Gunmetal Gray	Metallic	353091	6e6765	o	10020066512399
+154	Sunlit Brass	Metallic	353093	d7bc86	o	10020066512726
+154	Venetian Bronze	Metallic	353092	685d58	o	10020066512719
+155	Farmhouse Black	Matte	330505	000000	o	020066380397
+155	Farmhouse Greige		376724	9a918a	o	
+155	Farmhouse Slate Blue		376723	43484e	o	
+155	Farmhouse White		376725	d5d1d7	o	
+155	French Cream	Matte	282816	eee7e2	o	020066268183
+156	Aged Copper	Metallic	249132	7b5b4c	o	020066187842
+156	Antique Brass	Metallic	260728	997d5d	o	020066209056
+156	Black Stainless Steel	Metallic	314558	675f5c	o	020066345709
+156	Copper Rose	Metallic	314559	f3a881	o	020066345716
+156	Dark Mocha		393418	482b0b	o	
+156	Dark Steel	Metallic	262662	7a7a7a	o	020066213176
+156	Desert Rose Gold	Metallic	342919	b4746d	o	
+156	Gilded Brass	Metallic	330504	b09061	o	020066380380
+156	Oil Rubbed Bronze	Metallic	249131	41383b	o	020066187859
+156	Pure Gold	Metallic	245221	c3a865	o	020066172602
+156	Satin Bronze	Metallic	314560	ce9f6f	o	020066348144
+156	Satin Nickel	Metallic	249130	bababa	o	020066187835
+156	Titanium Silver	Metallic	245220	cacaca	o	020066172596
+156	Turquoise	Metallic	330480	007278	o	020066379612
+157	Metallic Champagne Mist	Metallic	261415			020066210151
+157	Metallic Pearl Mist	Metallic	261411			020066210120
+158	Satin Black	Satin	245197	000000	o	020066172459
+158	Satin Espresso Brown	Satin	247570	4c332c	o	020066175764
+158	Satin White	Satin	245210	ffffff	o	020066172497

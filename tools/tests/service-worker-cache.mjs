@@ -59,4 +59,47 @@ const absent = await fetchThroughServiceWorker(model, { networkStatus: 404 });
 assert.equal(absent.response.status, 404);
 assert.equal(absent.cacheWrites, 0, "Never cache failed downloads");
 
+// The paint catalogue is small but, like the models, changes only with a release: cache first.
+const catalogue = "https://stencil.example/stencil-artist/models/paints.tsv";
+const fetched = await fetchThroughServiceWorker(catalogue, { failPut: true });
+assert.equal(fetched.response.status, 200, "A quota failure must not mask a successful catalogue download");
+assert.equal(fetched.networkCalls, 1);
+assert.equal(fetched.cacheWrites, 1, "The catalogue is cached in the heavy cache on first use");
+const catalogueHit = await fetchThroughServiceWorker(catalogue, { cached: cacheHit });
+assert.strictEqual(catalogueHit.response, cacheHit);
+assert.equal(catalogueHit.networkCalls, 0, "A cached catalogue is not fetched again");
+const missing = await fetchThroughServiceWorker(catalogue, { networkStatus: 404 });
+assert.equal(missing.cacheWrites, 0, "Never cache a failed catalogue download");
+
+// The barcode reader (zxing-wasm, loaded on first scan) is heavy and fixed per release: cache first,
+// the JavaScript and licence beside the wasm included, quota failure or not.
+for (const file of ["zxing_reader.wasm", "zxing_reader.js", "LICENSE"]) {
+  const url = `https://stencil.example/stencil-artist/zxing/${file}`;
+  const first = await fetchThroughServiceWorker(url, { failPut: true });
+  assert.equal(first.response.status, 200, `A quota failure must not mask the ${file} download`);
+  assert.equal(first.networkCalls, 1);
+  assert.equal(first.cacheWrites, 1, `${file} is cached in the heavy cache on first use`);
+  const again = await fetchThroughServiceWorker(url, { cached: cacheHit });
+  assert.strictEqual(again.response, cacheHit);
+  assert.equal(again.networkCalls, 0, `A cached ${file} is not fetched again`);
+  const gone = await fetchThroughServiceWorker(url, { networkStatus: 404 });
+  assert.equal(gone.cacheWrites, 0, `Never cache a failed ${file} download`);
+}
+
+// The scanner glue is part of the shell: network first, so a release is picked up on the next visit.
+const glue = await fetchThroughServiceWorker("https://stencil.example/stencil-artist/scanner.js", { cached: cacheHit });
+assert.equal(glue.networkCalls, 1, "scanner.js is network first");
+
+// Only the zxing/ directory is heavy, not any file with zxing in its name.
+const zxingLookalike = await fetchThroughServiceWorker("https://stencil.example/stencil-artist/zxing.html", { cached: cacheHit });
+assert.equal(zxingLookalike.networkCalls, 1);
+
+// The shell stays network first: a cached page does not stop the network being asked.
+const page = await fetchThroughServiceWorker("https://stencil.example/stencil-artist/index.html", { cached: cacheHit });
+assert.equal(page.networkCalls, 1, "The app shell is network first");
+
+// A file that merely has tsv in its name is not the catalogue.
+const lookalike = await fetchThroughServiceWorker("https://stencil.example/stencil-artist/tsv.html", { cached: cacheHit });
+assert.equal(lookalike.networkCalls, 1);
+
 console.log("Service worker cache tests passed");
