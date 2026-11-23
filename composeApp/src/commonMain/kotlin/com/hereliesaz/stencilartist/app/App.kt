@@ -550,8 +550,9 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     power = gcodePower,
                     passes = gcodePasses,
                     laserMode = gcodeLaser,
-                    safeZMm = gcodeSafeZ,
-                    cutZMm = gcodeCutZ,
+                    // Z is unused for lasers: a previous router draft must not block laser exports.
+                    safeZMm = if (gcodeLaser) 5.0 else gcodeSafeZ,
+                    cutZMm = if (gcodeLaser) -1.0 else gcodeCutZ,
                 )
             } else Result.success(GcodeOptions())
             val relevantGcodeDrafts = if (gcodeLaser) setOf("feed", "travel", "power", "passes")
