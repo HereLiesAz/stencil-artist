@@ -21,6 +21,7 @@ import com.hereliesaz.stencilartist.core.paint.PaintPlan
 import com.hereliesaz.stencilartist.core.paint.ShoppingItem
 import com.hereliesaz.stencilartist.core.paint.SnappedLayer
 import com.hereliesaz.stencilartist.core.paint.UserBarcodes
+import com.hereliesaz.stencilartist.core.paint.UserCanColours
 import com.hereliesaz.stencilartist.core.paint.displayName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -99,6 +100,10 @@ class StencilState(
     var userBarcodes: UserBarcodes by mutableStateOf(UserBarcodes.EMPTY)
         private set
 
+    /** Approximate can RGB values this user entered locally, never added to bundled paint data. */
+    var userCanColours: UserCanColours by mutableStateOf(UserCanColours.EMPTY)
+        private set
+
     /** The most recent unrecognized barcode; picker can associate it with a catalogue can. */
     var unknownBarcode: String? by mutableStateOf(null)
         private set
@@ -138,6 +143,8 @@ class StencilState(
     val layersUsed: Int get() = PaintPlan.layerCount(paintLayers, keptUnused)
 
     private var catalogueJob: Job? = null
+    /** Unmodified catalogue to restore the maker's RGB or missing-colour state on clearing a user value. */
+    private var bundledCatalogue: PaintCatalogue? = null
     private var savedCans = ""
     private var savedAllowed = ""
 
@@ -148,6 +155,7 @@ class StencilState(
         savedCans = store.get(KEY_CANS).orEmpty()
         savedAllowed = store.get(KEY_ALLOWED).orEmpty()
         userBarcodes = store.get(KEY_BARCODES)?.let(UserBarcodes::decode) ?: UserBarcodes.EMPTY
+        userCanColours = store.get(KEY_USER_COLOURS)?.let(UserCanColours::decode) ?: UserCanColours.EMPTY
     }
 
     /**
@@ -163,7 +171,9 @@ class StencilState(
         catalogueError = null
         catalogueJob = scope.launch {
             try {
-                val loaded = catalogueLoader.loadPaintCatalogue()
+                val bundled = catalogueLoader.loadPaintCatalogue()
+                bundledCatalogue = bundled
+                val loaded = bundled.withUserColours(userCanColours)
                 selected = PaintPersistence.decodeCans(savedCans, loaded).filter { it.rgb != null }
                 allowed = PaintPersistence.decodeAllowed(savedAllowed, loaded)
                 catalogue = loaded
@@ -250,6 +260,45 @@ class StencilState(
     /** Clears the chosen cans. */
     fun clearCans() {
         if (selected.isNotEmpty()) changeSelected(emptyList())
+    }
+
+    /**
+     * Give a catalogue can a locally supplied approximation. The app never modifies the bundled
+     * catalogue or claims this RGB came from the maker. Every catalogue lookup, selected can,
+     * scanner result and paint-matching index immediately sees the same updated colour.
+     */
+    fun saveCanColour(can: Can, argb: Int) {
+        val bundled = bundledCatalogue ?: return
+        if (bundled.byKey(can.canKey) == null) return
+        try {
+            applyCanColours(userCanColours.withColour(can.canKey, argb), bundled)
+            message = "Saved your colour for ${can.displayName}."
+        } catch (invalid: IllegalArgumentException) {
+            message = "Enter a valid opaque colour for this can."
+        }
+    }
+
+    /** Clear a user-assigned colour and restore the catalogue's original RGB (or missing value). */
+    fun clearCanColour(can: Can) {
+        val bundled = bundledCatalogue ?: return
+        if (userCanColours.colourFor(can.canKey) == null) return
+        applyCanColours(userCanColours.withoutColour(can.canKey), bundled)
+        message = "Cleared your colour for ${can.displayName}."
+    }
+
+    /** Rebuild all catalogue indexes and selection references from the original data. */
+    private fun applyCanColours(next: UserCanColours, bundled: PaintCatalogue) {
+        userCanColours = next
+        store.put(KEY_USER_COLOURS, next.encode())
+        val updated = bundled.withUserColours(next)
+        catalogue = updated
+        selected = PaintPersistence.decodeCans(savedCans, updated).filter { it.rgb != null }
+        // A removed last known colour cannot remain secretly selected and reappear on the next load.
+        savedCans = PaintPersistence.encodeCans(selected)
+        store.put(KEY_CANS, savedCans)
+        pickMax = pickLimit(updated, allowed)
+        pickCount = pickCount.coerceAtMost(pickMax)
+        if (snapped && source != null) changedParams(sheetCount)
     }
 
     /** Keeps (or stops keeping) an unused layer of colour [rgb] on the paint list and in the print PDF's shopping list. */
@@ -638,5 +687,6 @@ class StencilState(
         const val KEY_CANS = "paint.cans"
         const val KEY_ALLOWED = "paint.allowed"
         const val KEY_BARCODES = "paint.barcodes"
+        const val KEY_USER_COLOURS = "paint.user-colours"
     }
 }
