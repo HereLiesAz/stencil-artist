@@ -17,12 +17,17 @@ import kotlin.math.roundToInt
  * to [landscape] or portrait. The printer's unprintable border and the overlap between pages are not
  * options: see [PrintPdf.MARGIN_MM] and [PrintPdf.OVERLAP_MM]. With a [mount] the printed pages are glued on boards
  * of that size, each board tiled with pages on its own; without one the pages tile the whole piece.
+ *
+ * [shopping] is the paint each layer needs, one item per layer in paint order, to be listed on the
+ * instructions page; empty (the default) lists nothing, as for a stencil whose layers are not tied to
+ * real cans.
  */
 data class PrintOptions(
     val widthMm: Double = 203.2,
     val paper: Paper = Paper.US_LETTER,
     val landscape: Boolean = false,
     val mount: MountOptions? = null,
+    val shopping: List<com.hereliesaz.stencilartist.core.paint.ShoppingItem> = emptyList(),
 ) {
     init {
         require(widthMm > 0.0 && widthMm.isFinite()) { "The stencil width must be a positive number of millimetres." }

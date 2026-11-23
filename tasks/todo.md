@@ -140,6 +140,23 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       about 0.6 s on the JVM at 4 to 100 sheets. **Not verified:** Android on a device or emulator, timing in a
       browser on a phone, Colour mode with depth lighting or on photographs other than the astronaut, a sheet
       colour edited by hand (no UI).
+- [x] **14. Paint catalogue (foundation)** — `models/paints.tsv` (134 kB, 3,479 cans of 12 brands, built by
+      `tools/catalogue/build.py` from the research files in `tools/catalogue/source/`; deterministic, validates hex and
+      GS1 check digits, prints counts) is packaged by the same route as the models (assets on Android, `models/` on the
+      web), and the service worker caches `.tsv` cache-first (VERSION bumped to v3). `core.paint`: `PaintCatalogue.parse`
+      (about 3 ms for the whole file), search (case, accent, punctuation tolerant; exact code, code prefix, name prefix,
+      word, substring), lookup by key / code / barcode (`GtinCheck`, UPC-A and EAN-13 are one), `UserBarcodes` (a learned
+      barcode beats the catalogue), `Selection.distinctColours()` (cans of one colour value become one layer, because
+      `ColorParams.colors` must be as many as sheets and all different), `bestCans` / `pickFor` (nearest in Oklab, no two
+      layers the same colour), `unusedLayers`, and `ShoppingList` (Exact / Close / Approximate, sampled flag). App side:
+      only `CatalogueLoader` (`rememberCatalogueLoader`, `loadPaintCatalogue`) so far.
+      Rows per brand: Rust-Oleum 635, Montana Cans 580, MTN 543, Loop Colors 305, Flame 273, Kobra 264, Clash 263,
+      Krylon 229, Molotow 204, Ironlak 102, Liquitex 50, Dupli-Color 31. **1,422 cans have no colour value** (all of MTN,
+      Flame, Molotow and Clash; 16 Montana; 87 Rust-Oleum; 34 Krylon; 2 Liquitex): they can be listed, searched and
+      scanned but not matched to an image colour. 79 values (Liquitex, Dupli-Color) are our own sampling, flagged.
+      **Do not ship this data publicly yet:** no licence to redistribute was found (see `models/paints.NOTICE.txt`).
+      **Next: the picker UI (brands, search, selection, "pick for my image"), the PDF shopping list, the barcode scanner.**
+      Verified: 35 new tests on JVM and Wasm, including every row of the real file on both.
 
 ## Verification
 

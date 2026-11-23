@@ -132,6 +132,25 @@ Processing order: **source image → depth-assisted background removal → relit
 (by tone or by colour) → stencil sheets**. Changing the light always regenerates the sheets from the new base.
 
 
+## Paint catalogue
+
+`models/paints.tsv` lists 3,479 spray cans from 12 brands (Rust-Oleum 635, Montana Cans 580, MTN 543,
+Loop Colors 305, Flame 273, Kobra 264, Clash 263, Krylon 229, Molotow 204, Ironlak 102, Liquitex 50,
+Dupli-Color 31): brand, line, name, finish, code, colour value and barcode. It is a 134 kB tab-separated
+text file that ships by the same route as the models (Android assets, `models/` on the web) and is read
+by `core.paint.PaintCatalogue`, which searches it (ignoring case, accents and punctuation, so `rv 252`,
+`RV-252` and `rv252` are one code), finds a can by barcode (UPC-A and EAN-13 are the same), and matches the
+colours of an image to the nearest cans. Regenerate it with `python3 tools/catalogue/build.py`.
+
+- 2,057 cans have a colour value (1,689 distinct). The other 1,422 (all of MTN, Flame, Molotow and Clash, and
+  the effect finishes of other makers) have none: they can be listed, searched and scanned, not matched to
+  a colour. Colour values are how a screen shows the paint, not the paint; 79 (Liquitex, Dupli-Color) are our
+  own sampling of the maker's swatch and are flagged so.
+- **Not for public release yet.** No licence to redistribute the data was found; `models/paints.NOTICE.txt`
+  says where each brand's data came from. Check the makers' terms before shipping it.
+- Built so far: the data, its loading, and the logic in `core`. Next: the picker screen, the shopping list
+  on the PDF instructions page, and the barcode scanner.
+
 ## Layout
 
 | Module | What it is |
@@ -139,8 +158,9 @@ Processing order: **source image → depth-assisted background removal → relit
 | `core` | The stencil pipeline. Pure Kotlin (`jvm`, `wasmJs`), no platform dependencies. |
 | `composeApp` | The app: UI and state, shared by Android and the web. Produces the web build. |
 | `androidApp` | The Android wrapper: an Activity and a manifest. |
-| `models` | Bundled U²-Net subject model and licence; depth ONNX is downloaded on demand. |
+| `models` | Bundled U²-Net subject model and licence, and the paint catalogue; depth ONNX is downloaded on demand. |
 | `tools/golden` | Generates the OpenCV fixtures the pipeline is tested against. |
+| `tools/catalogue` | Builds `models/paints.tsv` from the research data in `source/`. |
 
 ## Build
 

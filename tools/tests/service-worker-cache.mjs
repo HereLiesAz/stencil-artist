@@ -59,4 +59,24 @@ const absent = await fetchThroughServiceWorker(model, { networkStatus: 404 });
 assert.equal(absent.response.status, 404);
 assert.equal(absent.cacheWrites, 0, "Never cache failed downloads");
 
+// The paint catalogue is small but, like the models, changes only with a release: cache first.
+const catalogue = "https://stencil.example/stencil-artist/models/paints.tsv";
+const fetched = await fetchThroughServiceWorker(catalogue, { failPut: true });
+assert.equal(fetched.response.status, 200, "A quota failure must not mask a successful catalogue download");
+assert.equal(fetched.networkCalls, 1);
+assert.equal(fetched.cacheWrites, 1, "The catalogue is cached in the heavy cache on first use");
+const catalogueHit = await fetchThroughServiceWorker(catalogue, { cached: cacheHit });
+assert.strictEqual(catalogueHit.response, cacheHit);
+assert.equal(catalogueHit.networkCalls, 0, "A cached catalogue is not fetched again");
+const missing = await fetchThroughServiceWorker(catalogue, { networkStatus: 404 });
+assert.equal(missing.cacheWrites, 0, "Never cache a failed catalogue download");
+
+// The shell stays network first: a cached page does not stop the network being asked.
+const page = await fetchThroughServiceWorker("https://stencil.example/stencil-artist/index.html", { cached: cacheHit });
+assert.equal(page.networkCalls, 1, "The app shell is network first");
+
+// A file that merely has tsv in its name is not the catalogue.
+const lookalike = await fetchThroughServiceWorker("https://stencil.example/stencil-artist/tsv.html", { cached: cacheHit });
+assert.equal(lookalike.networkCalls, 1);
+
 console.log("Service worker cache tests passed");
