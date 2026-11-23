@@ -113,6 +113,29 @@ class StrokeStylerTest {
     }
 
     @Test
+    fun aLongThinStrokeCannotConsumeTheQuotaOfItsAttachedBroadPatch() {
+        val w = 900
+        val h = 80
+        val opening = BooleanArray(w * h) { i ->
+            val x = i % w
+            val y = i / w
+            (x in 20..39 && y in 20..39) || (x in 39..839 && y in 28..30)
+        }
+        val flat = RgbaImage(w, h, IntArray(w * h) { 0xFF888888.toInt() })
+        val input = Separation.fromMasks(w, h, listOf(black, gray),
+            listOf(BooleanArray(w * h) { true }, opening))
+        val actual = StrokeStyler.stylize(flat, input).mask(1)
+        val retainedSquare = (20..39).sumOf { y -> (20..39).count { x -> actual[y * w + x] } }
+        assertTrue(retainedSquare >= 280,
+            "at least 70% of a required broad patch must remain, regardless of a long attached line")
+        for (y in 28..30) for (x in 45..839) {
+            assertTrue(actual[y * w + x], "the slim extended feature must remain continuous")
+        }
+        assertTrue(StencilPrintTips.detect(actual, w, h, 900.0)
+            .none { it.kind == PrintTipKind.ISLAND })
+    }
+
+    @Test
     fun tinyRequiredDetailsStayUnchanged() {
         val w = 100
         val h = 90
