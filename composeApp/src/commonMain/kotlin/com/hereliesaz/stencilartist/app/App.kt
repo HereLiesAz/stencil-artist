@@ -323,6 +323,11 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 ) { Text("Download sheet ${sheet + 1} PNG") }
             }
             OutlinedButton(
+                onClick = { startExport("StencilPack") { RasterExports.stencilPack(it) } },
+                enabled = canExport,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Export layered StencilPack for Graffux / GraffitiXR") }
+            OutlinedButton(
                 onClick = { startExport("PNG archive") { RasterExports.allPngsZip(it) } },
                 enabled = canExport,
                 modifier = Modifier.fillMaxWidth(),
