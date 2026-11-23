@@ -2,6 +2,7 @@ package com.hereliesaz.stencilartist.app
 
 import androidx.compose.runtime.Composable
 import com.hereliesaz.stencilartist.core.Separation
+import com.hereliesaz.stencilartist.core.StencilPackManifest
 
 /** A finished file, held in memory, ready to be handed to the user. */
 class ExportFile(val name: String, val mimeType: String, val bytes: ByteArray)
@@ -83,19 +84,7 @@ object RasterExports {
                 "Stencil package exceeds 32 MiB. Export individual PNGs instead."
             }
         }
-        val layers = separation.sheets.mapIndexed { index, sheet ->
-            val color = sheet.color.toUInt().toString(16).padStart(8, '0').uppercase()
-            """{"name":"Sheet ${index + 1}","file":"${pngs[index].name}","color":"#$color","visible":true}"""
-        }.joinToString(",")
-        val manifest = buildString {
-            append("""{"format":"com.hereliesaz.stencilpack","version":1,"width":""")
-            append(separation.width)
-            append(""","height":""")
-            append(separation.height)
-            append(""","order":"bottom-to-top","coverage":"overpaint","composite":"stencil-composite.png","layers":[""")
-            append(layers)
-            append("]}")
-        }
+        val manifest = StencilPackManifest.encode(separation)
         val files = listOf(ExportFile("manifest.json", "application/json", manifest.encodeToByteArray())) + pngs
         return ExportFile(
             "stencil-layers.stencilpack",
