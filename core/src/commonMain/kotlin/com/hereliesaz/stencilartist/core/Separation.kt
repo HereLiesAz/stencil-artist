@@ -35,6 +35,8 @@ class Separation(
     val sheets: List<Sheet>,
     val index: IntArray,
     private val independentMasks: List<BooleanArray>? = null,
+    /** Local soft-edge locations for controlled lift-and-overspray guidance. */
+    val liftZones: List<LiftZone> = emptyList(),
 ) {
     init {
         require(index.size == width * height) { "expected ${width * height} pixels, got ${index.size}" }
@@ -75,6 +77,11 @@ class Separation(
         return IntArray(index.size) { if (covers(sheet, it, coverage)) color else 0 }
     }
 
+    /** Attach gradient guidance without changing a single opening or its finished colour. */
+    fun withLiftZones(zones: List<LiftZone>): Separation = Separation(
+        width, height, sheets.toList(), index.copyOf(), independentMasks?.map { it.copyOf() }, zones.toList(),
+    )
+
     companion object {
         /** [index] value of a pixel no sheet paints. */
         const val NONE = -1
@@ -93,6 +100,7 @@ class Separation(
             height: Int,
             sheets: List<Sheet>,
             masks: List<BooleanArray>,
+            liftZones: List<LiftZone> = emptyList(),
         ): Separation {
             require(width >= 0 && height >= 0) { "negative stencil dimensions" }
             require(masks.size == sheets.size) { "expected ${sheets.size} masks, got ${masks.size}" }
@@ -103,7 +111,7 @@ class Separation(
             for (sheet in copies.indices) for (pixel in 0 until size) {
                 if (copies[sheet][pixel]) index[pixel] = sheet
             }
-            return Separation(width, height, sheets.toList(), index, copies)
+            return Separation(width, height, sheets.toList(), index, copies, liftZones.toList())
         }
     }
 }
