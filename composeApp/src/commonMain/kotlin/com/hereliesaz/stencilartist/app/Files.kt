@@ -65,6 +65,35 @@ object RasterExports {
      * Rejects an overlarge bundle with an actionable message; individual sheet export remains
      * available, even when the sheet count is higher than this device can archive safely.
      */
+    /**
+     * Versioned, portable stencil-layer archive for Graffux and GraffitiXR.
+     * The paint order is bottom-to-top and every PNG uses the same transparent pixel grid.
+     * The manifest carries names/colours, instead of forcing importers to guess from filenames.
+     */
+    fun stencilPack(separation: Separation): ExportFile {
+        require(separation.width in 1..8192 && separation.height in 1..8192)
+        require(separation.sheets.size in 1..1024)
+        val pngs = separation.sheets.indices.map { png(separation, it) } + png(separation)
+        var payload = 0L
+        for (file in pngs) {
+            payload += file.bytes.size.toLong()
+            require(payload <= MAX_ZIP_PAYLOAD_BYTES) {
+                "Stencil package exceeds 32 MiB. Export individual PNGs instead."
+            }
+        }
+        val layers = separation.sheets.mapIndexed { index, sheet ->
+            val color = sheet.color.toUInt().toString(16).padStart(8, '0').uppercase()
+            """{"name":"Sheet ${index + 1}","file":"${pngs[index].name}","color":"#$color","visible":true}"""
+        }.joinToString(",")
+        val manifest = """{"format":"com.hereliesaz.stencilpack","version":1,"width":${separation.width},"height":${separation.height},"order":"bottom-to-top","coverage":"overpaint","composite":"stencil-composite.png","layers":[$layers]}"""
+        val files = listOf(ExportFile("manifest.json", "application/json", manifest.encodeToByteArray())) + pngs
+        return ExportFile(
+            "stencil-layers.stencilpack",
+            "application/vnd.hereliesaz.stencilpack+zip",
+            Zip.store(files),
+        )
+    }
+
     fun allPngsZip(separation: Separation): ExportFile {
         require(separation.sheets.isNotEmpty()) { "A bundle needs at least one sheet" }
         val files = ArrayList<ExportFile>(separation.sheets.size + 1)
