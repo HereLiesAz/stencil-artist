@@ -40,7 +40,11 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   of the cans for the sheets it prints. Chosen cans, allowed brands and learned barcodes are kept on the
   device (SharedPreferences, `localStorage`).
 - Can-top artwork is drawn in-app with an uncapped central valve, neutral metal and a coloured
-  shoulder ring. No retailer image is embedded. Catalogue entries lacking RGB values stay visible
+  shoulder ring. The **MTN 94** full-can carousel alone uses the user's exact original 1122 × 1402
+  transparent PNG, stored byte-for-byte in Compose resources. Its pixels are never edited or
+  masked: an independent colour fill sits behind the existing translucent shoulder, with white
+  behind both layers. All other can lines retain their vector side artwork; retailer imagery is
+  not embedded. Catalogue entries lacking RGB values stay visible
   with hatched rings. Open one in the carousel and enter your own #RRGGBB approximation; that
   specific can gains a coloured ring and becomes available to Free Colour, My cans and Pick for me.
   Your colour stays in SharedPreferences (Android) or localStorage (web), keyed by the stable can
