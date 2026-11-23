@@ -107,6 +107,7 @@ object StrokeStyler {
 
             val rebuilt = mask.copyOf()
             val protected = BooleanArray(n)
+            val narrowCandidate = BooleanArray(n)
             val member = IntArray(n)
             val queue = IntArray(n)
             var component = 0
@@ -179,6 +180,7 @@ object StrokeStyler {
                         return length
                     }
                     if (minOf(chord(1, 0), chord(0, 1), chord(1, 1), chord(1, -1)) <= 5) {
+                        narrowCandidate[p] = true
                         // A broad blob's boundary is thin along one axis too. If
                         // substantial painted interior lies nearby, this is a
                         // broad edge, not a separate delicate mark. Actual narrow
@@ -204,6 +206,30 @@ object StrokeStyler {
                         }
                     }
                 }
+                // A thin stroke attached to a broad region may have one final
+                // junction pixel close enough to the broad core to escape the
+                // local-width test. Include only directly neighboring narrow
+                // candidates, using a two-phase update so BFS traversal order
+                // cannot change the result. This retains the complete feature
+                // without protecting the entire boundary of the large region.
+                val continuations = ArrayList<Int>()
+                for (i in 0 until tail) {
+                    val p = queue[i]
+                    if (!narrowCandidate[p] || protected[p]) continue
+                    val x = p % w
+                    if ((x > 0 && protected[p - 1]) ||
+                        (x + 1 < w && protected[p + 1]) ||
+                        (p >= w && protected[p - w]) ||
+                        (p + w < n && protected[p + w])) {
+                        continuations += p
+                    }
+                }
+                for (p in continuations) {
+                    protected[p] = true
+                    rebuilt[p] = true
+                    painted++
+                }
+
                 // The broad-area quota MUST exclude already protected fine details.
                 // Otherwise an 800x3 line can consume the entire quota and cause
                 // an attached 20x20 patch to vanish without a single painted ribbon.
