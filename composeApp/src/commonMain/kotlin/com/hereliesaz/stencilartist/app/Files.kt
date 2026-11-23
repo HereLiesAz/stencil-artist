@@ -23,6 +23,14 @@ interface FileSaver {
 @Composable
 expect fun rememberFileSaver(): FileSaver
 
+/** Share a generated StencilPack through the Android chooser or download it on the web. */
+interface StencilPackSharer {
+    suspend fun share(file: ExportFile)
+}
+
+@Composable
+expect fun rememberStencilPackSharer(): StencilPackSharer
+
 /**
  * Straight-alpha ARGB [pixels], row-major, as a PNG file with its transparency intact. Done by the
  * platform's own encoder: both have one, and neither is worth rewriting.
