@@ -27,8 +27,8 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   as a grid of uncapped, top-view spray cans. A tap opens a swipeable carousel with the whole can,
   the maker and colour name alongside it, and the edges of adjacent cans visible as navigation cues.
   The colour can be applied to that sheet, regenerating the stencil and subsequent exports. Brand
-  filters and search narrow the gallery; the grid displays more on demand, while the carousel can
-  traverse every result. Exact hex and RGB sliders are available underneath for custom colours;
+  filters and search narrow the gallery; the bounded lazy grid scrolls through every can
+  without rendering all rows, while the carousel traverses every result. Exact hex and RGB sliders are available underneath for custom colours;
   duplicate colours are refused. **Use image colours again** restores the image-derived palette.
   The setting is `ColorParams.colors`. Can-based paint modes keep their own selections.
 - Paints a stencil from real spray cans. In Colour mode, **Paint** is *Free* (any colours), *Pick for me*
