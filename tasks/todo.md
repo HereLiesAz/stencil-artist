@@ -131,7 +131,8 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       instead of scanning (same output, held by the OpenCV fixtures). App: "Separate by" Tone / Colour, each mode
       keeps its own settings, "Order" in Colour mode, "Base" and "Tonal bias" in Tone mode only; the sheet strip's
       number is black or white by contrast. `StencilState.setSheetColor` and `ColorParams.colors` are ready;
-      **next step: a colour picker / palette editor (no UI yet).**
+      **done in follow-up: a Free Colour-mode palette editor now calls `StencilState.setSheetColor`,
+      with editable #RRGGBB/RGB channels, duplicate-colour rejection, and a reset to image-derived colours.**
       Verified: 26 new tests on JVM and Wasm (flat regions of 2/5/9/24 colours, determinism, given colours,
       every order, invariants for 1..60 sheets on dark and light subjects, fewer colours than sheets, null cases,
       Oklab round trip, and a colour separation through the vectoriser, SVG/DXF/HPGL/G-code and `PrintPdf` with
@@ -139,7 +140,7 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       sheets, one sheet, composite PNG, SVG: fills are the sheet colours). Separating a 1600 px cut-out takes
       about 0.6 s on the JVM at 4 to 100 sheets. **Not verified:** Android on a device or emulator, timing in a
       browser on a phone, Colour mode with depth lighting or on photographs other than the astronaut, a sheet
-      colour edited by hand (no UI).
+      colour edited by hand on a real device (the editor is now wired).
 - [x] **14. Paint catalogue (foundation)** — `models/paints.tsv` (134 kB, 3,479 cans of 12 brands, built by
       `tools/catalogue/build.py` from the research files in `tools/catalogue/source/`; deterministic, validates hex and
       GS1 check digits, prints counts) is packaged by the same route as the models (assets on Android, `models/` on the
@@ -281,7 +282,7 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 **Left open by decision or for later**
 
-- Island bridging (deferred by Az). A palette editor / colour picker for colour sheets (phase 13 left `ColorParams.colors` and `StencilState.setSheetColor` ready, with no UI).
+- Island bridging (deferred by Az). Free Colour sheets now have a palette editor (using the existing `ColorParams.colors` and `StencilState.setSheetColor`); manual colours are independent of the can catalogue.
 - Custom mat and roll sizes, and G-code feed/power, are in core but have no UI yet.
 - Tiled text formats clip with Sutherland-Hodgman: a concave shape cut by a mat edge gets doubled
   edges along that edge, which a cutter traces twice. The PDF clips properly and has none.

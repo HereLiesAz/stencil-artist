@@ -435,9 +435,9 @@ class StencilState(
     /**
      * Makes sheet [sheet] (a position in paint order) the colour [argb], keeping every other sheet
      * as it is now. In colour mode the sheets' colours then become the given palette, so the other
-     * pixels are re-sorted to those colours and the order option may move the sheet. There is no
-     * screen for this yet; it is the seam a colour picker will use. Asking for a colour another
-     * sheet already has is refused with a message.
+     * pixels are re-sorted to those colours and the order option may move the sheet. The
+     * Free-mode palette editor calls this on Apply, not on every slider tick. Asking for a colour
+     * another sheet already has is refused with a message.
      */
     fun setSheetColor(sheet: Int, argb: Int) {
         if (snapped) {
