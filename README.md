@@ -83,9 +83,11 @@ The app automatically makes a bridge only when a later sheet already hides its e
 anything it cannot repair remains an island warning, never an omitted detail. It also locates
 soft source-image gradients on cut edges and labels the appropriate edge for controlled
 stencil lifting in the print PDF, with scrap-test guidance. **Stroke construction** offers
-Classic (the original masks) and opt-in Brush strokes (small contour-guided negative marks
-from supported stencil material into broad later-layer paint areas). This prototype does
-not yet fully reconstruct expressive additive brush strokes or exposed islands. See [the implementation and limitations](docs/STROKE_ISLANDS.md).
+Classic (the original masks) and opt-in Brush strokes, which now reconstruct broad
+later-layer openings from narrow additive paint ribbons following the processed image's
+luminance contours. Small, thin features and the black base stay untouched; stencil
+islands created by new gaps are filled back in. Explicit semantic reconstruction of
+exposed islands is still outstanding. See [the implementation and limitations](docs/STROKE_ISLANDS.md).
 
 ## Cutter files
 
