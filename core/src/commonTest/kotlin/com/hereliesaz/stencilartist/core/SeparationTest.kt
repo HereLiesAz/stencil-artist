@@ -102,6 +102,42 @@ class SeparationTest {
     }
 
     @Test
+    fun independentPaintOpeningsPermitDeferredReconstructionWithoutNestedCuts() {
+        // Grey intentionally skips the eye. White later covers part of that unpainted area.
+        // The grey bridge remains uncut even where its absence would be hidden by white.
+        val masks = listOf(
+            booleanArrayOf(false, true, true, true, true, false),
+            booleanArrayOf(false, false, true, false, true, false),
+            booleanArrayOf(false, false, true, true, false, false),
+        )
+        val s = Separation.fromMasks(6, 1, listOf(Sheet(black), Sheet(grey), Sheet(white)), masks)
+        assertContentEquals(intArrayOf(none, 0, 2, 2, 1, none), s.index)
+        assertContentEquals(booleanArrayOf(false, false, true, false, true, false), s.mask(1))
+        assertContentEquals(booleanArrayOf(false, false, true, true, false, false), s.mask(2))
+        assertContentEquals(intArrayOf(0, black, white, white, grey, 0), s.render())
+        assertContentEquals(intArrayOf(0, 0, grey, 0, grey, 0), s.render(1))
+        assertContentEquals(intArrayOf(0, 0, white, white, 0, 0), s.render(2))
+        assertContentEquals(booleanArrayOf(false, false, false, true, false, false),
+            s.mask(2, Coverage.EXCLUSIVE))
+    }
+
+    @Test
+    fun independentMasksAreDefensivelyCopiedAndRequireValidDimensions() {
+        val input = booleanArrayOf(true, false)
+        val s = Separation.fromMasks(2, 1, listOf(Sheet(black)), listOf(input))
+        input[0] = false
+        val read = s.mask(0)
+        read[0] = false
+        assertContentEquals(booleanArrayOf(true, false), s.mask(0))
+        assertFailsWith<IllegalArgumentException> {
+            Separation.fromMasks(2, 1, listOf(Sheet(black)), listOf(booleanArrayOf(true)))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            Separation.fromMasks(2, 1, listOf(Sheet(black)), emptyList())
+        }
+    }
+
+    @Test
     fun aSheetThatIsNotThereIsRefused() {
         val s = three(listOf(black, grey, white))
         assertFailsWith<IllegalArgumentException> { s.render(3) }
