@@ -1,6 +1,8 @@
 package com.hereliesaz.stencilartist.core.export
 
 import com.hereliesaz.stencilartist.core.Separation
+import com.hereliesaz.stencilartist.core.LiftZone
+import com.hereliesaz.stencilartist.core.LiftDirection
 import com.hereliesaz.stencilartist.core.Sheet
 import kotlin.math.abs
 import kotlin.math.min
@@ -189,6 +191,20 @@ class PrintPdfTest {
         interpret(content).strokes.map { p ->
             p.pts.map { (x, y) -> (x / k - 3.0 + tile.clip.x0) to ((pageHeightPt - y) / k - 3.0 + tile.clip.y0) }
         }
+
+    @Test
+    fun gradientLiftTipIsPrintedWithoutChangingCutCoordinates() {
+        val original = stencil(100, 100) { x, _ -> x < 50 }
+        val marked = original.withLiftZones(listOf(LiftZone(0, 49, 50, LiftDirection.RIGHT)))
+        assertTrue(original.liftZones.isEmpty())
+        assertTrue(original.mask(0).contentEquals(marked.mask(0)))
+        val printed = parse(PrintPdf.make(marked, options(100.0)))
+        assertTrue(printed.contents.any { "(SOFT GRADIENT)" in it })
+        assertTrue(printed.contents.any { "(Shim the right edge.)" in it })
+        assertTrue(printed.contents.any { "(Spray lightly. Test first.)" in it })
+        val plain = parse(PrintPdf.make(original, options(100.0)))
+        assertFalse(plain.contents.any { "(SOFT GRADIENT)" in it })
+    }
 
     // ---- Structure, paper and counts.
 
