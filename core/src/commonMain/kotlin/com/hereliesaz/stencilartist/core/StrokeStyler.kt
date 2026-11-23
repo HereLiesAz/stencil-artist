@@ -412,10 +412,12 @@ object StrokeStyler {
                             lastX = x
                             lastY = y
                             val target = direction(p, vx, vy)
-                            // Keep the negative stroke flowing inward long enough
-                            // to connect to the surrounding sheet before following
-                            // the source-image contour as a brushstroke would.
-                            val blend = min(0.6f, 0.10f + 0.02f * step)
+                            // Keep the negative stroke moving into the paint mass
+                            // before following its contours. Turning at the very
+                            // boundary only scratches the edge; it cannot articulate
+                            // the broad interior of a fold or shaded face.
+                            val blend = if (step < 12) 0f else
+                                min(0.6f, 0.10f + 0.02f * (step - 12))
                             val dx = (1f - blend) * vx + blend * target.first
                             val dy = (1f - blend) * vy + blend * target.second
                             val length = sqrt(dx * dx + dy * dy)
