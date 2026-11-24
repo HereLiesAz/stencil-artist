@@ -28,6 +28,8 @@ data class ImageAdjustments(
     val clarity: Float = 0f,
     /** Zero disables value quantization; otherwise number of equally spaced value bands. */
     val posterize: Int = 0,
+    /** Master value curve, applied after colour adjustments and before spatial effects. */
+    val curve: ToneCurve = ToneCurve(),
 ) {
     init {
         require(exposure in -2f..2f && brightness in -1f..1f && contrast in -1f..1f && gamma in .25f..4f)
@@ -38,7 +40,7 @@ data class ImageAdjustments(
         require(posterize == 0 || posterize in 2..16)
     }
 
-    /** Apply levels, tone/color, cleanup, detail enhancement and value bands in that order. */
+    /** Apply levels, tone/color, master value curve, cleanup, detail enhancement and value bands in that order. */
     fun apply(image: RgbaImage): RgbaImage {
         if (this == ImageAdjustments() || image.pixels.isEmpty()) return image
         val bounds = if (autoLevels) valueBounds(image.pixels) else 0 to 255
@@ -67,6 +69,20 @@ data class ImageAdjustments(
                 }
                 pack(p, adjusted(luma + (r - luma) * sat + warm),
                     adjusted(luma + (g - luma) * sat + green), adjusted(luma + (b - luma) * sat - warm))
+            }
+        }
+        if (curve != ToneCurve()) {
+            val transfer = curve.lookup()
+            for (i in pixels.indices) {
+                val p = pixels[i]
+                if (p ushr 24 == 0) continue
+                val v = value(p)
+                val target = transfer[v]
+                if (v == 0) pixels[i] = pack(p, target, target, target)
+                else {
+                    fun remap(shift: Int) = (channel(p, shift) * target / v.toFloat()).roundToInt().coerceIn(0, 255)
+                    pixels[i] = pack(p, remap(16), remap(8), remap(0))
+                }
             }
         }
         val w = image.width; val h = image.height

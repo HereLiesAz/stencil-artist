@@ -19,7 +19,8 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 - [x] Restore flat depth relighting as a separate Light mode. Fix image-relative gradient scaling, foreground-only robust range and alpha-aware differences; add independent matte mix, direction, intensity, ambient, strength and depth reversal. App caller: `StencilState.remake` → `DepthLighting.relight`. Device quality checks remain open.
 - [x] Add shared stencil-oriented source/skin and prepared-image adjustments, preserving alpha and the original source. `ImageAdjustmentEditor` → `StencilState.updateSourceAdjustments` / `updatePreparedAdjustments` → `ImageAdjustments.apply` → every separator. Seven isolated JVM fixtures passed; integrated builds and real-photo evaluation remain open.
 - [x] Add a per-sheet diagnostic view: actual cut boundaries, unsupported islands, physically fine openings and narrow-stock screening. Uses `Separation.mask` and the existing full-sheet print-tip detector; caller: `CutInspectionView` in Inspect. Read-only; one sheet at a time.
-- [ ] Add curve editing and evaluate diagnostic usefulness and physical output quality on real photographs.
+- [x] Add interactive master value curves to both adjustment stacks; `ToneCurveEditor` → `ImageAdjustmentEditor` → existing `StencilState` adjustment setters → `ImageAdjustments.apply`. Fixed input knots, monotone cubic interpolation, independent reset and accessible output slider. Six focused JVM tests pass.
+- [ ] Evaluate diagnostic usefulness and physical output quality on real photographs.
 - [ ] Verify actual photographs, depth quality and tonal-layer usefulness on Android and Wasm.
 
 ## True 3D relief and lighting (approved 2026-11-24)
