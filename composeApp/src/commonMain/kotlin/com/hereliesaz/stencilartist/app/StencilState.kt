@@ -52,6 +52,7 @@ class StencilState(
     private val depthEstimator: DepthEstimator,
     private val catalogueLoader: CatalogueLoader,
     private val store: KeyValueStore = MemoryStore(),
+    private val strokeModels: ModelLoader? = null,
 ) {
 
     /** The opened image, or null before one is opened. */
@@ -85,6 +86,17 @@ class StencilState(
     /** Optional expressive openings with small flow-aligned negative brushstrokes. */
     var strokeBased: Boolean by mutableStateOf(false)
         private set
+
+    val supportsNeuralStrokes get() = strokeModels?.supportsNeuralStrokes == true
+
+    /** Selected source for brush geometry. Re-importing triggers fresh inference. */
+    var strokeEngine by mutableStateOf(StrokeEngine.PROCEDURAL)
+        private set
+
+    fun selectStrokeEngine(engine: StrokeEngine) {
+        strokeEngine = engine
+        if (strokeBased) remake(settle = false)
+    }
 
     /** The selected pixel width of ribbon marks. Retained when switching back to Classic. */
     var strokeWidthPixels: Int by mutableStateOf(StrokeStyler.DEFAULT_BRUSH_WIDTH_PIXELS)
@@ -595,6 +607,7 @@ class StencilState(
         val wantedTone = toneParams
         val wantedColor = colorParams
         val wantedLighting = lighting
+        val wantedEngine = strokeEngine
         val wantedStrokes = strokeBased
         val wantedStrokeWidth = strokeWidthPixels
         val wantedPaint = if (wantedMode == SeparationMode.COLOUR) paintMode else PaintMode.FREE
@@ -712,7 +725,17 @@ class StencilState(
                     // Gradient-lift notes are derived from the processed SOURCE, not from flat masks.
                     val finished = result
                     val planned = withContext(Dispatchers.Default) {
-                        val composed = if (wantedStrokes) {
+                        val composed = if (wantedStrokes && finished.sheets.size <= 16 && wantedEngine != StrokeEngine.PROCEDURAL) {
+                            try {
+                                val marks = requireNotNull(strokeModels).predictMarks(lit, wantedEngine)
+                                com.hereliesaz.stencilartist.core.NeuralStrokeMask.apply(finished, List(finished.sheets.size) { marks })
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (error: Exception) {
+                                notes += "${wantedEngine.label} unavailable: ${error.message}. Used procedural brush marks."
+                                StrokeStyler.stylize(lit, finished, strokeWidthPixels = wantedStrokeWidth)
+                            }
+                        } else if (wantedStrokes) {
                             StrokeStyler.stylize(lit, finished, strokeWidthPixels = wantedStrokeWidth)
                         } else finished
                         val bridgePlan = IslandPlanner.repair(composed, lit, minimumBridgePixels = NOMINAL_BRIDGE_PIXELS)

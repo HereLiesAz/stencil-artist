@@ -43,7 +43,7 @@ actual fun rememberNeuralModelImporter(
     val scope = rememberCoroutineScope()
     val imported = rememberUpdatedState(onImported)
     val failed = rememberUpdatedState(onError)
-    var pending by remember { mutableStateOf<NeuralModelPart?>(null) }
+    var pending by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<NeuralModelPart?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val part = pending
         pending = null
@@ -54,6 +54,7 @@ actual fun rememberNeuralModelImporter(
                     val folder = File(context.filesDir, "neural-models").apply { mkdirs() }
                     val temporary = File.createTempFile("neural-import-", ".onnx", folder)
                     try {
+                        val hash = MessageDigest.getInstance("SHA-256")
                         var bytes = 0L
                         context.contentResolver.openInputStream(uri).let { stream ->
                             requireNotNull(stream) { "Could not read the selected ONNX file." }
@@ -65,12 +66,15 @@ actual fun rememberNeuralModelImporter(
                                         if (n < 0) break
                                         bytes += n
                                         require(bytes <= 150_000_000L) { "ONNX file exceeds 150 MB." }
+                                        hash.update(buffer, 0, n)
                                         output.write(buffer, 0, n)
                                     }
                                 }
                             }
                         }
-                        require(bytes > 0) { "The selected ONNX file is empty." }
+                        require(hash.digest().joinToString("") { "%02x".format(it) } == part.sha256) {
+                            "Select the validated ${part.fileName} from the conversion output."
+                        }
                         OrtEnvironment.getEnvironment().createSession(temporary.absolutePath).use { session ->
                             val expectedInputs = when (part) {
                                 NeuralModelPart.PAINT_TRANSFORMER -> setOf("image", "canvas")
@@ -89,16 +93,8 @@ actual fun rememberNeuralModelImporter(
                             }
                         }
                         val target = File(folder, part.fileName)
-                        // Copy rather than rename over an existing valid checkpoint: interrupted
-                        // writes must never leave a partially installed model.
-                        val backup = File(folder, "${part.fileName}.previous")
-                        backup.delete()
-                        if (target.exists()) check(target.renameTo(backup))
-                        if (!temporary.renameTo(target)) {
-                            if (backup.exists()) backup.renameTo(target)
-                            error("Could not install model.")
-                        }
-                        backup.delete()
+                        // POSIX rename atomically replaces a file in the same directory.
+                        android.system.Os.rename(temporary.absolutePath, target.absolutePath)
                     } finally {
                         temporary.delete()
                     }
@@ -121,6 +117,7 @@ actual fun rememberModelLoader(): ModelLoader {
  * only on first use, SHA-256 verified, and cached in private persistent app storage.
  */
 private class AssetModelLoader(private val context: Context) : ModelLoader {
+    override val supportsNeuralStrokes = true
     override suspend fun load(fileName: String): Inference = withContext(Dispatchers.IO) {
         val environment = OrtEnvironment.getEnvironment()
         val sourcePath = when {
@@ -245,6 +242,7 @@ private class AssetModelLoader(private val context: Context) : ModelLoader {
 }
 
 private class OrtInference(private val environment: OrtEnvironment, private val session: OrtSession) : NeuralInference {
+    override fun close() = session.close()
     override suspend fun run(input: FloatArray, shape: IntArray): FloatArray = withContext(Dispatchers.Default) {
         val name = session.inputNames.first()
         OnnxTensor.createTensor(environment, FloatBuffer.wrap(input), LongArray(shape.size) { shape[it].toLong() }).use { tensor ->
