@@ -637,10 +637,10 @@ class PrintPdfTest {
         val s = stencil(40, 40) { x, y -> !(x in setOf(4, 11, 18, 25, 32) && y in setOf(4, 11, 18, 25, 32)) }
         val pdf = parse(PrintPdf.make(s, options(150.0)))
         assertEquals(25, Regex("""\(ISLAND\) Tj""").findAll(pdf.s).count())
-        assertTrue("(ISLAND) Tj" in pdf.contents.single { pageKind(it) == "tile" },
-            "The large removed region can hold cutting tips")
-        assertTrue(pdf.contents.any { pageKind(it) == "reference" },
-            "Tips that do not fit on their tile retain adjacent reference details")
+        assertFalse("(ISLAND) Tj" in pdf.contents.single { pageKind(it) == "tile" },
+            "Scattered stock islands interrupt every sufficiently wide buffered note region")
+        assertEquals(7, pdf.contents.count { pageKind(it) == "reference" },
+            "All 25 tips remain on adjacent reference pages when no continuous safe rectangle fits")
     }
 
     @Test
