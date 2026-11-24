@@ -87,11 +87,8 @@ pixel-width connection does not prove a millimetre-width connection.
   actual cut edges. It rejects sharp steps and regions with insufficient source
   alpha. One representative zone per local cell becomes a `SOFT GRADIENT` tip.
   Contextual PDF notes identify the edge and direction to place a small shim,
-  instruct light controlled spraying, and call for a scrap test. Painting tips
-  are printed only on surviving stock; cutting tips prefer cutaway material,
-  falling back to safe surviving stock if the opening is too small. No note
-  crosses a cut; tips without a safe position appear beside a cropped local
-  detail on a non-cutting reference page.
+  instruct light controlled spraying, and call for a scrap test. Notes never
+  cross cutting lines; they move to adjacent reference pages if necessary.
 - For performance, independent-mask island repair and gradient analysis are
   currently limited to stacks of at most sixteen sheets. The app warns when it
   skips this analysis. Existing cutting hazard tips still run for any sheet count.
@@ -116,6 +113,8 @@ pixel-width connection does not prove a millimetre-width connection.
 - Independent visual comparison on supplied layered reference artwork. Until this
   is verified, the app must not promise it has matched any particular artist's
   brushwork.
+
+Cutting tips in the print PDF may be placed fully within either removable openings or retained stencil stock; the text and clearance never cross a cut. Gradient-lift painting tips remain on stock. Notes that cannot fit safely are shown with adjacent detail on reference pages.
 
 A gradient annotation is a **suggestion to deliberately soften** an indicated cut
 edge, never a promise that uncontrolled overspray will improve an image. The painter
