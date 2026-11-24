@@ -74,7 +74,9 @@ class MaskCorrectionsTest {
     @Test
     fun earlyPaletteChangesAssignmentButLateRecolourDoesNot() {
         val red = 0xFFFF0000.toInt(); val darkRed = 0xFFAA0000.toInt(); val green = 0xFF00FF00.toInt()
-        val image = RgbaImage(6, 1, intArrayOf(red, red, darkRed, darkRed, green, green))
+        // Both separator dimensions must be at least two pixels. Repeat the same known regions.
+        val image = RgbaImage(6, 2, intArrayOf(red, red, darkRed, darkRed, green, green,
+            red, red, darkRed, darkRed, green, green))
         val first = ColorSeparator.separate(image, ColorParams(sheets = 2, colors = listOf(red, green),
             smoothing = 1, closing = 1))!!.separation
         val second = ColorSeparator.separate(image, ColorParams(sheets = 2, colors = listOf(red, darkRed),

@@ -3,7 +3,7 @@
 Source: GraffitiXR `StencilTones.kt`, `StencilProcessor.kt`, `SubjectIsolator.kt`, `StencilTonesTest.kt`
 (copied; GraffitiXR is not modified).
 
-Status: **original planned phases implemented; approved 3D extrusion/scene-lighting work in progress.** What has not been verified on real hardware is listed under Review.
+Status: **full depth/extrusion, lighting, material and stencil-preparation plan approved; continue implementation and verification without another phase approval.** What has not been verified on real hardware is listed under Review.
 
 ## Guided studio redesign (2026-11-23)
 
@@ -38,9 +38,20 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 - [x] Add an optional image-sized, receive-only backdrop behind the relief with RGB and gap controls. Off by default; explicit opt-in composites the backdrop into the final image. Caller: Light stage → `ReliefScene.renderSource` and `renderOrbit`. CI/device validation remains open.
 - [x] Choose source-image skin or a custom opaque solid RGB material independently of geometry and lights. Solid covers front, walls and cap; source transparency is preserved. `SceneRgbEditor` and the Light stage update `LightingParams`, consumed by `ReliefScene.renderSource` and `renderOrbit`.
 - [x] Add smoothing, flatten/clamp, depth remapping and artist depth corrections beyond existing thickness, relief strength and depth inversion. Light → `DepthGeometryEditor` → `updateDepthEdits` → `DepthEdits.apply` → `DepthLighting.relight` / `ReliefScene.prepare`. Draft-only strokes and global controls; inference and subject remain unchanged. Android/Wasm visual verification remains open.
-- [ ] Intrinsic albedo recovery remains separate from the solid material choice.
+- [ ] Add optional bounded original-light compensation for flat and textured 3D lighting; preserve hue, alpha, original image and independent scene lights. This is an approximation, not intrinsic albedo recovery.
+- [ ] Evaluate actual-photo intrinsic material estimation and shadow/highlight separation against the compensation and solid-coat baselines.
 - [x] Add actual cut-boundary and island/cut-risk diagnostics from the committed separation (see Inspect above).
 - [ ] Verify Android and Wasm scene rendering, visual comparison, cancellation, transparent/empty/flat inputs, shadow reversal/occlusion, deterministic results, performance and hardware usability.
+
+## Approved continuation and acceptance gates (2026-11-24)
+
+The artist has approved the entire depth/stencil plan and instructed continuous implementation, not a fresh approval at each phase. Preserve Image → Subject → Palette → Light → Adjust → Edges → Inspect → export. Depth remains optional inside Light; the original-image workflow must not require inference. See [approved architecture and material plan](../docs/DEPTH_RELIGHT_DISCUSSION.md). The original plan's implementation checkpoints remain above.
+
+- [ ] Restore green JVM/Wasm regression and Android build/lint CI; verify each failure rather than weakening assertions.
+- [ ] Run a browser smoke test on the actual current app: image, mask correction, early/deferred arbitrary palettes, flat relight, depth draft/apply, textured and solid relief, placed lights, backdrop, cut inspection and exports. Check narrow/wide layouts and loading acknowledgement on success/failure.
+- [ ] Improve shadow quality where controlled fixtures expose acne, striping or bias; test finite and directional lights, opacity, self/cast visibility and source framing. Keep coarse mesh limits explicit.
+- [ ] Benchmark real photographs on representative Android and browser devices, then improve preview responsiveness and working-image/full-resolution processing as evidence warrants. Report actual latency and memory separately from build status.
+- [ ] Assess physical stencil cuts, registration, island repairs and fine detail on real coloured and tonal artwork; continue the existing island/stroke synthesis work where findings justify changes. Do not mark hardware verification complete without evidence.
 
 ## Decisions (answered)
 

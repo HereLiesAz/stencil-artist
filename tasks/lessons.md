@@ -81,6 +81,11 @@ Rules written after corrections. Read at the start of every session on this repo
 - Share the corrected relative depth between flat relighting and extrusion; preserve original image, alpha, palette and fixed frontal camera. A depth map is not a physical distance measurement.
 - Reuse image-space brush coordinates, keep editing local until Apply, invalidate separation synchronously and guard generation publication.
 
+## 2026-11-24 — Entire depth/stencil plan approved
+
+- Continue approved implementation and verification without requesting phase approval. Track real remaining work in the repository; distinguish implementation, CI, visual and physical validation.
+- Separate assumed source light from the new scene lights. Never claim unique intrinsic albedo from a single image. Preserve source, alpha, fixed camera, palette and export contracts.
+
 ## 2026-11-22 — Raster output must stay identical to the stencil preview
 
 - Encode per-sheet PNG pixels through `Separation.render(sheet)` and composite through
