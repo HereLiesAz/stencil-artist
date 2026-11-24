@@ -16,6 +16,13 @@ Rules written after corrections. Read at the start of every session on this repo
 - _(My reading, not Az's words:)_ the up-front plan check-in still stands; it is the mid-plan
   pauses that were the problem.
 
+## 2026-11-23 — Cutting and painting guidance have different homes
+
+- Cutting advice **may occupy cutaway material**, preferably there when a complete buffered note rectangle fits. Fine cutaways may be too narrow; surviving stock is an acceptable fallback.
+- Painting advice **must occupy surviving, uncut stock**. Never place it in a cutaway, even if that is closer to the affected gradient.
+- Both types need a verified physical clearance rectangle, stay away from outlines and board edges, and fall back to adjacent non-cutting reference pages if necessary. Text over a dark painted cutaway needs contrasting ink.
+- This updates the 2026-11-22 placement restriction below; that rule's prohibition against crossing cuts remains.
+
 ## 2026-11-22 — Print guidance must not change cuts
 
 - Contextual PDF tips belong **inside uncut, surviving stencil stock**, never in a side gutter.
