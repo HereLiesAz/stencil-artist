@@ -14,7 +14,10 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 - [ ] Visually inspect both wide web and narrow Android layouts, including keyboard and touch input, and verify pinch-pan, clipped zoom and side-by-side accuracy on devices.
 - [x] Approve the 3D extrusion, actual scene lighting and rendered-source stencil architecture. See `docs/DEPTH_RELIGHT_DISCUSSION.md`.
 
-- [x] Start with image, layer count and arbitrary paint palette, then choose Original/Depth relight/3D scene, then source/render adjustments. Colour matching is the default; tonal bands also allow custom colours. `FreePaletteEditor` → `StencilState.editablePalette`, `useCustomPalette`, `setSheetColor`, `setSheetCount` → shared separator parameters. Manual palettes are independent of generated sheets; count edits preserve retained slots. Integration and device verification remain open.
+- [x] Choose layer count and arbitrary paint palette before Original/Depth relight/3D scene, then source/render adjustments (the subsequent Subject-first refinement is below). Colour matching is the default; tonal bands also allow custom colours. `FreePaletteEditor` → `StencilState.editablePalette`, `useCustomPalette`, `setSheetColor`, `setSheetCount` → shared separator parameters. Manual palettes are independent of generated sheets; count edits preserve retained slots. Integration and device verification remain open.
+
+- [x] Separate Image → Subject → Palette → Light → Adjust; opening an image leads to Subject. Add manual remove/restore brush, zoom/pan, red overlay/cutout preview, undo, reset, draft and explicit apply. `SubjectMaskEditor` → `updateMaskEdits` → `MaskCorrections.apply` before lighting; explicit exclusions remain out of all cuts unless the artist opts into an opaque scene backdrop.
+- [x] Distinguish early paint constraints from deferred colour choices: choose specific paints in Palette to influence layer generation, or assign RGB to existing sheets in Inspect with `recolorSheet` → `Separation.withSheetColor`, preserving ranks, masks and paint order. Rebuilding layers discards late assignments rather than silently remapping them. Can-based paint plans retain their early catalogue selection. Integration/device verification remains open.
 
 ## Flat depth relighting and image preparation (2026-11-24)
 

@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -74,11 +76,16 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.LightingParams
 import com.hereliesaz.stencilartist.core.ImageAdjustments
+import com.hereliesaz.stencilartist.core.RgbaImage
+import com.hereliesaz.stencilartist.core.MaskCorrections
+import com.hereliesaz.stencilartist.core.MaskPoint
+import com.hereliesaz.stencilartist.core.MaskStroke
 import com.hereliesaz.stencilartist.core.ToneCurve
 import com.hereliesaz.stencilartist.core.SceneLight
 import com.hereliesaz.stencilartist.core.SceneLightKind
@@ -128,9 +135,11 @@ private val WIDE_LAYOUT = 720.dp
 
 /** One decision per stage; all stages use the same in-memory processing and export state. */
 private val STUDIO_STEPS = listOf(
-    "Setup" to "Choose your image, layer count and paint palette first. Use any colours, or let the image suggest them.",
+    "Image" to "Choose the image to stencil.",
+    "Subject" to "Keep the whole frame or isolate the subject. Correct missed background and foreground by painting on the mask.",
+    "Palette" to "Choose layer count and colour or tonal separation. Choose specific paints now or decide later.",
     "Light" to "Choose the image or an extruded 3D subject. Keep original lighting, use flat depth relight, or place lights in the scene.",
-    "Adjust" to "Isolate the subject and refine its source and rendered image to make the chosen paint layers useful.",
+    "Adjust" to "Refine the source and rendered image to make the chosen paint layers useful.",
     "Edges" to "Choose how paint openings are constructed. Keep fine detail intact, then adjust edge cleanup only where necessary.",
     "Inspect" to "Compare the source with your result, then inspect each cut sheet. Tiny unsupported islands may need special handling.",
     "Images" to "Save a finished image, an individual sheet, or an aligned layer pack for another app.",
@@ -404,17 +413,22 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     }
     val print = remember { PrintSettings() }
     var step by remember { mutableIntStateOf(0) }
+    var maskDraft by remember(state.source, state.maskStrokes) { mutableStateOf(state.maskStrokes) }
     var advancedLight by remember { mutableStateOf(false) }
     var advancedEdges by remember { mutableStateOf(false) }
     val stepScroll = rememberScrollState()
     LaunchedEffect(step) { stepScroll.scrollTo(0) }
     val openStep: (Int) -> Unit = { next ->
-        step = next.coerceIn(STUDIO_STEPS.indices)
-        if (step == 1 || step == 2) state.showProcessed(true) else state.show(state.shownSheet)
+        if (step == 1 && state.removeBackground && maskDraft != state.maskStrokes && next != step) {
+            state.fail("Apply or discard your mask edits before leaving Subject.")
+        } else if (next <= 0 || state.source != null) {
+            step = next.coerceIn(STUDIO_STEPS.indices)
+            if (step == 1 || step == 3 || step == 4) state.showProcessed(true) else state.show(state.shownSheet)
+        }
     }
     LaunchedEffect(state.source) {
-        // A new image begins with its requested paint palette and layer count.
-        if (state.source != null) openStep(0)
+        // Image selection leads immediately to subject isolation, before choosing paints.
+        if (state.source != null) { step = 1; state.showProcessed(true) }
     }
 
     // The Android picker completes asynchronously. Keep every export control locked until the
@@ -484,7 +498,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { openStep(step - 1) }, enabled = step > 0,
                 modifier = Modifier.weight(1f)) { Text("← Back") }
-            Button(onClick = { openStep(step + 1) }, enabled = step < STUDIO_STEPS.lastIndex,
+            Button(onClick = { openStep(step + 1) }, enabled = step < STUDIO_STEPS.lastIndex && state.source != null,
                 modifier = Modifier.weight(1f)) {
                 Text(if (step < STUDIO_STEPS.lastIndex) "Next: ${STUDIO_STEPS[(step + 1).coerceAtMost(STUDIO_STEPS.lastIndex)].first}" else "All steps")
             }
@@ -497,7 +511,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium) }
 
-        if (step == 4) Section("Show") {
+        if (step == 6) Section("Show") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Choice("Stencil", selected = !state.viewProcessedImage, modifier = Modifier.weight(1f)) {
                     state.show(state.shownSheet)
@@ -509,7 +523,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             SheetStrip(state.separation?.sheets.orEmpty(), state.shownSheet, state::show)
         }
 
-        if (step == 4) Section("Cut inspection") {
+        if (step == 6) Section("Cut inspection") {
             var inspect by remember { mutableStateOf(false) }
             Choice("Show cut risks", inspect) { inspect = !inspect }
             if (inspect) {
@@ -525,7 +539,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        if (step == 2) Section("Background") {
+        if (step == 1) Section("Background") {
             Text("Removing the background usually means fewer cuts. Depth assistance can help uncertain edges; the app keeps confident foreground/background decisions.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -546,12 +560,22 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        if (step == 2) Section("Source adjustments") {
+        if (step == 1 && state.removeBackground) {
+            val source = state.source
+            val automatic = state.automaticMask
+            if (source != null && automatic != null) Section("Correct subject mask") {
+                SubjectMaskEditor(source, automatic, maskDraft, state.maskStrokes, { maskDraft = it }) {
+                    state.updateMaskEdits(source, maskDraft)
+                }
+            }
+        }
+
+        if (step == 4) Section("Source adjustments") {
             Text("Adjust the isolated photograph or its 3D skin. Depth and the subject mask are estimated from the original image.", style = MaterialTheme.typography.bodySmall)
             ImageAdjustmentEditor(state.sourceAdjustments, state::updateSourceAdjustments)
         }
 
-        if (step == 1) Section("Depth + lighting") {
+        if (step == 3) Section("Depth + lighting") {
             Text("Choose how to light the prepared image. Flat depth relight uses estimated surface normals without extrusion; the 3D scene supports geometric shadows.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val light = state.lighting
@@ -675,12 +699,12 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        if (step == 2) Section("Stencil image adjustments") {
+        if (step == 4) Section("Stencil image adjustments") {
             Text("Shape the final image before separation, with or without depth or extrusion. These filters do not change the number of sheets or transparency.", style = MaterialTheme.typography.bodySmall)
             ImageAdjustmentEditor(state.preparedAdjustments, state::updatePreparedAdjustments)
         }
 
-        if (step == 0) {
+        if (step == 2) {
         Section("Separate by") {
             Text("Colour matches hues to your paint set. Tone maps brightness to any chosen colours in paint order, including for a solid relief.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -706,7 +730,12 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
 
         if (state.mode == SeparationMode.COLOUR) PaintSection(state)
-        else Section("Paint palette") { FreePaletteEditor(state) }
+        else Section("Paint palette") {
+            Choice("Decide colours later", state.customPalette == null) { state.useCustomPalette(false) }
+            Choice("Choose colours now", state.customPalette != null) { state.useCustomPalette(true) }
+            if (state.customPalette != null) FreePaletteEditor(state)
+            else Text("Use brightness bands now, then assign any paint colours in Inspect.")
+        }
 
         if (state.mode == SeparationMode.TONE) {
             Section("Base") {
@@ -736,7 +765,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
 
         }
-        if (step == 3) {
+        if (step == 5) {
         Text("Brush strokes shape broad openings with directional marks. Classic preserves the original cut geometry.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         // Smoothing is a median filter and must be odd: the slider counts in steps of two.
@@ -798,9 +827,12 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
 
         }
-        if (step == 4 && state.snapped) PaintListSection(state)
+        if (step == 6 && state.snapped) PaintListSection(state)
+        if (step == 6 && !state.snapped && state.separation != null) Section("Assign paint to existing sheets") {
+            FreePaletteEditor(state, existing = true)
+        }
 
-        if (step == 5) Section("Raster PNG") {
+        if (step == 7) Section("Raster PNG") {
             state.separation?.let { stencil ->
                 Text(
                     "Transparent PNGs · ${stencil.width} × ${stencil.height} pixels",
@@ -842,7 +874,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             )
         }
 
-        if (step == 6 || step == 7) Section("Physical size") {
+        if (step == 8 || step == 9) Section("Physical size") {
             LabelledSlider("Width", printWidthMm.roundToInt().toString() + " mm",
                 printWidthMm, 50f..1000f) { printWidthMm = it }
             state.separation?.let { stencil ->
@@ -878,7 +910,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        if (step == 7) Section("Cutter files") {
+        if (step == 9) Section("Cutter files") {
             // These rows wrap rather than scroll: a mouse cannot drag a row sideways, and a choice
             // that is off the edge of the panel is a choice nobody finds.
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1061,7 +1093,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             ) { Text("Download all sheets ${format.label}") }
         }
 
-        if (step == 6) PrintSection(
+        if (step == 8) PrintSection(
             state = state,
             settings = print,
             widthMm = printWidthMm.toDouble(),
@@ -1077,7 +1109,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { openStep(step - 1) }, enabled = step > 0,
                 modifier = Modifier.weight(1f)) { Text("Previous") }
-            Button(onClick = { openStep(step + 1) }, enabled = step < STUDIO_STEPS.lastIndex,
+            Button(onClick = { openStep(step + 1) }, enabled = step < STUDIO_STEPS.lastIndex && state.source != null,
                 modifier = Modifier.weight(1f)) {
                 Text(if (step < STUDIO_STEPS.lastIndex) "Next: ${STUDIO_STEPS[(step + 1).coerceAtMost(STUDIO_STEPS.lastIndex)].first}" else "Finished")
             }
@@ -1375,6 +1407,98 @@ internal fun Section(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         content()
+    }
+}
+
+/** A non-destructive mask editor with explicit batch apply, so a drag never launches inference.
+ * Zoom and pan affect both bitmap and brush coordinates. Pending edits are retained by Controls. */
+@Composable
+private fun SubjectMaskEditor(
+    source: RgbaImage, automatic: RgbaImage, strokes: List<MaskStroke>, committed: List<MaskStroke>,
+    onEdit: (List<MaskStroke>) -> Unit, onApply: () -> Unit,
+) {
+    var restore by remember { mutableStateOf(false) }
+    var overlay by remember { mutableStateOf(true) }
+    var radius by remember(source) { mutableFloatStateOf((maxOf(source.width, source.height) / 80f).coerceAtLeast(1f)) }
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var panX by remember { mutableFloatStateOf(0f) }
+    var panY by remember { mutableFloatStateOf(0f) }
+    var active by remember { mutableStateOf(emptyList<MaskPoint>()) }
+    val addStroke by rememberUpdatedState<(MaskStroke) -> Unit>({ onEdit(strokes + it) })
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, source, automatic, strokes, overlay) {
+        val rendered = withContext(Dispatchers.Default) {
+            val corrected = MaskCorrections.apply(source, automatic, strokes).image
+            if (overlay) MaskCorrections.overlay(source, corrected) else corrected
+        }
+        value = argbToImageBitmap(rendered.pixels, rendered.width, rendered.height)
+    }
+    Text("Red marks excluded background. Remove missed background or restore missed subject. Apply before continuing.",
+        style = MaterialTheme.typography.bodySmall)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Choice("Remove", !restore) { restore = false }
+        Choice("Restore", restore) { restore = true }
+        Choice("Red overlay", overlay) { overlay = true }
+        Choice("Cutout", !overlay) { overlay = false }
+    }
+    LabelledSlider("Brush radius", radius.roundToInt().toString() + " px", radius,
+        1f..maxOf(2f, maxOf(source.width, source.height) / 5f)) { radius = it }
+    LabelledSlider("Mask zoom", oneDecimal(zoom) + "×", zoom, 1f..6f) { zoom = it }
+    if (zoom > 1f) {
+        LabelledSlider("Pan horizontal", oneDecimal(panX), panX, -1f..1f) { panX = it }
+        LabelledSlider("Pan vertical", oneDecimal(panY), panY, -1f..1f) { panY = it }
+    }
+    fun imageRect(bounds: IntSize): Pair<IntOffset, IntSize> {
+        val scale = minOf(bounds.width.toFloat() / source.width, bounds.height.toFloat() / source.height) * zoom
+        val w = (source.width * scale).roundToInt().coerceAtLeast(1)
+        val h = (source.height * scale).roundToInt().coerceAtLeast(1)
+        val x = (bounds.width - w) / 2f + maxOf(0, w - bounds.width) / 2f * panX
+        val y = (bounds.height - h) / 2f + maxOf(0, h - bounds.height) / 2f * panY
+        return IntOffset(x.roundToInt(), y.roundToInt()) to IntSize(w, h)
+    }
+    fun toImage(at: Offset, bounds: IntSize): MaskPoint {
+        val (offset, extent) = imageRect(bounds)
+        return MaskPoint((at.x - offset.x) * source.width / extent.width,
+            (at.y - offset.y) * source.height / extent.height)
+    }
+    fun inside(p: MaskPoint) = p.x >= 0 && p.y >= 0 && p.x < source.width && p.y < source.height
+    Canvas(Modifier.fillMaxWidth().height(320.dp).clipToBounds().checkerboard()
+        .semantics { contentDescription = "Subject mask painting area. Paint to remove or restore the original image." }
+        .pointerInput(source, restore, radius, zoom, panX, panY) {
+            detectTapGestures { at ->
+                val p = toImage(at, size)
+                if (inside(p)) addStroke(MaskStroke(listOf(p), radius, restore))
+            }
+        }
+        .pointerInput(source, restore, radius, zoom, panX, panY) {
+            detectDragGestures(
+                onDragStart = { at -> val p = toImage(at, size); active = if (inside(p)) listOf(p) else emptyList() },
+                onDragEnd = {
+                    if (active.isNotEmpty()) addStroke(MaskStroke(active, radius, restore))
+                    active = emptyList()
+                },
+                onDragCancel = { active = emptyList() },
+            ) { change, _ ->
+                change.consume()
+                if (active.isNotEmpty()) active = active + toImage(change.position, size)
+            }
+        }) {
+        val (offset, extent) = imageRect(IntSize(size.width.roundToInt(), size.height.roundToInt()))
+        bitmap?.let { drawImage(it, dstOffset = offset, dstSize = extent) }
+        val color = if (restore) Color(0xAA34C983) else Color(0xAAFF1830)
+        val brushWidth = 2 * radius * extent.width / source.width
+        fun screen(p: MaskPoint) = Offset(offset.x + p.x * extent.width / source.width,
+            offset.y + p.y * extent.height / source.height)
+        if (active.isNotEmpty()) {
+            drawCircle(color, brushWidth / 2f, screen(active.first()))
+            for (i in 1 until active.size) drawLine(color, screen(active[i - 1]), screen(active[i]),
+                strokeWidth = brushWidth, cap = StrokeCap.Round)
+        }
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedButton(onClick = { onEdit(strokes.dropLast(1)) }, enabled = strokes.isNotEmpty()) { Text("Undo stroke") }
+        OutlinedButton(onClick = { onEdit(emptyList()) }, enabled = strokes.isNotEmpty()) { Text("Reset to automatic") }
+        OutlinedButton(onClick = { onEdit(committed) }, enabled = strokes != committed) { Text("Discard draft") }
+        Button(onClick = onApply, enabled = strokes != committed) { Text("Apply mask") }
     }
 }
 

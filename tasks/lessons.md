@@ -59,9 +59,16 @@ Rules written after corrections. Read at the start of every session on this repo
 
 ## 2026-11-24 — Paint choices precede image rendering
 
-- Setup must offer image, layer count and arbitrary paint selection before the image/3D choice. Never require a completed separation just to choose paints.
+- Offer image, subject isolation, layer count and optional arbitrary paint selection before the image/3D choice. Never require a completed separation just to choose paints.
 - Colour matching is the initial mode. Tonal separation is a brightness-to-paint mapping, not a restriction to black, white or grey; arbitrary chosen RGB is valid.
 - Keep a locked palette independent of scene lighting, source texture, material and adjustments. A count edit retains the selected slots that fit, not an automatic reset. All outputs use the same committed separation.
+
+## 2026-11-24 — Subject correction and the two meanings of choosing paint
+
+- Image first, then isolate/correct the subject, then select layer count and the palette policy before choosing image or extrusion.
+- Early chosen colours constrain separation. Deferred colours are assignments to already-generated cut sheets; never rerun the separator or reorder geometry for a late assignment.
+- Manual foreground restores original alpha; manual background remains excluded from every sheet even when automatic silhouette closing fills holes. An explicitly enabled opaque receiver is a new background, not a failed mask.
+- Preserve source, generation guards, cut masks, paint order and export snapshot identity.
 
 ## 2026-11-22 — Raster output must stay identical to the stencil preview
 

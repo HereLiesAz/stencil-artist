@@ -17,6 +17,8 @@ import com.hereliesaz.stencilartist.core.IslandPlanner
 import com.hereliesaz.stencilartist.core.SoftGradientZones
 import com.hereliesaz.stencilartist.core.StrokeStyler
 import com.hereliesaz.stencilartist.core.RgbaImage
+import com.hereliesaz.stencilartist.core.MaskCorrections
+import com.hereliesaz.stencilartist.core.MaskStroke
 import com.hereliesaz.stencilartist.core.ImageAdjustments
 import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.TonalParams
@@ -470,6 +472,21 @@ class StencilState(
     /** [source] with its background removed, once that has been done and found a subject. */
     private var cutOut: RgbaImage? = null
 
+    /** Automatic, unlit mask baseline for the manual editor, published for the current source. */
+    var automaticMask: RgbaImage? by mutableStateOf(null)
+        private set
+
+    /** Committed corrections survive inference setting changes, but not a new source. */
+    var maskStrokes: List<MaskStroke> by mutableStateOf(emptyList())
+        private set
+
+    /** Commit a batch of brush edits; regeneration immediately invalidates the old stencil. */
+    fun updateMaskEdits(expectedSource: RgbaImage, strokes: List<MaskStroke>) {
+        if (source !== expectedSource || !removeBackground || busy || strokes == maskStrokes) return
+        maskStrokes = strokes.map { it.copy(points = it.points.toList()) }
+        remake(settle = false)
+    }
+
     /** Whether isolation has been tried for [source], whatever came of it: it is tried once. */
     private var isolationTried = false
 
@@ -504,6 +521,8 @@ class StencilState(
 
     fun open(image: RgbaImage) {
         source = image
+        maskStrokes = emptyList()
+        automaticMask = null
         cutOut = null
         isolationTried = false
         depthMap = null
@@ -614,6 +633,16 @@ class StencilState(
         }
     }
 
+    /** Assign paint to an already-made sheet, never to the separator's input palette.
+     * New separation identity invalidates in-flight exports. Rebuilding geometry later discards
+     * these assignments rather than silently transferring them onto unrelated shapes. */
+    fun recolorSheet(expected: Separation, sheet: Int, argb: Int): Boolean {
+        if (busy || snapped || separation !== expected || sheet !in expected.sheets.indices) return false
+        separation = expected.withSheetColor(sheet, argb or 0xFF000000.toInt())
+        show(shownSheet)
+        return true
+    }
+
     /** Settings changed: a sheet that no longer exists cannot stay selected, and the stencil is made again. */
     private fun changedParams(sheets: Int) {
         shownSheet = shownSheet?.takeIf { it < sheets }
@@ -684,6 +713,7 @@ class StencilState(
         val wantedColor = colorParams
         val wantedLighting = lighting
         val wantedFlatLighting = flatLighting
+        val wantedMaskStrokes = maskStrokes
         val wantedSourceAdjustments = sourceAdjustments
         val wantedPreparedAdjustments = preparedAdjustments
         val wantedEngine = strokeEngine
@@ -695,6 +725,7 @@ class StencilState(
         val request = ++generation
         run?.cancel()
         reliefScene = null
+        automaticMask = null
         separation = null
         paintLayers = emptyList()
         busy = true
@@ -731,7 +762,9 @@ class StencilState(
                 }
                 markStage(0.20f)
                 if (remove && !isolationTried && !image.hasTransparency()) {
-                    when (val isolation = isolator.isolate(image, if (assist) depthMap else null)) {
+                    val isolation = isolator.isolate(image, if (assist) depthMap else null)
+                    if (generation != request) return@launch
+                    when (isolation) {
                         is Isolation.Cut -> cutOut = isolation.image
                         Isolation.NoSubject -> notes += "No subject found. Using the whole image."
                         is Isolation.Unavailable ->
@@ -740,7 +773,13 @@ class StencilState(
                     isolationTried = true
                 }
                 markStage(0.40f)
-                val isolated = cutOut?.takeIf { remove } ?: image
+                val automatic = cutOut?.takeIf { remove } ?: image
+                val correction = if (remove && wantedMaskStrokes.isNotEmpty()) withContext(Dispatchers.Default) {
+                    MaskCorrections.apply(image, automatic, wantedMaskStrokes)
+                } else null
+                if (generation != request) return@launch
+                automaticMask = automatic
+                val isolated = correction?.image ?: automatic
                 val adjusted = withContext(Dispatchers.Default) { wantedSourceAdjustments.apply(isolated) }
                 if (generation != request) return@launch
                 val renderedImage = if (wantedFlatLighting.enabled && depthMap != null) {
@@ -766,6 +805,11 @@ class StencilState(
                 if (generation != request) return@launch
                 val lit = withContext(Dispatchers.Default) { wantedPreparedAdjustments.apply(renderedImage) }
                 if (generation != request) return@launch
+                // Manual exclusions are authoritative unless an explicitly enabled backdrop
+                // has replaced transparency with a new background.
+                val excluded = correction?.excluded?.let { erased ->
+                    BooleanArray(erased.size) { erased[it] && lit.pixels[it] ushr 24 == 0 }
+                }
                 markStage(0.60f)
                 // The filtered prepared image feeds every separator, paint plan, island and export.
                 // Neither the original image nor an orbit/diagnostic view enters this pipeline.
@@ -810,6 +854,7 @@ class StencilState(
                         }
                     }
                 }
+                if (generation != request) return@launch
                 markStage(0.80f)
                 processed = lit
                 if (result == null) {
@@ -822,7 +867,7 @@ class StencilState(
                     // reproduce it exactly, else use fully concealed negative-stroke bridges.
                     // Exposed corrections remain explicit island warnings.
                     // Gradient-lift notes are derived from the processed SOURCE, not from flat masks.
-                    val finished = result
+                    val finished = if (excluded == null) result else result.excluding(excluded)
                     val planned = withContext(Dispatchers.Default) {
                         val composed = if (wantedStrokes && finished.sheets.size <= 16 && wantedEngine != StrokeEngine.PROCEDURAL) {
                             try {
@@ -837,10 +882,12 @@ class StencilState(
                         } else if (wantedStrokes) {
                             StrokeStyler.stylize(lit, finished, strokeWidthPixels = wantedStrokeWidth)
                         } else finished
-                        val bridgePlan = IslandPlanner.repair(composed, lit, minimumBridgePixels = NOMINAL_BRIDGE_PIXELS)
+                        val correctedCuts = if (excluded == null) composed else composed.excluding(excluded)
+                        val bridgePlan = IslandPlanner.repair(correctedCuts, lit, minimumBridgePixels = NOMINAL_BRIDGE_PIXELS)
                         val softEdges = SoftGradientZones.locate(lit, bridgePlan.separation)
                         bridgePlan to bridgePlan.separation.withLiftZones(softEdges)
                     }
+                    if (generation != request) return@launch
                     val bridgePlan = planned.first
                     val output = planned.second
                     if (bridgePlan.sourceGuidedIslands > 0) {
