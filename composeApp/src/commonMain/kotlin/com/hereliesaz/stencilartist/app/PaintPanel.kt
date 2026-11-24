@@ -127,7 +127,7 @@ internal fun PaintSection(state: StencilState) {
  * every slider tick: a colour change regenerates and may reorder the sheets, so an in-flight drag
  * must not keep changing a different sheet. All exporters then consume that completed separation.
  * An additional catalogue browser lets the user select a real can's recorded colour, with the
- * same can-top grid and full-can carousel as My cans. Uncoloured cans are shown but cannot be applied.
+ * same can-top grid and full-can carousel as My cans. Entries without resolved RGB are hidden.
  * Custom hex/RGB editing remains available. A palette can be restored to the image-derived colours
  * without changing the requested sheet count.
  */
@@ -391,7 +391,7 @@ private fun CanPicker(state: StencilState) {
         } else {
             Column(Modifier.heightIn(max = 130.dp).verticalScroll(rememberScrollState())) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (can in chosen) SelectedTop(can) { state.removeCan(can) }
+                    for (can in chosen.filter { it.rgb != null }) SelectedTop(can) { state.removeCan(can) }
                 }
             }
         }
@@ -405,7 +405,8 @@ private fun CanPicker(state: StencilState) {
  * Opening any can navigates over the complete filtered results, including currently unseen rows.
  *
  * [onPick] applies a can colour to a Free sheet or learns a barcode; null means My cans'
- * usual selection toggle. [requireColour] prevents selecting an entry without an RGB value.
+ * usual selection toggle. Unresolved colours are omitted from both rack and carousel;
+ * [requireColour] remains for call-site compatibility but no longer affects visibility.
  */
 @Composable
 private fun CanBrowser(
@@ -428,10 +429,14 @@ private fun CanBrowser(
         // Catalogue colours can be edited while the carousel is open. Refresh each visible
         // can from its stable key, otherwise a saved colour leaves its action disabled until Back.
         val currentCans = remember(open, catalogue) {
-            open.cans.map { catalogue.byKey(it.canKey) ?: it }
+            open.cans.mapNotNull { can ->
+                (catalogue.byKey(can.canKey) ?: can).takeIf { it.rgb != null }
+            }
         }
-        CanCarousel(
-            state, currentCans, open.start, readOnly = false, onBack = { browsing = null },
+        if (currentCans.isEmpty()) {
+            LaunchedEffect(catalogue) { browsing = null }
+        } else CanCarousel(
+            state, currentCans, open.start.coerceAtMost(currentCans.lastIndex), readOnly = false, onBack = { browsing = null },
             onAssign = onPick?.let { pick ->
                 { can: Can -> if (pick(can)) browsing = null }
             },
@@ -452,7 +457,7 @@ private fun CanBrowser(
                 )
                 b != null -> catalogue.cans(b)
                 else -> catalogue.cans
-            }
+            }.filter { it.rgb != null }
         }
         if (results.isEmpty()) {
             Text("No can matches.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
@@ -487,16 +492,15 @@ private fun CanBrowser(
     }
 }
 
-/** One can top in the grid: tapping it opens the carousel. A can with no colour value is hatched and labelled. */
+/** One can top in the grid: only cans with a known colour reach this composable. */
 @Composable
 private fun CanTile(can: Can, selected: Boolean, onOpen: () -> Unit) {
     Column(
         Modifier.width(56.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onOpen)
-            .semantics { contentDescription = can.displayName + (if (selected) ", selected" else "") + (if (can.rgb == null) ", no colour value" else "") },
+            .semantics { contentDescription = can.displayName + (if (selected) ", selected" else "") },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         CanTop(can.rgb, selected, can.hexSource == HexSource.SAMPLED, 56.dp)
-        if (can.rgb == null) Text("no colour", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
 }
 
@@ -523,8 +527,8 @@ private fun SelectedTop(can: Can, onRemove: () -> Unit) {
  * Select toggle unless [readOnly]. Swipe by mouse drag or touch, press the arrow buttons or the
  * keyboard's left and right arrows. Only the pages near the centre are composed and drawn.
  * [onAssign] replaces My cans' selection action with applying a can's colour to a free sheet
- * or teaching an unknown barcode. A colourless can offers a local user swatch entry first,
- * then may participate in either action. Both workflows share the same peeking carousel.
+ * or teaching an unknown barcode. Entries without resolved RGB are omitted.
+ * Both workflows share the same peeking carousel.
  */
 @Composable
 private fun CanCarousel(
@@ -604,10 +608,9 @@ private fun CanCarousel(
             ArrowButton("›", "Next can", enabled = pager.currentPage < cans.size - 1) { go(1) }
         }
         if (!readOnly) {
-            // MTN and other cans without published RGB stay visible. Users may enter an
-            // approximation here, kept only on this device and never mistaken for maker data.
-            // Previously entered values can be corrected or cleared back to the original entry.
-            if (current.rgb == null || current.hexSource == HexSource.USER) {
+            // Previously entered colour values can be corrected or cleared. A cleared
+            // value disappears from the rack and carousel on the next catalogue update.
+            if (current.hexSource == HexSource.USER) {
                 var hexDraft by remember(current.canKey, current.rgb) {
                     mutableStateOf(current.rgb?.let(PaletteColor::hex).orEmpty())
                 }
@@ -656,7 +659,7 @@ private fun CanCarousel(
                 }
             }
             val isSelected = current in state.selected
-            val selectable = if (onAssign != null) (!requireColour || current.rgb != null) else current.rgb != null
+            val selectable = current.rgb != null
             Box(
                 Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(6.dp))
                     .background(if (isSelected && onAssign == null) scheme.primary else scheme.surfaceVariant)
@@ -671,9 +674,7 @@ private fun CanCarousel(
             ) {
                 Text(
                     when {
-                        onAssign != null && !selectable -> "No colour value available"
                         onAssign != null -> assignLabel
-                        !selectable -> "No colour value: can't be a layer"
                         isSelected -> "Selected"
                         else -> "Select"
                     },
@@ -735,7 +736,6 @@ private fun CanPage(can: Can, state: StencilState, signed: Float, pageWidth: Dp,
                 )
             }
             when {
-                can.rgb == null -> Text("no colour value", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
                 can.hexSource == HexSource.USER -> Text("your colour · approximate", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
                 can.hexSource == HexSource.SAMPLED -> Text("colour sampled", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             }
