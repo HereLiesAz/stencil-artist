@@ -1,11 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Three stacked sheets, base to top: the stencil, as the app lays it. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path android:fillColor="#FFFFFF" android:pathData="M30,30h48v48h-48z" />
-    <path android:fillColor="#808080" android:pathData="M38,38h40v40h-40z" />
-    <path android:fillColor="#000000" android:pathData="M46,46h32v32h-32z" />
-</vector>
+<!-- Keep the supplied artwork inside Android's adaptive-icon mask; the inset preserves the head and boots. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/stencil_brand"
+    android:inset="16dp" />

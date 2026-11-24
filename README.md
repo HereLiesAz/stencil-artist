@@ -280,3 +280,26 @@ catalog; see `.github/WORKFLOW_POLICY.md`.
 ## Android updates
 
 The Android launcher checks for stable GitHub releases using AzNavRail 12.5. It sends no drawing or model data, and opens the release page only when the user chooses Update. The web build is unchanged.
+
+
+## Branding
+
+The Android adaptive launcher and generated PWA icons use the supplied spray-painter artwork
+(`androidApp/src/main/res/drawable-nodpi/stencil_brand.jpg`), with safe-area padding for masked icons.
+The shared studio palette uses weathered teal, charcoal and paper white. Image preview checkerboards,
+paint swatches, catalogue backgrounds and exports retain their existing colours.
+
+### Private typography
+
+The supplied Prodes Stencil and Cavier faces are non-commercial freeware, not redistributable assets
+of this public repository. For a private build only, extract the supplied TTFs into the ignored
+`private-branding/font/` directory at the repository root:
+
+- `ProdesStencil-WpjLA.ttf` → `prodes_stencil.ttf` (app wordmark)
+- `CavierRegular-3lMoX.ttf` → `cavier.ttf` (studio headings)
+
+Build with `./gradlew :androidApp:assembleDebug -PprivateBrandFonts=true` or
+`./gradlew :composeApp:wasmJsBrowserDevelopmentRun -PprivateBrandFonts=true`.
+The private option requires both files; public builds use the original system typography and never
+package private font files. Do not distribute private builds without appropriate font permission.
+Small controls, numerical readouts and export text are unchanged.
