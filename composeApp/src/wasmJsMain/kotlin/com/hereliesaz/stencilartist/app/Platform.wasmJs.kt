@@ -3,6 +3,8 @@
 package com.hereliesaz.stencilartist.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.ImageBitmap
@@ -95,3 +97,93 @@ internal actual fun stencilPerformanceEnabled(): Boolean =
 /** Numeric and categorical diagnostics only, in the local browser console. */
 internal actual fun reportStencilPerformance(record: String): Unit =
     js("console.info('StencilPerf ' + record)")
+
+
+/**
+ * The browser's top-layer dialog makes the rest of the document inert, including canvas
+ * controls and their accessibility nodes. Compose/Wasm popup disposal can permanently stop
+ * accessibility synchronization (CMP-10623); do not create a Compose Dialog for this notice.
+ * A single element survives progress updates and restarts until Kotlin removes the notice.
+ */
+@Composable
+internal actual fun PlatformLoadingNotice(
+    heading: String, tip: String, processing: Boolean, progress: Float,
+    error: String?, onDismiss: () -> Unit,
+) {
+    val dismiss = rememberUpdatedState(onDismiss)
+    DisposableEffect(Unit) {
+        onDispose { removeBrowserLoadingNotice() }
+    }
+    SideEffect {
+        updateBrowserLoadingNotice(heading, tip, processing, progress, error ?: "") { dismiss.value() }
+    }
+}
+
+/** Native dialog lifecycle; Kotlin owns visibility and the generation-safe dismissal guard. */
+private fun updateBrowserLoadingNotice(
+    heading: String, tip: String, processing: Boolean, progress: Float,
+    error: String, onDismiss: () -> Unit,
+): Unit = js(
+    """{
+        let dialog = document.getElementById('stencil-loading-notice');
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.id = 'stencil-loading-notice';
+            dialog.setAttribute('aria-labelledby', 'stencil-notice-heading');
+            dialog.setAttribute('aria-describedby', 'stencil-notice-tip');
+            dialog.style.cssText = 'box-sizing:border-box;position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;padding:24px;background:rgba(0,0,0,.67);color:#efebe5;font:14px system-ui,sans-serif;overflow:auto';
+            const panel = document.createElement('div');
+            panel.style.cssText = 'box-sizing:border-box;position:relative;top:50%;transform:translateY(-50%);width:100%;max-width:100%;padding:18px;background:#202728;border:1px solid #71888b;border-radius:14px;display:flex;flex-direction:column;gap:10px';
+            const title = document.createElement('div');
+            title.id = 'stencil-notice-heading';
+            title.style.cssText = 'font-size:12px;color:#bac8c8';
+            const advice = document.createElement('div');
+            advice.id = 'stencil-notice-tip';
+            const problem = document.createElement('div');
+            problem.id = 'stencil-notice-error';
+            problem.style.color = '#ffb4a7';
+            problem.setAttribute('role','alert');
+            const meter = document.createElement('progress');
+            meter.id = 'stencil-notice-progress';
+            meter.max = 1;
+            meter.setAttribute('aria-label','Preparing stencil');
+            meter.style.cssText = 'width:100%;height:8px;accent-color:#97c4c9';
+            const button = document.createElement('button');
+            button.id = 'stencil-notice-continue';
+            button.type = 'button';
+            button.textContent = 'Continue';
+            button.style.cssText = 'width:100%;min-height:40px;border:0;border-radius:24px;background:#97c4c9;color:#132a2e;font:inherit;cursor:pointer';
+            panel.append(title, advice, problem, meter, button);
+            dialog.append(panel);
+            // Escape is not an acknowledgement; pressing it must not close the modal.
+            dialog.addEventListener('cancel', event => event.preventDefault());
+            document.body.append(dialog);
+        }
+        const button = dialog.querySelector('#stencil-notice-continue');
+        const meter = dialog.querySelector('#stencil-notice-progress');
+        const problem = dialog.querySelector('#stencil-notice-error');
+        const wasProcessing = button.hidden;
+        dialog.querySelector('#stencil-notice-heading').textContent = heading;
+        dialog.querySelector('#stencil-notice-tip').textContent = tip;
+        problem.textContent = error;
+        problem.hidden = processing || !error;
+        meter.hidden = !processing;
+        meter.value = Math.max(0, Math.min(1, progress));
+        button.hidden = processing;
+        button.disabled = processing;
+        // All taps acknowledge completed work, but neither taps nor Escape interrupt it.
+        dialog.onclick = () => { if (!button.disabled) onDismiss(); };
+        if (!dialog.open) dialog.showModal();
+        if (!processing && wasProcessing) button.focus();
+    }"""
+)
+
+private fun removeBrowserLoadingNotice(): Unit = js(
+    """{
+        const dialog = document.getElementById('stencil-loading-notice');
+        if (dialog) {
+            dialog.close();
+            dialog.remove();
+        }
+    }"""
+)

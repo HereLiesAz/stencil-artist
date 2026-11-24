@@ -30,3 +30,7 @@ Record commit, browser/OS/device, viewport, input image, result, and screenshot 
 | Offline and failure | Fresh and cached launch, missing depth model, failed image import, empty subject, denied file access; original-image workflow remains usable. |
 
 Performance and real cutting/painting require separate measured evidence. Do not substitute headless checks for those results.
+
+### Browser loading-modal regression
+
+CI run 45400821464 showed the Subject screen after Continue in the screenshot, while the accessibility snapshot still contained only the dismissed Compose dialog. This matches JetBrains [CMP-10623](https://youtrack.jetbrains.com/issue/CMP-10623). The Wasm loading notice now uses a native HTML top-layer dialog; Android retains the Compose modal. Native `showModal()` makes background content inert, Escape is suppressed, and the state owner remains responsible for rejecting premature dismissal. The browser smoke test requires the real Continue button, an inaccessible background during acknowledgement, dialog detachment and resumed stage navigation. No coordinate-only workaround or skipped export assertions.
