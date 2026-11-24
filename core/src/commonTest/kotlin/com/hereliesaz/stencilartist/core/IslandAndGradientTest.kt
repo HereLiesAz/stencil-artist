@@ -289,6 +289,80 @@ class IslandAndGradientTest {
     }
 
     @Test
+    fun equidistantLaterPaintsMustNotBeChosenByLayerOrder() {
+        val w = 9
+        val ring = BooleanArray(w * w)
+        for (y in 2..6) for (x in 2..6) {
+            if (x == 2 || x == 6 || y == 2 || y == 6) ring[y * w + x] = true
+        }
+        val light = Sheet(0xFFB0B0B0.toInt())
+        val lighter = Sheet(0xFFD0D0D0.toInt())
+        val image = RgbaImage(w, w, IntArray(w * w) { 0xFFC0C0C0.toInt() })
+        for (order in listOf(listOf(black, light, lighter), listOf(black, lighter, light))) {
+            val original = Separation.fromMasks(w, w, order,
+                listOf(ring, BooleanArray(w * w), BooleanArray(w * w)))
+            val plan = IslandPlanner.repair(original, image)
+            assertEquals(0, plan.sourceGuidedIslands)
+            assertEquals(0, plan.sourceGuidedAttempts)
+            assertEquals(1, plan.unresolved)
+            assertContentEquals(ring, plan.separation.mask(0))
+            assertContentEquals(BooleanArray(w * w), plan.separation.mask(1))
+            assertContentEquals(BooleanArray(w * w), plan.separation.mask(2))
+        }
+    }
+
+    @Test
+    fun laterLayerExistingIslandMustNotBeSplitByAWhiteCorrection() {
+        val w = 11
+        val blackCut = BooleanArray(w * w)
+        val whiteCut = BooleanArray(w * w)
+        for (y in 2..8) for (x in 2..8) {
+            if (x in 4..6 && (x == 4 || x == 6 || y == 2 || y == 8))
+                blackCut[y * w + x] = true
+            if (x == 2 || x == 8 || y == 2 || y == 8)
+                whiteCut[y * w + x] = true
+        }
+        val image = RgbaImage(w, w, IntArray(w * w) { white.color })
+        val original = Separation.fromMasks(w, w, listOf(black, white), listOf(blackCut, whiteCut))
+        val originalWhiteIslands = StencilPrintTips.detect(whiteCut, w, w, 110.0)
+            .count { it.kind == PrintTipKind.ISLAND }
+        assertEquals(1, originalWhiteIslands, "the white ring already surrounds a stock island")
+        val plan = IslandPlanner.repair(original, image, minimumBridgePixels = 2)
+        assertEquals(1, plan.sourceGuidedAttempts)
+        assertEquals(0, plan.sourceGuidedIslands, "a correction must not split that existing stock")
+        for (y in 3..7) assertFalse(plan.separation.mask(1)[y * w + 5])
+        assertContentEquals(original.render(), plan.separation.render())
+        val resultingWhiteIslands = StencilPrintTips.detect(plan.separation.mask(1), w, w, 110.0)
+            .count { it.kind == PrintTipKind.ISLAND }
+        assertEquals(1, resultingWhiteIslands)
+    }
+
+    @Test
+    fun rejectedGeometryChecksAreLimitedToSixteenPerImage() {
+        val count = 20
+        val w = count * 12 + 1
+        val h = 11
+        val blackCut = BooleanArray(w * h)
+        val whiteCut = BooleanArray(w * h)
+        for (tile in 0 until count) {
+            val offset = tile * 12
+            for (y in 2..8) for (x in 2..8) {
+                if (x in 4..6 && (x == 4 || x == 6 || y == 2 || y == 8))
+                    blackCut[y * w + offset + x] = true
+                if (x == 2 || x == 8 || y == 2 || y == 8)
+                    whiteCut[y * w + offset + x] = true
+            }
+        }
+        val original = Separation.fromMasks(w, h, listOf(black, white), listOf(blackCut, whiteCut))
+        val image = RgbaImage(w, h, IntArray(w * h) { white.color })
+        val plan = IslandPlanner.repair(original, image, minimumBridgePixels = 2)
+        assertEquals(16, plan.sourceGuidedAttempts,
+            "the hard limit must include rejected geometry validations, not merely accepted fixes")
+        assertEquals(0, plan.sourceGuidedIslands)
+        assertContentEquals(original.render(), plan.separation.render())
+    }
+
+    @Test
     fun aSlowTonalGradientIsLocatedAtTheActualEdgeWithTheOutwardDirection() {
         val w = 80
         val h = 40
