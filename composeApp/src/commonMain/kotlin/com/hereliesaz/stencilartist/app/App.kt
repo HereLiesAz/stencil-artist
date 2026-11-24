@@ -148,7 +148,7 @@ private val STUDIO_STEPS = listOf(
 )
 
 /** Short loading advice; corresponding fine-cut, island and gradient notes also print by location. */
-private val LOADING_TIPS = listOf(
+internal val LOADING_TIPS = listOf(
     "CUT" to "Cut fine details last and lift their waste slowly. A clean blade is more useful than heroic optimism.",
     "PAINT" to "For a soft gradient, lift the uncut stencil edge slightly. Try the overspray on scrap first.",
     "MAKE" to "Fewer sheets are easier to register; more sheets can preserve delicate changes in value.",
@@ -169,21 +169,12 @@ fun App() {
         val store = rememberKeyValueStore()
         val state = remember { StencilState(scope, SubjectIsolator(models), DepthEstimator(models), catalogueLoader, store, models) }
         val pick = rememberImagePicker(onPicked = state::open, onError = state::fail)
-        var loadingTip by remember { mutableIntStateOf(-1) }
-        LaunchedEffect(state.busy) {
-            if (state.busy) {
-                loadingTip = (loadingTip + 1) % LOADING_TIPS.size
-                while (true) {
-                    delay(4200)
-                    loadingTip = (loadingTip + 1) % LOADING_TIPS.size
-                }
-            }
-        }
+        val notice = state.loadingNotice
 
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                 BoxWithConstraints(
-                    Modifier.fillMaxSize().then(if (state.busy) Modifier.blur(8.dp) else Modifier),
+                    Modifier.fillMaxSize().then(if (notice.visible) Modifier.blur(8.dp) else Modifier),
                 ) {
                     if (maxWidth >= WIDE_LAYOUT) {
                         Row(Modifier.fillMaxSize()) {
@@ -197,28 +188,39 @@ fun App() {
                         }
                     }
                 }
-                if (state.busy) {
-                    // A complete modal scrim: blur and dim BOTH the preview and the
-                    // settings. Do not let a tap reach outdated controls mid-generation.
-                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.67f)).clickable { })
-                    val advice = LOADING_TIPS[loadingTip.coerceAtLeast(0)]
-                    Column(
-                        Modifier.align(Alignment.Center).fillMaxWidth().padding(24.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
-                            .padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                if (notice.visible) {
+                    // One modal surface consumes taps throughout processing and acknowledgement.
+                    // Its nested Continue button has the same guarded action as tapping anywhere.
+                    val advice = LOADING_TIPS[notice.tipIndex]
+                    Box(
+                        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.67f))
+                            .clickable(onClick = state::dismissLoadingNotice),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text("PREPARING STENCIL · ${advice.first}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(advice.second, style = MaterialTheme.typography.bodyMedium)
-                        // This measures completed pipeline stages, not estimated time.
-                        LinearProgressIndicator(
-                            progress = { state.processingProgress },
-                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                        )
+                        Column(
+                            Modifier.fillMaxWidth().padding(24.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+                                .padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Text(if (notice.processing) "PREPARING STENCIL · ${advice.first}" else "${advice.first} · TIP",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(advice.second, style = MaterialTheme.typography.bodyMedium)
+                            if (notice.processing) {
+                                // Completed pipeline stages, not estimated time.
+                                LinearProgressIndicator(
+                                    progress = { state.processingProgress },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                                )
+                            } else {
+                                Button(onClick = state::dismissLoadingNotice, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Continue")
+                                }
+                            }
+                        }
                     }
                 }
             }
