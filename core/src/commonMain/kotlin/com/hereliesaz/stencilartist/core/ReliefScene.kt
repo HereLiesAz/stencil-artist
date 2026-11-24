@@ -18,7 +18,7 @@ class ReliefScene private constructor(private val source: RgbaImage, private val
     // Use exact source aspect rather than the rounded mesh-grid aspect.
     private val world = mesh.vertices.map { V((it.u - .5f) * source.width / scale, (.5f - it.v) * source.height / scale, it.z) }
 
-    /** Render at original working-image dimensions. The frontal camera and source alpha are fixed. */
+    /** Fixed source camera; source alpha is retained unless the receiver is explicitly enabled. */
     fun renderSource(light: LightingParams): RgbaImage = render(light, source.width, source.height, 0f, 0f, true)
 
     /** Orbit the same solid and light without changing the image used by the separator. */
@@ -30,14 +30,21 @@ class ReliefScene private constructor(private val source: RgbaImage, private val
     private fun radians(degrees: Float) = degrees * (PI / 180).toFloat()
 
     private fun render(light: LightingParams, width: Int, height: Int, yaw: Float, pitch: Float, frontal: Boolean, shadowOnly: Boolean = false): RgbaImage {
-        if (world.isEmpty()) return if (frontal) source else RgbaImage(width, height, IntArray(width * height))
+        if (world.isEmpty() && !light.receiverEnabled) return if (frontal) source else RgbaImage(width, height, IntArray(width * height))
+        val receiverZ = (world.minOfOrNull { it.z } ?: -light.extrusionThickness) - light.receiverGap
+        val receiver = if (light.receiverEnabled) listOf(
+            V(-source.width / (2f * scale), source.height / (2f * scale), receiverZ),
+            V(-source.width / (2f * scale), -source.height / (2f * scale), receiverZ),
+            V(source.width / (2f * scale), -source.height / (2f * scale), receiverZ),
+            V(source.width / (2f * scale), source.height / (2f * scale), receiverZ),
+        ) else emptyList()
         val emitters = light.sceneLights().filter { it.intensity > 0f }.map { Emitter(it, light.castShadows) }
         val y = radians(yaw); val p = radians(pitch)
         val cameraRight = V(cos(y), 0f, -sin(y))
         val cameraUp = V(-sin(y) * sin(p), cos(p), -cos(y) * sin(p))
         val cameraForward = cameraRight.cross(cameraUp)
-        val view = if (frontal) mesh.vertices.map { P(it.u * width, it.v * height, it.z) }
-            else fitProjection(cameraRight, cameraUp, cameraForward, width)
+        val projected = if (frontal) emptyList() else fitProjection(cameraRight, cameraUp, cameraForward, width, world + receiver)
+        val view = if (frontal) mesh.vertices.map { P(it.u * width, it.v * height, it.z) } else projected
         val pixels = if (frontal) IntArray(source.pixels.size) { i -> if (source.pixels[i] ushr 24 == 0) source.pixels[i] else 0 }
             else IntArray(width * height)
         val zBuffer = FloatArray(pixels.size) { Float.NEGATIVE_INFINITY }
@@ -63,19 +70,7 @@ class ReliefScene private constructor(private val source: RgbaImage, private val
                 val pa = world[t.a]; val pb = world[t.b]; val pc = world[t.c]
                 val point = V(wa * pa.x + wb * pb.x + wc * pc.x,
                     wa * pa.y + wb * pb.y + wc * pc.y, wa * pa.z + wb * pb.z + wc * pc.z)
-                var red = light.ambient; var green = light.ambient; var blue = light.ambient
-                var total = 0f; var visible = 0f
-                for (emitter in emitters) {
-                    val direct = emitter.direct(point, normal)
-                    if (direct <= 0f) continue
-                    val lit = direct * emitter.visibility(point)
-                    total += direct; visible += lit
-                    red += lit * emitter.red; green += lit * emitter.green; blue += lit * emitter.blue
-                }
-                pixels[i] = if (shadowOnly) {
-                    val value = if (total > 0f) visible / total else 1f
-                    shade((color and 0xFF000000.toInt()) or 0xFFFFFF, value, value, value)
-                } else shade(color, red, green, blue)
+                pixels[i] = illuminate(color, point, normal, emitters, light, shadowOnly)
                 zBuffer[i] = z
             }
         }
@@ -84,12 +79,60 @@ class ReliefScene private constructor(private val source: RgbaImage, private val
         if (frontal) check(source.pixels.indices.all { source.pixels[it] ushr 24 == 0 || zBuffer[it].isFinite() }) {
             "Relief render did not cover the original silhouette"
         }
+        if (receiver.isNotEmpty()) {
+            val plane = if (frontal) listOf(P(0f, 0f, receiverZ), P(0f, height.toFloat(), receiverZ),
+                P(width.toFloat(), height.toFloat(), receiverZ), P(width.toFloat(), 0f, receiverZ))
+                else projected.drop(world.size)
+            val normal = V(0f, 0f, 1f)
+            val color = light.receiverColor or 0xFF000000.toInt()
+            // The backdrop is a real rectangular receiver in scene coordinates, but does not
+            // cast its own shadows. Composite only after testing the subject coverage invariant.
+            val drawn = BooleanArray(pixels.size)
+            for ((a, b, c) in listOf(Triple(0, 1, 2), Triple(0, 2, 3))) {
+                raster(plane[a], plane[b], plane[c], width, height) pixel@{ i, wa, wb, wc ->
+                    if (drawn[i]) return@pixel
+                    drawn[i] = true
+                    val z = wa * plane[a].z + wb * plane[b].z + wc * plane[c].z
+                    val pa = receiver[a]; val pb = receiver[b]; val pc = receiver[c]
+                    val point = V(wa * pa.x + wb * pb.x + wc * pc.x,
+                        wa * pa.y + wb * pb.y + wc * pc.y, receiverZ)
+                    val background = illuminate(color, point, normal, emitters, light, shadowOnly)
+                    pixels[i] = if (z > zBuffer[i]) background else overOpaque(pixels[i], background)
+                }
+            }
+        }
         return RgbaImage(width, height, pixels)
     }
 
+    /** Straight-alpha subject over an opaque opted-in receiver. */
+    private fun overOpaque(front: Int, back: Int): Int {
+        val a = front ushr 24
+        fun mix(shift: Int) = (((front ushr shift and 255) * a +
+            (back ushr shift and 255) * (255 - a) + 127) / 255)
+        return 0xFF000000.toInt() or (mix(16) shl 16) or (mix(8) shl 8) or mix(0)
+    }
+
+    /** One lighting calculation shared by the solid and the receive-only backdrop. */
+    private fun illuminate(color: Int, point: V, normal: V, emitters: List<Emitter>,
+        light: LightingParams, shadowOnly: Boolean): Int {
+        var red = light.ambient; var green = light.ambient; var blue = light.ambient
+        var total = 0f; var visible = 0f
+        for (emitter in emitters) {
+            val direct = emitter.direct(point, normal)
+            if (direct <= 0f) continue
+            val lit = direct * emitter.visibility(point)
+            total += direct; visible += lit
+            red += lit * emitter.red; green += lit * emitter.green; blue += lit * emitter.blue
+        }
+        return if (shadowOnly) {
+            val value = if (total > 0f) visible / total else 1f
+            shade((color and 0xFF000000.toInt()) or 0xFFFFFF, value, value, value)
+        } else shade(color, red, green, blue)
+    }
+
     /** Fit a square orthographic viewport to actual geometry with a border. */
-    private fun fitProjection(right: V, up: V, forward: V, size: Int): List<P> {
-        val raw = world.map { P(it.dot(right), -it.dot(up), it.dot(forward)) }
+    private fun fitProjection(right: V, up: V, forward: V, size: Int, geometry: List<V>): List<P> {
+        val raw = geometry.map { P(it.dot(right), -it.dot(up), it.dot(forward)) }
         val minX = raw.minOf { it.x }; val maxX = raw.maxOf { it.x }
         val minY = raw.minOf { it.y }; val maxY = raw.maxOf { it.y }
         val s = size * .9f / max(maxX - minX, maxY - minY).coerceAtLeast(.0001f)
@@ -133,7 +176,7 @@ class ReliefScene private constructor(private val source: RgbaImage, private val
         private var centerX = 0f
         private var centerY = 0f
         private var scale = 1f
-        private val buffer: FloatArray? = if (shadows && light.castsShadows) {
+        private val buffer: FloatArray? = if (shadows && light.castsShadows && world.isNotEmpty()) {
             val raw = world.map(::project)
             val minX = raw.minOf { it.x }; val maxX = raw.maxOf { it.x }
             val minY = raw.minOf { it.y }; val maxY = raw.maxOf { it.y }
@@ -177,6 +220,7 @@ class ReliefScene private constructor(private val source: RgbaImage, private val
         /** Percentage-closer filtering: a bounded nine-tap approximation, not area-light transport. */
         fun visibility(p: V): Float {
             val depth = buffer ?: return 1f
+            if (positional && light.distance - p.dot(direction) <= 0f) return 1f
             val q = fit(project(p))
             val threshold = if (positional) 1f / (1f / q.z - SHADOW_BIAS).coerceAtLeast(.0001f)
                 else q.z + SHADOW_BIAS
