@@ -52,7 +52,7 @@ pixel-width connection does not prove a millimetre-width connection.
   the processed source and improving the original pixel match. The change is
   atomic: it is rejected if any existing border-supported retained stock in a
   later sheet becomes detached. At most sixteen such island corrections are
-  attempted per image. Unlike existing-cut reconstruction, this can intentionally
+  accepted per image. Unlike existing-cut reconstruction, this can intentionally
   change the composite at the newly painted pixels; those changes are constrained
   and reported in the app for inspection. Dark details, transparent pixels and
   ambiguous colours are not automatically repainted.
