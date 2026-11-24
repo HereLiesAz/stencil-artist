@@ -38,6 +38,9 @@ import kotlinx.coroutines.withContext
 /** How the subject is split into sheets: by brightness into greys, or by colour into paints. */
 enum class SeparationMode { TONE, COLOUR }
 
+/** Nominal retained-stock connection requested from the island planner, in working pixels. */
+internal const val NOMINAL_BRIDGE_PIXELS = 2
+
 /**
  * Everything the screen shows, and the one place it changes. The stencil is re-made whenever the
  * image or a parameter changes, off the main thread where the platform has one to spare, and a
@@ -712,7 +715,7 @@ class StencilState(
                         val composed = if (wantedStrokes) {
                             StrokeStyler.stylize(lit, finished, strokeWidthPixels = wantedStrokeWidth)
                         } else finished
-                        val bridgePlan = IslandPlanner.repair(composed, lit, minimumBridgePixels = 2)
+                        val bridgePlan = IslandPlanner.repair(composed, lit, minimumBridgePixels = NOMINAL_BRIDGE_PIXELS)
                         val softEdges = SoftGradientZones.locate(lit, bridgePlan.separation)
                         bridgePlan to bridgePlan.separation.withLiftZones(softEdges)
                     }
