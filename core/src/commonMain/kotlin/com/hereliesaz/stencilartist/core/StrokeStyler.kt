@@ -171,18 +171,6 @@ object StrokeStyler {
                 // perimeter edge; thin strokes can be attached at any orientation.
                 for (i in 0 until tail) {
                     val p = queue[i]
-                    // A stroke wider than the locally available paint must not
-                    // carve a slender extension just because it joins a broad
-                    // component. Preserve those pixels as the original solid
-                    // opening, even where the branch joins its parent area.
-                    // Keep the historical 2px default behavior intact.
-                    if (strokeWidthPixels > DEFAULT_BRUSH_WIDTH_PIXELS &&
-                        distance[p] * 2 - 1 < strokeWidthPixels) {
-                        protected[p] = true
-                        rebuilt[p] = true
-                        painted++
-                        continue
-                    }
                     // Skip deep interior farther than the protected local stroke
                     // width from a retained-material boundary. Near-edge pixels
                     // still need full orientation-independent width checks.
