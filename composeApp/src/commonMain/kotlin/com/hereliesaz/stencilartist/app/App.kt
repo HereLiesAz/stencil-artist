@@ -230,15 +230,28 @@ fun App() {
                 } else BoxWithConstraints(
                     Modifier.fillMaxSize().then(if (notice.visible) Modifier.blur(8.dp) else Modifier),
                 ) {
-                    if (maxWidth >= WIDE_LAYOUT) {
-                        Row(Modifier.fillMaxSize()) {
-                            Workspace(state, ui, pick, Modifier.weight(1f).fillMaxHeight())
-                            Controls(state, ui, pick, Modifier.width(370.dp).fillMaxHeight())
+                    val wide = maxWidth >= WIDE_LAYOUT
+                    Column(Modifier.fillMaxSize()) {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            items(STUDIO_STEPS.size) { index ->
+                                Choice(STUDIO_STEPS[index].first, selected = ui.step == index) {
+                                    ui.openStep(state, index)
+                                }
+                            }
                         }
-                    } else {
-                        Column(Modifier.fillMaxSize()) {
-                            Workspace(state, ui, pick, Modifier.weight(1f).fillMaxWidth())
-                            Controls(state, ui, pick, Modifier.weight(1f).fillMaxWidth())
+                        if (wide) {
+                            Row(Modifier.weight(1f).fillMaxWidth()) {
+                                Workspace(state, ui, pick, Modifier.weight(1f).fillMaxHeight())
+                                Controls(state, ui, pick, Modifier.width(370.dp).fillMaxHeight())
+                            }
+                        } else {
+                            Column(Modifier.weight(1f).fillMaxWidth()) {
+                                Workspace(state, ui, pick, Modifier.weight(1f).fillMaxWidth())
+                                Controls(state, ui, pick, Modifier.weight(1f).fillMaxWidth())
+                            }
                         }
                     }
                 }
@@ -695,6 +708,23 @@ private fun PreviewPane(
     }
 }
 
+/** Navigate through the studio without discarding unapplied mask or depth edits. */
+private fun StudioUi.openStep(state: StencilState, next: Int) {
+    if (step == 1 && state.removeBackground && maskDraft != state.maskStrokes && next != step) {
+        state.fail("Apply or discard your mask edits before leaving Subject.")
+    } else if (step == 3 && depthDraft != state.depthEdits && next != step) {
+        state.fail("Apply or discard your depth edits before leaving Light.")
+    } else if (next <= 0 || state.source != null) {
+        step = next.coerceIn(STUDIO_STEPS.indices)
+        view = when {
+            step == 1 && state.removeBackground -> WorkspaceView.MASKING
+            step == 1 || step == 3 || step == 4 -> WorkspaceView.PREPARED
+            else -> WorkspaceView.PREVIEW
+        }
+        if (step == 1 || step == 3 || step == 4) state.showProcessed(true) else state.show(state.shownSheet)
+    }
+}
+
 @Composable
 private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifier: Modifier) = with(ui) {
     val tone = state.toneParams
@@ -715,21 +745,6 @@ private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifi
     var advancedEdges by remember { mutableStateOf(false) }
     val stepScroll = rememberScrollState()
     LaunchedEffect(step) { stepScroll.scrollTo(0) }
-    val openStep: (Int) -> Unit = { next ->
-        if (step == 1 && state.removeBackground && maskDraft != state.maskStrokes && next != step) {
-            state.fail("Apply or discard your mask edits before leaving Subject.")
-        } else if (step == 3 && depthDraft != state.depthEdits && next != step) {
-            state.fail("Apply or discard your depth edits before leaving Light.")
-        } else if (next <= 0 || state.source != null) {
-            step = next.coerceIn(STUDIO_STEPS.indices)
-            view = when {
-                step == 1 && state.removeBackground -> WorkspaceView.MASKING
-                step == 1 || step == 3 || step == 4 -> WorkspaceView.PREPARED
-                else -> WorkspaceView.PREVIEW
-            }
-            if (step == 1 || step == 3 || step == 4) state.showProcessed(true) else state.show(state.shownSheet)
-        }
-    }
     // The Android picker completes asynchronously. Keep every export control locked until the
     // result callback, not merely until the file bytes have been passed to the picker.
     fun startExport(label: String, build: (Separation) -> ExportFile) {
@@ -784,20 +799,13 @@ private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifi
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         LinearProgressIndicator(progress = { (step + 1).toFloat() / STUDIO_STEPS.size },
             modifier = Modifier.fillMaxWidth())
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(STUDIO_STEPS.size) { index ->
-                Choice("${index + 1} ${STUDIO_STEPS[index].first}", selected = step == index) {
-                    openStep(index)
-                }
-            }
-        }
         Text(STUDIO_STEPS[step].first, style = MaterialTheme.typography.headlineMedium)
         Text(STUDIO_STEPS[step].second, style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { openStep(step - 1) }, enabled = step > 0,
+            OutlinedButton(onClick = { openStep(state, step - 1) }, enabled = step > 0,
                 modifier = Modifier.weight(1f)) { Text("← Back") }
-            Button(onClick = { openStep(step + 1) }, enabled = step < STUDIO_STEPS.lastIndex && state.source != null,
+            Button(onClick = { openStep(state, step + 1) }, enabled = step < STUDIO_STEPS.lastIndex && state.source != null,
                 modifier = Modifier.weight(1f)) {
                 Text(if (step < STUDIO_STEPS.lastIndex) "Next: ${STUDIO_STEPS[(step + 1).coerceAtMost(STUDIO_STEPS.lastIndex)].first}" else "All steps")
             }
@@ -1405,9 +1413,9 @@ private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifi
             },
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { openStep(step - 1) }, enabled = step > 0,
+            OutlinedButton(onClick = { openStep(state, step - 1) }, enabled = step > 0,
                 modifier = Modifier.weight(1f)) { Text("Previous") }
-            Button(onClick = { openStep(step + 1) }, enabled = step < STUDIO_STEPS.lastIndex && state.source != null,
+            Button(onClick = { openStep(state, step + 1) }, enabled = step < STUDIO_STEPS.lastIndex && state.source != null,
                 modifier = Modifier.weight(1f)) {
                 Text(if (step < STUDIO_STEPS.lastIndex) "Next: ${STUDIO_STEPS[(step + 1).coerceAtMost(STUDIO_STEPS.lastIndex)].first}" else "Finished")
             }
