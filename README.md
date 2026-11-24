@@ -276,3 +276,7 @@ Android builds need the SDK (`sdk.dir` in `local.properties`, or `ANDROID_HOME`)
 
 Workflows come from the central [`HereLiesAz/workflows`](https://github.com/HereLiesAz/workflows)
 catalog; see `.github/WORKFLOW_POLICY.md`.
+
+## Android updates
+
+The Android launcher checks for stable GitHub releases using AzNavRail 12.5. It sends no drawing or model data, and opens the release page only when the user chooses Update. The web build is unchanged.
