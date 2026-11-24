@@ -223,9 +223,8 @@ object IslandPlanner {
                     }
                 }
                 if (destination < 0) {
-                    // If neither existing later cuts nor a concealed bridge can restore
-                    // the island, try a limited
-                    // source-guided correction. Every missing pixel must closely match
+                    // If existing later cuts and concealed bridges cannot restore
+                    // the island, try a limited source-guided correction. Every missing pixel must closely match
                     // an opaque later paint, and that paint must improve the source
                     // colour match over the current composite. A dark feature, uncertain
                     // detail, or transparent source pixel is never repainted on a guess.
