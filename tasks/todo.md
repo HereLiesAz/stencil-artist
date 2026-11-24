@@ -3,16 +3,59 @@
 Source: GraffitiXR `StencilTones.kt`, `StencilProcessor.kt`, `SubjectIsolator.kt`, `StencilTonesTest.kt`
 (copied; GraffitiXR is not modified).
 
-Status: **all planned phases implemented.** What has not been verified on real hardware is listed under Review.
+Status: **full depth/extrusion, lighting, material and stencil-preparation plan approved; continue implementation and verification without another phase approval.** What has not been verified on real hardware is listed under Review.
 
 ## Guided studio redesign (2026-11-23)
 
 - [x] Split the one-screen settings column into eight named, focused stages with context explaining each decision; preserve the underlying processing and export code.
 - [x] Add an original/result comparison with shared, fitted-image-bounded zoom and pan, plus single-view and explicit zoom controls.
-- [x] Show rotating creation/cutting/painting advice over a blurred, dimmed full-screen loading overlay, with a determinate horizontal progress indicator below the tip reflecting finished pipeline stages; permit cutaway or retained stock for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
+- [x] Show one creation/cutting/painting tip per processing generation, advancing on every start or restart, never on a timer. Keep the blurred workspace behind a modal dialog with determinate progress during work; after success or failure retain the same tip with Continue or tap-anywhere dismissal. Caller: `StencilState.remake` → `LoadingNotice.begin/finish`; App → `dismissLoadingNotice`. Permit cutaway or retained stock for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
 - [x] Put advanced lighting and edge-adjustment sliders behind deliberate disclosure; leave depth-lighting behavior unchanged pending design review.
 - [ ] Visually inspect both wide web and narrow Android layouts, including keyboard and touch input, and verify pinch-pan, clipped zoom and side-by-side accuracy on devices.
-- [ ] Agree on the depth-extrusion/relighting model, shadow behavior, light controls and editing workflow before changing the renderer. See `docs/DEPTH_RELIGHT_DISCUSSION.md` for the current implementation and proposed choices.
+- [x] Approve the 3D extrusion, actual scene lighting and rendered-source stencil architecture. See `docs/DEPTH_RELIGHT_DISCUSSION.md`.
+
+- [x] Choose layer count and arbitrary paint palette before Original/Depth relight/3D scene, then source/render adjustments (the subsequent Subject-first refinement is below). Colour matching is the default; tonal bands also allow custom colours. `FreePaletteEditor` → `StencilState.editablePalette`, `useCustomPalette`, `setSheetColor`, `setSheetCount` → shared separator parameters. Manual palettes are independent of generated sheets; count edits preserve retained slots. Integration and device verification remain open.
+
+- [x] Separate Image → Subject → Palette → Light → Adjust; opening an image leads to Subject. Add manual remove/restore brush, zoom/pan, red overlay/cutout preview, undo, reset, draft and explicit apply. `Workspace` / `SubjectMaskControls` → `updateMaskEdits` → `MaskCorrections.apply` before lighting; explicit exclusions remain out of all cuts unless the artist opts into an opaque scene backdrop.
+- [x] Distinguish early paint constraints from deferred colour choices: choose specific paints in Palette to influence layer generation, or assign RGB to existing sheets in Inspect with `recolorSheet` → `Separation.withSheetColor`, preserving ranks, masks and paint order. Rebuilding layers discards late assignments rather than silently remapping them. Can-based paint plans retain their early catalogue selection. Integration/device verification remains open.
+
+## Flat depth relighting and image preparation (2026-11-24)
+
+- [x] Restore flat depth relighting as a separate Light mode. Fix image-relative gradient scaling, foreground-only robust range and alpha-aware differences; add independent matte mix, direction, intensity, ambient, strength and depth reversal. App caller: `StencilState.remake` → `DepthLighting.relight`. Device quality checks remain open.
+- [x] Add shared stencil-oriented source/skin and prepared-image adjustments, preserving alpha and the original source. `ImageAdjustmentEditor` → `StencilState.updateSourceAdjustments` / `updatePreparedAdjustments` → `ImageAdjustments.apply` → every separator. Seven isolated JVM fixtures passed; integrated builds and real-photo evaluation remain open.
+- [x] Add a per-sheet diagnostic view: actual cut boundaries, unsupported islands, physically fine openings and narrow-stock screening. Uses `Separation.mask` and the existing full-sheet print-tip detector; caller: `CutInspectionView` in Inspect. Read-only; one sheet at a time.
+- [x] Add interactive master value curves to both adjustment stacks; `ToneCurveEditor` → `ImageAdjustmentEditor` → existing `StencilState` adjustment setters → `ImageAdjustments.apply`. Fixed input knots, monotone cubic interpolation, independent reset and accessible output slider. Six focused JVM tests pass.
+- [ ] Evaluate diagnostic usefulness and physical output quality on real photographs.
+- [ ] Verify actual photographs, depth quality and tonal-layer usefulness on Android and Wasm.
+
+## True 3D relief and lighting (approved 2026-11-24)
+
+- [x] Connect the shared closed relief mesh to the MVP scene renderer; app caller: `StencilState.remake` → `ReliefScene.prepare` → `renderSource`. Common geometry and scene tests cover closure, shadows and orbit independence.
+- [x] Generate bounded geometry from masked depth, preserving every visible source pixel and working-image resolution in the frontal render. Coarse geometry still needs quality evaluation.
+- [x] Render an orbitable 3D scene preview and a separately locked source-aligned orthographic view with directional light, ambient fill, geometric shadows and source-alpha preservation. JVM regression tests pass; device verification below remains open.
+- [x] Route the rendered RGBA image into the existing tone/colour separator with original-lighting fallback and generation guards. Full Android/Wasm integration verification remains open.
+- [x] Add multiple positioned directional, point and spot lights, front/rear placement handle and accessible controls, key/fill/rim preset, RGB colour/intensity, per-light shadow filtering and shadow-only/combined diagnostic views. App caller: `SceneLightsEditor` → `StencilState.updateLighting` → `ReliefScene.renderSource`; orbit diagnostics do not affect separation. JVM tests cover finite light occlusion and filter behavior; device validation remains open.
+- [x] Add an optional image-sized, receive-only backdrop behind the relief with RGB and gap controls. Off by default; explicit opt-in composites the backdrop into the final image. Caller: Light stage → `ReliefScene.renderSource` and `renderOrbit`. CI/device validation remains open.
+- [x] Choose source-image skin or a custom opaque solid RGB material independently of geometry and lights. Solid covers front, walls and cap; source transparency is preserved. `SceneRgbEditor` and the Light stage update `LightingParams`, consumed by `ReliefScene.renderSource` and `renderOrbit`.
+- [x] Add smoothing, flatten/clamp, depth remapping and artist depth corrections beyond existing thickness, relief strength and depth inversion. Light → `Workspace` / `DepthGeometryControls` → `updateDepthEdits` → `DepthEdits.apply` → `DepthLighting.relight` / `ReliefScene.prepare`. Draft-only strokes and global controls; inference and subject remain unchanged. Android/Wasm visual verification remains open.
+- [x] Add optional bounded original-light compensation for flat and textured 3D lighting; preserve hue, alpha, original image and independent scene lights. Light stage → `updateOriginalLightCompensation` → guarded `StencilState.remake` → `DepthLighting.compensateOriginal` → flat relight or textured relief. Uses unedited inferred depth, shared assumed light and hue-preserving bounded gain. This is an approximation, not intrinsic albedo recovery; CI and real-photo validation remain open.
+- [ ] Run the controlled material comparison and review its outputs; evaluate licensed real captures using the [material evaluation protocol](../docs/MATERIAL_EVALUATION.md). A synthetic pass cannot close the actual-photo gate.
+- [ ] Evaluate actual-photo intrinsic material estimation and shadow/highlight separation against the compensation and solid-coat baselines.
+- [x] Add actual cut-boundary and island/cut-risk diagnostics from the committed separation (see Inspect above).
+- [ ] Verify Android and Wasm scene rendering, visual comparison, cancellation, transparent/empty/flat inputs, shadow reversal/occlusion, deterministic results, performance and hardware usability.
+
+## Approved continuation and acceptance gates (2026-11-24)
+
+The artist has approved the entire depth/stencil plan and instructed continuous implementation, not a fresh approval at each phase. Preserve Image → Subject → Palette → Light → Adjust → Edges → Inspect → export. Depth remains optional inside Light; the original-image workflow must not require inference. See [approved architecture and material plan](../docs/DEPTH_RELIGHT_DISCUSSION.md). The original plan's implementation checkpoints remain above.
+
+- [ ] Restore green JVM/Wasm regression and Android build/lint CI; verify each failure rather than weakening assertions.
+- [ ] Run automated no-depth browser import, acknowledgement, stage navigation and PNG download at wide and narrow viewports (`tools/tests/browser-smoke.py`, called by repository CI); inspect screenshots and record the passing run before closing this checkpoint.
+- [ ] Run a browser smoke test on the actual current app: image, mask correction, early/deferred arbitrary palettes, flat relight, depth draft/apply, textured and solid relief, placed lights, backdrop, cut inspection and exports. Check narrow/wide layouts and loading acknowledgement on success/failure.
+- [ ] Improve shadow quality where controlled fixtures expose acne, striping or bias; test finite and directional lights, opacity, self/cast visibility and source framing. Keep coarse mesh limits explicit.
+- [ ] Collect opt-in pipeline timing records and real device memory observations using [the performance protocol](../docs/PERFORMANCE.md); CI's small synthetic browser fixture is a telemetry smoke test, not a performance baseline.
+- [ ] Benchmark real photographs on representative Android and browser devices, then improve preview responsiveness and working-image/full-resolution processing as evidence warrants. Report actual latency and memory separately from build status.
+- [ ] Generate and inspect the controlled tonal/colour physical kit from CI, then record actual cut, registration and paint outcomes using [the physical validation protocol](../docs/PHYSICAL_VALIDATION.md). Digital evidence alone does not close this gate.
+- [ ] Assess physical stencil cuts, registration, island repairs and fine detail on real coloured and tonal artwork; continue the existing island/stroke synthesis work where findings justify changes. Do not mark hardware verification complete without evidence.
 
 ## Decisions (answered)
 
@@ -32,7 +75,7 @@ stencil-artist/
   core/         KMP library, commonMain only, no platform deps
                 tone/     StencilTones (N sheets), k-means thresholds, dark/light call
                 raster/   median blur, morphological close, flood fill   (replaces OpenCV)
-                light/    depth -> normals -> relit luminance
+                light/    depth + mask -> relief mesh -> scene render -> separation
                 vector/   contour trace, simplify, islands
                 export/   PNG planes, PDF writer + tiler, SVG, DXF, HPGL, G-code
   composeApp/   Compose Multiplatform UI and state: commonMain + androidMain + wasmJsMain
@@ -339,3 +382,10 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
   Physical cutter validation is still outstanding.
 - The web pipeline still runs on the page's only thread.
 
+
+
+## Workspace checkpoint and contextual previews
+
+- [ ] Verify local checkpoint restoration after reload, Android activity recreation and process death; test corrupt data, blocked storage and interrupted writes.
+- [ ] Verify contextual tabs, mask/depth draft retention, paint/transform gesture exclusivity, fitted coordinate mapping and sheet diagnostics on actual Android and web devices.
+- [ ] Verify restored late sheet colours never migrate to different cut geometry, export settings persist, and pending generations remain non-exportable.

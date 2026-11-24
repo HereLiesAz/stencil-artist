@@ -16,7 +16,8 @@ permissions:
 jobs:
   test:
     name: Core tests (JVM and Wasm), web build
-    runs-on: ubuntu-latest
+    # Playwright 1.57 does not provide Chromium for Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,7 +30,24 @@ jobs:
       # The whole stencil pipeline and every exporter is common code: the same tests run on the JVM
       # (what Android uses) and on Wasm (what the web uses).
       - name: Core tests
+        env:
+          STENCIL_PHYSICAL_OUTPUT: ${{ github.workspace }}/build/physical-validation
+          STENCIL_MATERIAL_OUTPUT: ${{ github.workspace }}/build/material-evaluation
         run: ./gradlew :core:jvmTest :core:wasmJsNodeTest --no-daemon --stacktrace
+      - name: Physical validation kit (digital files only)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: physical-validation-kit
+          path: build/physical-validation
+          if-no-files-found: ignore
+      - name: Controlled material evaluation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: material-evaluation
+          path: build/material-evaluation
+          if-no-files-found: ignore
       - name: Service worker cache regression tests
         run: node tools/tests/service-worker-cache.mjs
       - name: Original MTN 94 packshot verification
@@ -37,10 +55,24 @@ jobs:
       # The same command the Pages deploy runs, so a broken web build is caught on the pull request.
       - name: Web build
         run: ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon --stacktrace
+      - name: Install browser smoke dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/browser-smoke"
+          "$RUNNER_TEMP/browser-smoke/bin/python" -m pip install playwright==1.57.0 Pillow==12.0.0
+          "$RUNNER_TEMP/browser-smoke/bin/python" -m playwright install --with-deps chromium
+      - name: Browser smoke test (wide and narrow)
+        run: '"$RUNNER_TEMP/browser-smoke/bin/python" tools/tests/browser-smoke.py --distribution composeApp/build/dist --artifacts build/browser-smoke --profile'
+      - name: Browser smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-smoke-evidence
+          path: build/browser-smoke
+          if-no-files-found: ignore
       - if: always()
         uses: HereLiesAz/workflows/.github/actions/ci-report@main
         with:
-          summary: Core tests on JVM and Wasm; web distribution builds
+          summary: Core tests on JVM and Wasm; web distribution and browser smoke
 
   android:
     name: Android build and lint

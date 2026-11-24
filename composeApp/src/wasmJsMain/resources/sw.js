@@ -18,7 +18,8 @@ const SHELL = `stencil-artist-shell-${VERSION}`;
 const HEAVY = `stencil-artist-heavy-${VERSION}`;
 
 const SHELL_FILES = ['./', 'index.html', 'stencil-artist.js', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png', 'scanner.js'];
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
+  'icons/apple-touch-icon.png', 'scanner.js'];
 
 const isHeavy = (url) => /\.(wasm|onnx|tsv)$/.test(url.pathname) || url.pathname.includes('/ort/') ||
   url.pathname.includes('/zxing/');

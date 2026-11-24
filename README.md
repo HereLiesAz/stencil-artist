@@ -10,14 +10,29 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 
 ## What it does today
 
+- A single local editing checkpoint resumes the working image, current stage, palette, lighting,
+  image adjustments, committed and draft mask/depth corrections, selected sheet, and valid print/cutter
+  settings. Android uses an app-private atomic file; the web app uses IndexedDB, not a server.
+  Derived output is regenerated before exports become available. A storage failure
+  is reported; browser eviction or app-data clearing can remove local work.
+- Preview, Prepared, Layers and contextual Masking/Depth/Orbit/Occlusion/Cut risks views share the
+  primary workspace. Masking defaults to tapping connected, colour- and edge-bounded regions of
+  the original image. Brush mode allows precise remove/restore corrections. Two fingers zoom or pan
+  without changing the mask; both edit types share undo, reset, persistence and explicit Apply.
+  The region selector is deterministic, not a semantic object-recognition model.
+
 - Opens an image, removes its background on the device (U²-Net), and separates the subject into
   sheets, **by tone** (a grey ramp) or **by colour** (the picture's own paint colours).
 - Any number of sheets, each with its own colour: greys by default in Tone mode, the colours found
   in the image in Colour mode.
 - Depth-assisted background removal combines U²-Net saliency and relative depth around uncertain
   subject edges, preserving confident segmentation and falling back if depth is unavailable.
-- Optional depth-based Lambert lighting (azimuth, elevation, intensity, ambient and depth strength)
-  relights the **base image before any stencil sheets are generated**, with a base-image preview.
+- Inspect each actual cut sheet at the selected physical width: unsupported-island and fine-opening markers, cut boundaries, and narrow-stock screening against the chosen minimum bridge width. Diagnostics are never exported or applied as cuts.
+- Explicit RGB/can palettes can be selected before opening an image or choosing a rendering mode. Locked palettes retain their exact colours through rendering; changing count retains existing slots up to the new count and supplies editable suggestions for new slots. Automatic palettes remain optional.
+- Edit inferred depth in Light: paint raise/lower/set/smooth/flatten strokes with zoom/pan, strength and hardness; global edge-preserving smoothing, flattening, clamp and gamma remap; depth, false-colour and shaded previews, undo/reset/discard and explicit Apply. Both flat relighting and the 3D mesh use the corrected field. Subject alpha, original inference and chosen palette remain separate.
+- Two independent, non-destructive adjustment stacks: source/skin and final stencil image. Each provides levels/auto-levels, a draggable monotone value curve, exposure, brightness, contrast, gamma, shadows/highlights, saturation, warmth/tint, grayscale/invert, despeckle, edge-preserving smoothing, blur, sharpening, local contrast and hue-preserving value posterization. All lighting paths use the final adjusted pixels; alpha is preserved.
+- Independent flat depth relight mode: stronger image-relative surface normals, foreground depth contrast, lower ambient defaults, adjustable matte mix, depth reversal and directional controls. No extrusion or cast shadows in this mode.
+- Opt-in 3D relief lighting: closed depth-derived extrusion, up to four independently placed directional, point and spot lights, RGB colour, filtered geometric shadows, key/fill/rim preset, orbit and occlusion inspection, thickness and depth reversal. Choose original-image skinning or a custom solid RGB coating on the entire extrusion. Both materials receive the scene lights and shadows; the fixed frontal combined render creates the stencil. An optional coloured, receive-only backdrop behind the relief catches geometric shadows and deliberately fills the frame. Intrinsic albedo recovery and device validation remain planned. See [design and implementation plan](docs/DEPTH_RELIGHT_DISCUSSION.md).
 - Colour separation: the subject's colours are clustered (k-means in Oklab, deterministic, on a
   colour histogram so a 1600 px photo takes under a second on the JVM) into as many flat paint colours
   as there are sheets, up to 1024, and sprayed in an order of your choice: auto (dark base for a
@@ -57,7 +72,8 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   [Spray Planet's MTN 94 selection](https://www.sprayplanet.com/collections/mtn-94)) are approximate
   references, not licensed source artwork or automatically imported colour measurements.
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
-- A guided eight-stage studio separates source cleanup, lighting, layer planning, edge construction, inspection, image exports, printing and cutter output. Each stage explains the consequence of its controls instead of showing the entire configuration at once. A full-screen, blurred-and-dimmed processing overlay rotates concise stencil-making, cutting and painting tips and displays a determinate progress bar beneath them, based on completed processing stages rather than estimated elapsed time; matching cutting hazards and gradient-handling advice are also printed by affected details.
+- The guided studio begins with Image, then Subject (automatic isolation and manual remove/restore brush), then Palette (layer count, colour or tonal mapping, optional specific RGB/cans), Light and Adjust, followed by Edges, Inspect, Images, Print and Cutter. Choosing paints upfront constrains separation; deciding later lets the artist assign paint to the existing sheets in Inspect without changing cuts.
+- Loading shows one different tip per process start or restart with determinate progress. The workspace is modal until the current process succeeds or fails; Continue or any tap then dismisses the same tip.
 - A persistent source/result comparison (or single-image view) supports synchronized pinch-zoom and panning on both panes, plus explicit zoom and reset buttons. The result may show the processed image, finished stencil, or any sheet alone. Visual and touch behavior still require device verification.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
   transparent PNG; or every sheet plus the composite in one ZIP. Also exports a versioned
@@ -276,3 +292,30 @@ Android builds need the SDK (`sdk.dir` in `local.properties`, or `ANDROID_HOME`)
 
 Workflows come from the central [`HereLiesAz/workflows`](https://github.com/HereLiesAz/workflows)
 catalog; see `.github/WORKFLOW_POLICY.md`.
+
+## Android updates
+
+The Android launcher checks for stable GitHub releases using AzNavRail 12.5. It sends no drawing or model data, and opens the release page only when the user chooses Update. The web build is unchanged.
+
+
+## Branding
+
+The Android adaptive launcher and generated PWA icons use the supplied spray-painter artwork
+(`androidApp/src/main/res/drawable-nodpi/stencil_brand.jpg`), with safe-area padding for masked icons.
+The shared studio palette uses weathered teal, charcoal and paper white. Image preview checkerboards,
+paint swatches, catalogue backgrounds and exports retain their existing colours.
+
+### Private typography
+
+The supplied Prodes Stencil and Cavier faces are non-commercial freeware, not redistributable assets
+of this public repository. For a private build only, extract the supplied TTFs into the ignored
+`private-branding/font/` directory at the repository root:
+
+- `ProdesStencil-WpjLA.ttf` → `prodes_stencil.ttf` (app wordmark)
+- `CavierRegular-3lMoX.ttf` → `cavier.ttf` (studio headings)
+
+Build with `./gradlew :androidApp:assembleDebug -PprivateBrandFonts=true` or
+`./gradlew :composeApp:wasmJsBrowserDevelopmentRun -PprivateBrandFonts=true`.
+The private option requires both files; public builds use the original system typography and never
+package private font files. Do not distribute private builds without appropriate font permission.
+Small controls, numerical readouts and export text are unchanged.

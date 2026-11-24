@@ -54,6 +54,7 @@ android {
 }
 
 dependencies {
+    implementation("com.github.HereLiesAz.AzNavRail:aznavrail-updates:12.5")
     implementation(project(":composeApp"))
     implementation(libs.androidx.activity.compose)
 }
