@@ -327,7 +327,7 @@ private fun PickForMe(state: StencilState) {
 private fun MyCans(state: StencilState) {
     val subdued = MaterialTheme.colorScheme.onSurfaceVariant
     var open by remember { mutableStateOf(false) }
-    val chosen = state.selected
+    val chosen = state.selected.filter { it.rgb != null }
     val layers = chosen.map { it.rgb }.distinct().size
     OutlinedButton(onClick = { open = !open }, modifier = Modifier.fillMaxWidth()) {
         Text(if (open) "Close the can picker" else if (chosen.isEmpty()) "Choose cans" else "Choose cans (${chosen.size} chosen)")
@@ -357,7 +357,7 @@ private class Browsing(val cans: List<Can>, val start: Int)
 @Composable
 private fun CanPicker(state: StencilState) {
     val scheme = MaterialTheme.colorScheme
-    val chosen = state.selected
+    val chosen = state.selected.filter { it.rgb != null }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
             .border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
@@ -386,12 +386,12 @@ private fun CanPicker(state: StencilState) {
                 modifier = Modifier.clickable(role = Role.Button) { state.clearCans() }.padding(4.dp),
             )
         }
-        if (chosen.none { it.rgb != null }) {
-            Text(if (chosen.isEmpty()) "Nothing selected." else "No selected cans have resolved colours.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+        if (chosen.isEmpty()) {
+            Text("Nothing selected.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         } else {
             Column(Modifier.heightIn(max = 130.dp).verticalScroll(rememberScrollState())) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (can in chosen.filter { it.rgb != null }) SelectedTop(can) { state.removeCan(can) }
+                    for (can in chosen) SelectedTop(can) { state.removeCan(can) }
                 }
             }
         }
