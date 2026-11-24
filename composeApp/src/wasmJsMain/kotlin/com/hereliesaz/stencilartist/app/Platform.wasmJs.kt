@@ -87,3 +87,11 @@ actual fun argbToImageBitmap(pixels: IntArray, width: Int, height: Int): ImageBi
     val info = ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.UNPREMUL)
     return Image.makeRaster(info, bytes, width * 4).toComposeImageBitmap()
 }
+
+/** Opt in with ?profile=1 on the app URL; diagnostics stay in the browser console. */
+internal actual fun stencilPerformanceEnabled(): Boolean =
+    js("new URLSearchParams(globalThis.location.search).get('profile') === '1'")
+
+/** Numeric and categorical diagnostics only, in the local browser console. */
+internal actual fun reportStencilPerformance(record: String): Unit =
+    js("console.info('StencilPerf ' + record)")

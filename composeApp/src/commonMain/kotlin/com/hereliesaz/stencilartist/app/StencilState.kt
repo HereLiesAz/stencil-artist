@@ -43,6 +43,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.TimeSource
 
 /** How the subject is split into sheets: by brightness or by colour distance, with arbitrary paint colours. */
 enum class SeparationMode { TONE, COLOUR }
@@ -772,6 +773,17 @@ class StencilState(
         loadingNotice = loadingNotice.begin(LOADING_TIPS.size)
         processingProgress = 0f
         run = scope.launch {
+            // Diagnostics are local and opt-in. No image content, paths or network telemetry.
+            val timings = if (stencilPerformanceEnabled()) ArrayList<String>() else null
+            val started = if (timings != null) TimeSource.Monotonic.markNow() else null
+            var previousMs = 0L
+            val depthCached = depthMap != null
+            var cancelledRun = false
+            fun profileStage(name: String) {
+                val elapsed = started?.elapsedNow()?.inWholeMilliseconds ?: return
+                timings?.add("$name=${elapsed - previousMs}")
+                previousMs = elapsed
+            }
             // A previous cancelled run must never update the new run's progress.
             fun markStage(value: Float) {
                 if (generation == request) processingProgress = value
@@ -779,6 +791,7 @@ class StencilState(
             try {
                 if (settle) delay(SETTLE_MILLIS)
                 delay(1) // Allow the busy indicator to paint before inference in the browser.
+                profileStage("settle_ms")
                 val notes = ArrayList<String>()
                 val needsDepth = requestDepth || wantedLighting.enabled || wantedFlatLighting.enabled ||
                     (remove && assist && !image.hasTransparency())
@@ -801,6 +814,7 @@ class StencilState(
                 if (needsDepth && depthMap == null) {
                     notes += depthError ?: "Depth unavailable; using standard masking and original lighting."
                 }
+                profileStage("depth_ms")
                 markStage(0.20f)
                 if (remove && !isolationTried && !image.hasTransparency()) {
                     val isolation = isolator.isolate(image, if (assist) depthMap else null)
@@ -813,12 +827,14 @@ class StencilState(
                     }
                     isolationTried = true
                 }
+                profileStage("isolation_ms")
                 markStage(0.40f)
                 val automatic = cutOut?.takeIf { remove } ?: image
                 val correction = if (remove && wantedMaskStrokes.isNotEmpty()) withContext(Dispatchers.Default) {
                     MaskCorrections.apply(image, automatic, wantedMaskStrokes)
                 } else null
                 if (generation != request) return@launch
+                profileStage("mask_edits_ms")
                 automaticMask = automatic
                 val isolated = correction?.image ?: automatic
                 depthSubject = isolated
@@ -827,8 +843,10 @@ class StencilState(
                     withContext(Dispatchers.Default) { wantedDepthEdits.apply(rawDepth, isolated) }
                 } else null
                 if (generation != request) return@launch
+                profileStage("depth_edits_ms")
                 val adjusted = withContext(Dispatchers.Default) { wantedSourceAdjustments.apply(isolated) }
                 if (generation != request) return@launch
+                profileStage("source_adjustments_ms")
                 val renderedImage = if (wantedFlatLighting.enabled && effectiveDepth != null) {
                     val map = effectiveDepth
                     withContext(Dispatchers.Default) { DepthLighting.relight(adjusted, map, wantedFlatLighting) }
@@ -850,6 +868,7 @@ class StencilState(
                     }
                 } else adjusted
                 if (generation != request) return@launch
+                profileStage("lighting_ms")
                 val lit = withContext(Dispatchers.Default) { wantedPreparedAdjustments.apply(renderedImage) }
                 if (generation != request) return@launch
                 // Manual exclusions are authoritative unless an explicitly enabled backdrop
@@ -857,6 +876,7 @@ class StencilState(
                 val excluded = correction?.excluded?.let { erased ->
                     BooleanArray(erased.size) { erased[it] && lit.pixels[it] ushr 24 == 0 }
                 }
+                profileStage("prepared_adjustments_ms")
                 markStage(0.60f)
                 // The filtered prepared image feeds every separator, paint plan, island and export.
                 // Neither the original image nor an orbit/diagnostic view enters this pipeline.
@@ -902,6 +922,7 @@ class StencilState(
                     }
                 }
                 if (generation != request) return@launch
+                profileStage("separation_ms")
                 markStage(0.80f)
                 processed = lit
                 if (result == null) {
@@ -961,8 +982,10 @@ class StencilState(
                     preview = if (viewProcessedImage) argbToImageBitmap(lit.pixels, lit.width, lit.height)
                         else output.toImageBitmap(shownSheet)
                 }
+                profileStage("finish_ms")
                 markStage(1f)
             } catch (cancelled: CancellationException) {
+                cancelledRun = true
                 throw cancelled
             } catch (error: Exception) {
                 if (generation == request) {
@@ -974,7 +997,29 @@ class StencilState(
                 }
             } finally {
                 // Both success and failure unlock acknowledgement; an obsolete job cannot.
-                if (generation == request) loadingNotice = loadingNotice.finish()
+                if (generation == request) {
+                    loadingNotice = loadingNotice.finish()
+                    if (started != null && !cancelledRun) {
+                        val mode = when {
+                            wantedFlatLighting.enabled -> "flat"
+                            wantedLighting.enabled -> "relief"
+                            else -> "original"
+                        }
+                        // Snapshot only this completed generation; elapsed times include dispatch
+                        // and model acquisition, not just CPU execution.
+                        runCatching {
+                            reportStencilPerformance(
+                                "generation=$request width=${image.width} height=${image.height} " +
+                                    "mode=$mode separator=$wantedMode sheets=${separation?.sheets?.size ?: 0} " +
+                                    "depth_cached=$depthCached depth_available=${depthMap != null} " +
+                                    "relief_available=${reliefScene != null} " +
+                                    "status=${if (separation != null) "ok" else "failed"} " +
+                                    "total_ms=${started.elapsedNow().inWholeMilliseconds} " +
+                                    timings.orEmpty().joinToString(" "),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
