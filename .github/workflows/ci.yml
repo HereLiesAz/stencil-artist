@@ -37,10 +37,16 @@ jobs:
       # The same command the Pages deploy runs, so a broken web build is caught on the pull request.
       - name: Web build
         run: ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon --stacktrace
+      - name: Install browser smoke dependencies
+        run: |
+          python3 -m pip install playwright==1.57.0 Pillow==12.0.0
+          python3 -m playwright install --with-deps chromium
+      - name: Browser smoke test (wide and narrow)
+        run: python3 tools/tests/browser-smoke.py --distribution composeApp/build/dist --artifacts build/browser-smoke
       - if: always()
         uses: HereLiesAz/workflows/.github/actions/ci-report@main
         with:
-          summary: Core tests on JVM and Wasm; web distribution builds
+          summary: Core tests on JVM and Wasm; web distribution and browser smoke
 
   android:
     name: Android build and lint
