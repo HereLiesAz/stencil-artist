@@ -187,83 +187,8 @@ object IslandPlanner {
                     reconstructed++
                     continue
                 }
-                // If existing later cuts cannot restore the island, try a limited
-                // source-guided correction. Every missing pixel must closely match
-                // an opaque later paint, and that paint must improve the source
-                // colour match over the current composite. A dark feature, uncertain
-                // detail, or transparent source pixel is never repainted on a guess.
-                if (source != null && sourceGuided < maxSourceGuidedIslands &&
-                    maxCorrectivePaintPixels > 0 && sheet + 1 < cuts.size) {
-                    val targets = IntArray(tail) { -1 }
-                    var missing = 0
-                    var viable = true
-                    for (i in 0 until tail) {
-                        val pixel = queue[i]
-                        if ((sheet + 1 until cuts.size).any { later -> cuts[later][pixel] }) continue
-                        if (++missing > maxCorrectivePaintPixels) {
-                            viable = false
-                            break
-                        }
-                        val sampled = source.pixels[pixel]
-                        if (sampled ushr 24 < 224) {
-                            viable = false
-                            break
-                        }
-                        val currentPaint = renderedBefore[pixel].let {
-                            if (it ushr 24 == 0) original.sheets[sheet].color else it
-                        }
-                        val oldError = colourError(sampled, currentPaint)
-                        var bestError = maxSourceErrorSquared + 1
-                        var bestSheet = -1
-                        for (later in sheet + 1 until cuts.size) {
-                            val colour = original.sheets[later].color
-                            if (colour ushr 24 != 255) continue
-                            val error = colourError(sampled, colour)
-                            if (error < bestError) {
-                                bestError = error
-                                bestSheet = later
-                            }
-                        }
-                        if (bestSheet < 0 || bestError > maxSourceErrorSquared ||
-                            bestError >= oldError) {
-                            viable = false
-                            break
-                        }
-                        targets[i] = bestSheet
-                    }
-                    if (viable && missing > 0) {
-                        val changedSheets = targets.filter { it >= 0 }.distinct()
-                        val originalSupport = changedSheets.associateWith { later ->
-                            supportedStock(cuts[later], w, h)
-                        }
-                        for (i in 0 until tail) if (targets[i] >= 0) {
-                            cuts[targets[i]][queue[i]] = true
-                        }
-                        // A later paint stroke may close a cut ring and detach
-                        // previously supported stock. Reject the whole correction
-                        // instead of exchanging one island for another.
-                        val safe = changedSheets.all { later ->
-                            val afterSupport = supportedStock(cuts[later], w, h)
-                            val beforeSupport = originalSupport.getValue(later)
-                            (0 until n).none { pixel ->
-                                beforeSupport[pixel] && !cuts[later][pixel] && !afterSupport[pixel]
-                            }
-                        }
-                        if (safe) {
-                            for (i in 0 until tail) {
-                                cut[queue[i]] = true
-                                if (targets[i] >= 0) correctedPixels[queue[i]] = true
-                            }
-                            sourceGuided++
-                            continue
-                        }
-                        for (i in 0 until tail) if (targets[i] >= 0) {
-                            cuts[targets[i]][queue[i]] = false
-                        }
-                    }
-                }
-                // Otherwise search only concealed negative-stroke connections from
-                // the island boundary to previously supported, uncut stock.
+                // Prefer a completely concealed negative-stroke bridge over a
+                // source-guided correction, because the bridge changes no visible paint.
                 generation++
                 var searchHead = 0
                 var searchTail = 0
@@ -298,6 +223,82 @@ object IslandPlanner {
                     }
                 }
                 if (destination < 0) {
+                    // If neither existing later cuts nor a concealed bridge can restore
+                    // the island, try a limited
+                    // source-guided correction. Every missing pixel must closely match
+                    // an opaque later paint, and that paint must improve the source
+                    // colour match over the current composite. A dark feature, uncertain
+                    // detail, or transparent source pixel is never repainted on a guess.
+                    if (source != null && sourceGuided < maxSourceGuidedIslands &&
+                        maxCorrectivePaintPixels > 0 && sheet + 1 < cuts.size) {
+                        val targets = IntArray(tail) { -1 }
+                        var missing = 0
+                        var viable = true
+                        for (i in 0 until tail) {
+                            val pixel = queue[i]
+                            if ((sheet + 1 until cuts.size).any { later -> cuts[later][pixel] }) continue
+                            if (++missing > maxCorrectivePaintPixels) {
+                                viable = false
+                                break
+                            }
+                            val sampled = source.pixels[pixel]
+                            if (sampled ushr 24 < 224) {
+                                viable = false
+                                break
+                            }
+                            val currentPaint = renderedBefore[pixel].let {
+                                if (it ushr 24 == 0) original.sheets[sheet].color else it
+                            }
+                            val oldError = colourError(sampled, currentPaint)
+                            var bestError = maxSourceErrorSquared + 1
+                            var bestSheet = -1
+                            for (later in sheet + 1 until cuts.size) {
+                                val colour = original.sheets[later].color
+                                if (colour ushr 24 != 255) continue
+                                val error = colourError(sampled, colour)
+                                if (error < bestError) {
+                                    bestError = error
+                                    bestSheet = later
+                                }
+                            }
+                            if (bestSheet < 0 || bestError > maxSourceErrorSquared ||
+                                bestError >= oldError) {
+                                viable = false
+                                break
+                            }
+                            targets[i] = bestSheet
+                        }
+                        if (viable && missing > 0) {
+                            val changedSheets = targets.filter { it >= 0 }.distinct()
+                            val originalSupport = changedSheets.associateWith { later ->
+                                supportedStock(cuts[later], w, h)
+                            }
+                            for (i in 0 until tail) if (targets[i] >= 0) {
+                                cuts[targets[i]][queue[i]] = true
+                            }
+                            // A later paint stroke may close a cut ring and detach
+                            // previously supported stock. Reject the whole correction
+                            // instead of exchanging one island for another.
+                            val safe = changedSheets.all { later ->
+                                val afterSupport = supportedStock(cuts[later], w, h)
+                                val beforeSupport = originalSupport.getValue(later)
+                                (0 until n).none { pixel ->
+                                    beforeSupport[pixel] && !cuts[later][pixel] && !afterSupport[pixel]
+                                }
+                            }
+                            if (safe) {
+                                for (i in 0 until tail) {
+                                    cut[queue[i]] = true
+                                    if (targets[i] >= 0) correctedPixels[queue[i]] = true
+                                }
+                                sourceGuided++
+                                continue
+                            }
+                            for (i in 0 until tail) if (targets[i] >= 0) {
+                                cuts[targets[i]][queue[i]] = false
+                            }
+                        }
+                    }
                     unresolved++
                     continue
                 }
