@@ -1,9 +1,9 @@
 package com.hereliesaz.stencilartist.core
 
 /**
- * Lifecycle of one visible processing notice, independent of the processing job's lifetime.
- * A replacement job keeps the current tip while the notice is visible. Completion leaves the
- * notice open; only an acknowledgement after completion can hide it.
+ * Lifecycle of a processing notice. Each new or replacement process receives the next tip,
+ * regardless of whether its predecessor's overlay is still visible. Completion leaves that
+ * process's tip open; only an acknowledgement after completion can hide it.
  */
 data class LoadingNotice private constructor(
     val tipIndex: Int,
@@ -12,11 +12,10 @@ data class LoadingNotice private constructor(
 ) {
     constructor() : this(-1, false, false)
 
-    /** Start work; advance the tip only when opening a previously hidden notice. */
+    /** Start or restart work; advance exactly once for every new processing generation. */
     fun begin(tipCount: Int): LoadingNotice {
         require(tipCount > 0)
-        return if (visible) copy(processing = true)
-        else LoadingNotice((tipIndex + 1) % tipCount, true, true)
+        return LoadingNotice((tipIndex + 1) % tipCount, true, true)
     }
 
     /** Current work ended. Keep its tip visible until acknowledged. */

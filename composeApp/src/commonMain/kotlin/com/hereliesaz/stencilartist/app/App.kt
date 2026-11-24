@@ -79,6 +79,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.LightingParams
 import com.hereliesaz.stencilartist.core.ImageAdjustments
@@ -189,35 +191,44 @@ fun App() {
                     }
                 }
                 if (notice.visible) {
-                    // One modal surface consumes taps throughout processing and acknowledgement.
-                    // Its nested Continue button has the same guarded action as tapping anywhere.
+                    // A real modal window blocks input and focus to the underlying workspace.
+                    // Outside taps and the full surface use the guarded action; Back stays blocked.
                     val advice = LOADING_TIPS[notice.tipIndex]
-                    Box(
-                        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.67f))
-                            .clickable(onClick = state::dismissLoadingNotice),
-                        contentAlignment = Alignment.Center,
+                    Dialog(
+                        onDismissRequest = state::dismissLoadingNotice,
+                        properties = DialogProperties(dismissOnBackPress = false,
+                            dismissOnClickOutside = true, usePlatformDefaultWidth = false),
                     ) {
-                        Column(
-                            Modifier.fillMaxWidth().padding(24.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(MaterialTheme.colorScheme.surface)
-                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
-                                .padding(18.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        Box(
+                            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.67f))
+                                .clickable(onClick = state::dismissLoadingNotice),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Text(if (notice.processing) "PREPARING STENCIL · ${advice.first}" else "${advice.first} · TIP",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(advice.second, style = MaterialTheme.typography.bodyMedium)
-                            if (notice.processing) {
-                                // Completed pipeline stages, not estimated time.
-                                LinearProgressIndicator(
-                                    progress = { state.processingProgress },
-                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                                )
-                            } else {
-                                Button(onClick = state::dismissLoadingNotice, modifier = Modifier.fillMaxWidth()) {
-                                    Text("Continue")
+                            Column(
+                                Modifier.fillMaxWidth().padding(24.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+                                    .padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Text(if (notice.processing) "PREPARING STENCIL · ${advice.first}" else "${advice.first} · TIP",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(advice.second, style = MaterialTheme.typography.bodyMedium)
+                                if (notice.processing) {
+                                    // Completed pipeline stages, not estimated time.
+                                    LinearProgressIndicator(
+                                        progress = { state.processingProgress },
+                                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                                    )
+                                } else {
+                                    if (state.separation == null) state.message?.let {
+                                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    Button(onClick = state::dismissLoadingNotice, modifier = Modifier.fillMaxWidth()) {
+                                        Text("Continue")
+                                    }
                                 }
                             }
                         }

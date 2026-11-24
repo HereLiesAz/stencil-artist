@@ -503,7 +503,7 @@ class StencilState(
     var preview: ImageBitmap? by mutableStateOf(null)
         private set
 
-    /** One tip per visible loading notice, including its acknowledgement phase. */
+    /** One tip per processing generation, including its acknowledgement phase. */
     var loadingNotice: LoadingNotice by mutableStateOf(LoadingNotice())
         private set
 
@@ -925,7 +925,18 @@ class StencilState(
                         else output.toImageBitmap(shownSheet)
                 }
                 markStage(1f)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (generation == request) {
+                    separation = null
+                    paintLayers = emptyList()
+                    reliefScene = null
+                    preview = null
+                    message = "Couldn't make a stencil: " + (error.message ?: "Unknown processing error.")
+                }
             } finally {
+                // Both success and failure unlock acknowledgement; an obsolete job cannot.
                 if (generation == request) loadingNotice = loadingNotice.finish()
             }
         }
