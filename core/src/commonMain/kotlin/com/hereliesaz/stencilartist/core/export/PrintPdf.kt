@@ -446,7 +446,7 @@ object PrintPdf {
                 )
             }
             return Note(
-                "S$sheet:${tip.kind}:${tip.x}:${tip.y}", sheet, lines, x, y, x + shiftX(b), y + shiftY(b), tile, tileCode(grid.tiles[tile]),
+                "S$sheet:${tip.kind}:${tip.x}:${tip.y}", sheet, tip.kind, lines, x, y, x + shiftX(b), y + shiftY(b), tile, tileCode(grid.tiles[tile]),
                 if (boards.isEmpty()) 0 else boards[b].cell.number,
             )
         }
@@ -726,7 +726,7 @@ object PrintPdf {
 
     /** A cutting tip's text and where its anchor is, in finished-piece mm ([x], [y]) and in grid mm ([rx], [ry]); [tile] is the index of the tile that owns it. */
     internal class Note(
-        val key: String, val sheet: Int, val lines: List<String>, val x: Double, val y: Double,
+        val key: String, val sheet: Int, val kind: PrintTipKind, val lines: List<String>, val x: Double, val y: Double,
         val rx: Double, val ry: Double, val tile: Int, val code: String, val board: Int,
     )
 
@@ -958,7 +958,7 @@ object PrintPdf {
                     var best: Rect? = null
                     var bestDist = Double.POSITIVE_INFINITY
                     for (r in candidates) {
-                        if (note.key.contains(":SOFT_GRADIENT:") && r.removed) continue
+                        if (note.kind == PrintTipKind.SOFT_GRADIENT && r.removed) continue
                         if (used.any { it.overlaps(r) }) continue
                         val dx = r.x + r.w / 2 - note.rx
                         val dy = r.y + r.h / 2 - note.ry
