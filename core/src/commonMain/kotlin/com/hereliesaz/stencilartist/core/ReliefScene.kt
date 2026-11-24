@@ -4,7 +4,7 @@ import kotlin.math.*
 
 /** A textured closed solid with an independent source camera and orbit camera. All distances
  * are image-relative, never physical measurements. Lighting uses directional orthographic and positional perspective shadow maps,
- * not image-space depth gradients. Front texture retains the photograph's baked light. */
+ * not image-space depth gradients. Source texture retains baked photographic light; the solid material does not. */
 class ReliefScene private constructor(private val source: RgbaImage, private val mesh: ReliefMesh) {
     private data class V(val x: Float, val y: Float, val z: Float) {
         fun length() = sqrt(dot(this))
@@ -50,13 +50,16 @@ class ReliefScene private constructor(private val source: RgbaImage, private val
             raster(a, b, c, width, height) pixel@{ i, wa, wb, wc ->
                 val z = wa * a.z + wb * b.z + wc * c.z
                 if (z <= zBuffer[i]) return@pixel
-                val color = if (frontal) source.pixels[i] else if (t.surface == ReliefSurface.FRONT) {
+                val sampled = if (frontal) source.pixels[i] else if (t.surface == ReliefSurface.FRONT) {
                     val u = wa * va.u + wb * vb.u + wc * vc.u
                     val v = wa * va.v + wb * vb.v + wc * vc.v
                     source.pixels[(v * source.height).toInt().coerceIn(0, source.height - 1) * source.width +
                         (u * source.width).toInt().coerceIn(0, source.width - 1)]
                 } else 0xFF909090.toInt()
-                if (color ushr 24 == 0) return@pixel
+                if (sampled ushr 24 == 0) return@pixel
+                // Material replaces RGB only, never the source silhouette or partial alpha.
+                val color = if (light.useSourceTexture) sampled else
+                    (sampled and 0xFF000000.toInt()) or light.surfaceColor
                 val pa = world[t.a]; val pb = world[t.b]; val pc = world[t.c]
                 val point = V(wa * pa.x + wb * pb.x + wc * pc.x,
                     wa * pa.y + wb * pb.y + wc * pc.y, wa * pa.z + wb * pb.z + wc * pc.z)

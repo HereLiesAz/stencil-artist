@@ -16,7 +16,7 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   in the image in Colour mode.
 - Depth-assisted background removal combines U²-Net saliency and relative depth around uncertain
   subject edges, preserving confident segmentation and falling back if depth is unavailable.
-- Opt-in 3D relief lighting: closed depth-derived extrusion, up to four independently placed directional, point and spot lights, RGB colour, filtered geometric shadows, key/fill/rim preset, orbit and occlusion inspection, thickness and depth reversal. The fixed frontal combined render creates the stencil. Receiver geometry, material recovery and device validation remain planned. See [design and implementation plan](docs/DEPTH_RELIGHT_DISCUSSION.md).
+- Opt-in 3D relief lighting: closed depth-derived extrusion, up to four independently placed directional, point and spot lights, RGB colour, filtered geometric shadows, key/fill/rim preset, orbit and occlusion inspection, thickness and depth reversal. Choose original-image skinning or a custom solid RGB coating on the entire extrusion. Both materials receive the scene lights and shadows; the fixed frontal combined render creates the stencil. Receiver geometry, intrinsic albedo recovery and device validation remain planned. See [design and implementation plan](docs/DEPTH_RELIGHT_DISCUSSION.md).
 - Colour separation: the subject's colours are clustered (k-means in Oklab, deterministic, on a
   colour histogram so a 1600 px photo takes under a second on the JVM) into as many flat paint colours
   as there are sheets, up to 1024, and sprayed in an order of your choice: auto (dark base for a

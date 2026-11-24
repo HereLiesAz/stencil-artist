@@ -43,6 +43,12 @@ Directional lights use orthographic shadow projections. Finite emitters use pers
 
 Nine focused JVM scene test methods cover the earlier source/geometry guarantees, independent coloured contributions, inverse-square point falloff, spot aiming, finite position point/spot geometric shadows and per-light toggles, filtered partial visibility and orbit diagnostic independence. Synthetic multi-light renders were visually inspected; coarse mesh and shadow-map artifacts remain. Android/Wasm build and real-device visual verification are still required.
 
+### Fourth implementation increment: surface material choice
+
+The Light stage exposes two mutually exclusive choices: **Image skin** uses original RGB on the visible front surface (including baked photographic shadows); inferred walls and cap retain neutral material. **Solid colour** coats every face with one user-selected RGB colour, removing original RGB variation without changing depth geometry, light positions, or the source alpha mask. White is the initial solid colour. The selected RGB is remembered while switching between modes. Both materials pass through the same geometric light/shadow computation, orbit preview and frontal stencil input. The occlusion-only diagnostic remains independent of material colour.
+
+The shared RGB controls edit surface or emitter colour without duplicating channel editing logic. The source image is unchanged. No claim is made about recovery of intrinsic photographic albedo. Two additional JVM scene tests verify the exact solid RGB under white light, reduced intensity, partial alpha and transparent gaps, reversibility, uniform material on inferred surfaces and unchanged diagnostic output. Eleven focused standalone JVM scene tests passed, and synthetic comparisons were visually inspected; Android/Wasm and device verification remain outstanding.
+
 ## Previous implementation (before scene integration)
 
 1. `DepthEstimator.estimate` invokes Depth Anything V2 Small on the original RGB image. `DepthLighting.depth` normalizes the relative inverse depth to [0, 1] *per image* and resamples it to the source dimensions.
@@ -88,7 +94,7 @@ The earlier A+C proposal is superseded by the approved closed, depth-displaced f
 
 1. Real subject relief and actual cast/self-shadowing are approved; exact shadow quality and controls remain implementation work.
 2. Editable depth and independently placeable scene lights are approved in the implementation sequence.
-3. Existing photographic shadows: retained by a simple textured first render; explicit replacement/mixing and albedo estimation remain material-design decisions.
+3. Existing photographic shadows: retain them with Image skin, or discard original RGB using Solid colour. Intrinsic albedo estimation and mixed material choices remain separate design work.
 4. Shadows within the subject and an optional receiver are planned; whether a receiver shadow becomes a separate printable layer is not yet decided.
 
 The geometry renderer is now the opt-in lighting path. The separator and export contract do not change.
