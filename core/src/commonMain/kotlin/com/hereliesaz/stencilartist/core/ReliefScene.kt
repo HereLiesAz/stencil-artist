@@ -120,7 +120,7 @@ class ReliefScene private constructor(private val source: RgbaImage, private val
         for (emitter in emitters) {
             val direct = emitter.direct(point, normal)
             if (direct <= 0f) continue
-            val lit = direct * emitter.visibility(point)
+            val lit = direct * emitter.visibility(point, normal)
             total += direct; visible += lit
             red += lit * emitter.red; green += lit * emitter.green; blue += lit * emitter.blue
         }
@@ -217,16 +217,30 @@ class ReliefScene private constructor(private val source: RgbaImage, private val
             return max(0f, normal.dot(toward)) * light.intensity * coneGain / (distance * distance)
         }
 
-        /** Percentage-closer filtering: a bounded nine-tap approximation, not area-light transport. */
-        fun visibility(p: V): Float {
+        /** Percentage-closer filtering with receiver-plane depth correction at each texel centre.
+         * Orthographic depth and perspective reciprocal distance are affine on the receiver plane.
+         * Compare there before applying the scene-unit bias; otherwise neighbouring samples of a
+         * sloped but unobstructed face can shadow that face. This is still a bounded nine-tap
+         * approximation, not area-light transport. Near-singular projections use the centre depth. */
+        fun visibility(p: V, normal: V): Float {
             val depth = buffer ?: return 1f
             if (positional && light.distance - p.dot(direction) <= 0f) return 1f
             val q = fit(project(p))
-            val threshold = if (positional) 1f / (1f / q.z - SHADOW_BIAS).coerceAtLeast(.0001f)
-                else q.z + SHADOW_BIAS
-            val x = q.x.toInt(); val y = q.y.toInt()
-            fun sample(sx: Int, sy: Int): Int = if (sx !in 0 until SHADOW_SIZE || sy !in 0 until SHADOW_SIZE ||
-                depth[sy * SHADOW_SIZE + sx] <= threshold) 1 else 0
+            val denominator = if (positional) normal.dot(p - position) else -normal.dot(direction)
+            val inverse = if (abs(denominator) > .0001f) 1f / (denominator * scale) else 0f
+            val slopeX = normal.dot(right) * inverse
+            val slopeY = -normal.dot(up) * inverse
+            val x = floor(q.x).toInt(); val y = floor(q.y).toInt()
+            fun sample(sx: Int, sy: Int): Int {
+                if (sx !in 0 until SHADOW_SIZE || sy !in 0 until SHADOW_SIZE) return 1
+                val planeDepth = q.z + slopeX * (sx + .5f - q.x) + slopeY * (sy + .5f - q.y)
+                // A perspective sample whose extrapolated plane is behind the camera has no
+                // usable receiver intersection; retain the centre comparison in that case.
+                val corrected = if (positional && planeDepth <= 0f) q.z else planeDepth
+                val threshold = if (positional) 1f / (1f / corrected - SHADOW_BIAS).coerceAtLeast(.0001f)
+                    else corrected + SHADOW_BIAS
+                return if (depth[sy * SHADOW_SIZE + sx] <= threshold) 1 else 0
+            }
             val radius = light.softness
             if (radius == 0) return sample(x, y).toFloat()
             var sum = 0
