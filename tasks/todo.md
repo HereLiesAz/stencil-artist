@@ -9,7 +9,7 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 
 - [x] Split the one-screen settings column into eight named, focused stages with context explaining each decision; preserve the underlying processing and export code.
 - [x] Add an original/result comparison with shared, fitted-image-bounded zoom and pan, plus single-view and explicit zoom controls.
-- [x] Show rotating creation/cutting/painting advice over a blurred, dimmed full-screen loading overlay, with a determinate horizontal progress indicator below the tip reflecting finished pipeline stages; permit cutaway or retained stock for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
+- [x] Show one creation/cutting/painting tip per visible loading overlay, advancing only on a new appearance. Keep the blurred, dimmed overlay and determinate progress during work; after completion retain the same tip with Continue or tap-anywhere dismissal. Caller: `StencilState.remake` → `LoadingNotice.begin/finish`; App → `dismissLoadingNotice`. Permit cutaway or retained stock for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
 - [x] Put advanced lighting and edge-adjustment sliders behind deliberate disclosure; leave depth-lighting behavior unchanged pending design review.
 - [ ] Visually inspect both wide web and narrow Android layouts, including keyboard and touch input, and verify pinch-pan, clipped zoom and side-by-side accuracy on devices.
 - [x] Approve the 3D extrusion, actual scene lighting and rendered-source stencil architecture. See `docs/DEPTH_RELIGHT_DISCUSSION.md`.

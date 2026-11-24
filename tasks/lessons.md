@@ -70,6 +70,11 @@ Rules written after corrections. Read at the start of every session on this repo
 - Manual foreground restores original alpha; manual background remains excluded from every sheet even when automatic silhouette closing fills holes. An explicitly enabled opaque receiver is a new background, not a failed mask.
 - Preserve source, generation guards, cut masks, paint order and export snapshot identity.
 
+## 2026-11-24 — Loading advice belongs to one visible session
+
+- Advance the tip only when the loading overlay opens, never on a timer. The same tip remains while work restarts and after work ends.
+- Keep the overlay modal during processing. After the current generation finishes, replace progress with Continue; the button or a tap anywhere dismisses the overlay. A stale completion must not unlock current work.
+
 ## 2026-11-22 — Raster output must stay identical to the stencil preview
 
 - Encode per-sheet PNG pixels through `Separation.render(sheet)` and composite through

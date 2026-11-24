@@ -13,6 +13,7 @@ import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.ReliefScene
 import com.hereliesaz.stencilartist.core.DepthLighting
 import com.hereliesaz.stencilartist.core.LightingParams
+import com.hereliesaz.stencilartist.core.LoadingNotice
 import com.hereliesaz.stencilartist.core.IslandPlanner
 import com.hereliesaz.stencilartist.core.SoftGradientZones
 import com.hereliesaz.stencilartist.core.StrokeStyler
@@ -502,8 +503,17 @@ class StencilState(
     var preview: ImageBitmap? by mutableStateOf(null)
         private set
 
-    var busy: Boolean by mutableStateOf(false)
+    /** One tip per visible loading notice, including its acknowledgement phase. */
+    var loadingNotice: LoadingNotice by mutableStateOf(LoadingNotice())
         private set
+
+    /** Actual processing state, not whether its completed notice is still visible. */
+    val busy: Boolean get() = loadingNotice.processing
+
+    /** Consume an acknowledgement only after the current job has ended. */
+    fun dismissLoadingNotice() {
+        loadingNotice = loadingNotice.dismiss()
+    }
 
     /**
      * Fraction of completed processing stages (depth, masking, relighting, separation,
@@ -728,7 +738,7 @@ class StencilState(
         automaticMask = null
         separation = null
         paintLayers = emptyList()
-        busy = true
+        loadingNotice = loadingNotice.begin(LOADING_TIPS.size)
         processingProgress = 0f
         run = scope.launch {
             // A previous cancelled run must never update the new run's progress.
@@ -916,7 +926,7 @@ class StencilState(
                 }
                 markStage(1f)
             } finally {
-                if (generation == request) busy = false
+                if (generation == request) loadingNotice = loadingNotice.finish()
             }
         }
     }
