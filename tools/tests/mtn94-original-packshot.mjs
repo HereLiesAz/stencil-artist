@@ -46,7 +46,18 @@ assert.match(page, /chosen\.map \{ it\.layer\.primary \}\.filter \{ it\.rgb != n
   "The chosen-can carousel must also exclude unresolved entries");
 assert.match(artwork, /imageResource\(Res\.drawable\.mtn94_original_top_strip\)/);
 assert.match(artwork, /drawCircle\(Color\(colour\), diameter \* 0\.45f, center\)/);
-assert.match(artwork, /srcOffset = IntOffset\(120, frame \* 397\)/);
+assert.match(artwork, /srcOffset = IntOffset\(140, frameTop\)/);
+assert.match(artwork, /srcSize = IntSize\(440, 400\)/);
+for (const marker of ["0 -> 0", "1 -> 420", "2 -> 839", "3 -> 1251", "else -> 1668"]) {
+  assert.ok(artwork.includes(marker), "Each top requires a measured source offset: " + marker);
+}
+// Independently observed from the source image: each top occupies ~400 vertical pixels;
+// the next begins 420+ px away. Cropping must not introduce its neighbour.
+const frameStarts = [0, 420, 839, 1251, 1668];
+for (let i = 1; i < frameStarts.length; i++) {
+  assert.ok(frameStarts[i] - frameStarts[i - 1] >= 400);
+}
+assert.ok(frameStarts[4] + 400 <= top.readUInt32BE(20));
 assert.ok(
   artwork.indexOf("drawCircle(Color(colour), diameter * 0.45f, center)") <
   artwork.indexOf("drawImage(\n            image = original,"),
