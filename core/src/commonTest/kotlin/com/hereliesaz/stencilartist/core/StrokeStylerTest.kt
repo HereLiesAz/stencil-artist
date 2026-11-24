@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class StrokeStylerTest {
@@ -223,6 +224,86 @@ class StrokeStylerTest {
             listOf(BooleanArray(w * h) { true }, tiny))
         val styled = StrokeStyler.stylize(image(w, h), input)
         assertContentEquals(tiny, styled.mask(1), "a narrow highlight must not be punched full of gaps")
+    }
+
+
+    @Test
+    fun oversizedBrushPreservesAWholeNarrowBlotchyOpening() {
+        val w = 150
+        val h = 110
+        // This 101 x 9 patch is well above the existing small-component cutoff.
+        // Its *width across the paint* is nonetheless smaller than the chosen brush.
+        val patch = BooleanArray(w * h) { i ->
+            val x = i % w
+            val y = i / w
+            x in 15..115 && y in 45..53
+        }
+        val original = Separation.fromMasks(w, h, listOf(black, white),
+            listOf(BooleanArray(w * h) { true }, patch))
+        val actual = StrokeStyler.stylize(image(w, h), original, strokeWidthPixels = 16)
+        assertContentEquals(patch, actual.mask(1),
+            "a brush wider than a region must leave its original solid/blotchy shape intact")
+        assertContentEquals(original.mask(0), actual.mask(0))
+    }
+
+    @Test
+    fun oversizedBrushPreservesNarrowRegionBesideStylizedBroadPaint() {
+        val w = 180
+        val h = 130
+        val opening = BooleanArray(w * h) { i ->
+            val x = i % w
+            val y = i / w
+            (x in 12..110 && y in 12..98) ||
+                (x in 135..172 && y in 54..62)
+        }
+        val original = Separation.fromMasks(w, h, listOf(black, gray),
+            listOf(BooleanArray(w * h) { true }, opening))
+        val actual = StrokeStyler.stylize(image(w, h), original, strokeWidthPixels = 16).mask(1)
+        for (y in 54..62) for (x in 135..172) {
+            assertTrue(actual[y * w + x],
+                "the narrow separate region must retain every original paint pixel")
+        }
+        assertTrue((25..85).any { y -> (25..96).any { x -> !actual[y * w + x] } },
+            "a separate, substantially larger region must still admit brush gaps")
+        assertTrue(actual.indices.all { !actual[it] || opening[it] },
+            "reconstructed strokes cannot paint outside the original openings")
+        assertTrue(StencilPrintTips.detect(actual, w, h, 180.0)
+            .none { it.kind == PrintTipKind.ISLAND })
+    }
+
+    @Test
+    fun changingBrushSizeChangesTheMarksAndKeepsTheSameOriginalCoverageBounds() {
+        val w = 140
+        val h = 135
+        val patch = BooleanArray(w * h) { i ->
+            val x = i % w
+            val y = i / w
+            x in 15..123 && y in 14..117
+        }
+        val original = Separation.fromMasks(w, h, listOf(black, gray),
+            listOf(BooleanArray(w * h) { true }, patch))
+        val small = StrokeStyler.stylize(image(w, h), original, strokeWidthPixels = 2).mask(1)
+        val large = StrokeStyler.stylize(image(w, h), original, strokeWidthPixels = 12).mask(1)
+        assertFalse(small.contentEquals(large),
+            "the width control must affect rendered geometry, not merely a UI readout")
+        assertTrue(small.indices.all { !small[it] || patch[it] })
+        assertTrue(large.indices.all { !large[it] || patch[it] })
+        assertContentEquals(small, StrokeStyler.stylize(image(w, h), original).mask(1),
+            "the original 2px default behavior must remain unchanged")
+    }
+
+    @Test
+    fun brushWidthValidationRejectsOutOfRangeValues() {
+        val w = 20
+        val h = 20
+        val original = Separation(w, h, listOf(black), IntArray(w * h) { 0 })
+        assertFailsWith<IllegalArgumentException> {
+            StrokeStyler.stylize(image(w, h), original, strokeWidthPixels = 0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            StrokeStyler.stylize(image(w, h), original, strokeWidthPixels = 25)
+        }
+        assertTrue(StrokeStyler.stylize(image(w, h), original, strokeWidthPixels = 24) === original)
     }
 
     @Test
