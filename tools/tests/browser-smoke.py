@@ -92,6 +92,24 @@ def smoke(browser, url, width, height, directory, profile=False):
             assert rgba.getpixel((56, 24))[3] != 0, "Right subject disappeared"
             assert rgba.getpixel((18, 24)) != rgba.getpixel((56, 24)), "Distinct regions collapsed"
         page.screenshot(path=directory / f"{label}-images.png")
+        # Observe the persisted checkpoint through the real storage transaction; do not assume
+        # that completion of a download implies the asynchronously saved stage is committed.
+        page.get_by_label("Workspace saved", exact=True).wait_for(state="visible", timeout=30000)
+        page.reload(wait_until="load", timeout=90000)
+        page.locator("#loading").wait_for(state="detached", timeout=90000)
+        page.keyboard.press("Tab")
+        modal.get_by_role("button", name="Continue", exact=True).wait_for(timeout=120000)
+        modal.get_by_role("button", name="Continue", exact=True).click()
+        modal.wait_for(state="detached")
+        control(page, "Download composite PNG").wait_for(state="visible")
+        with page.expect_download(timeout=30000) as restored_download:
+            control(page, "Download composite PNG").click(force=True)
+        restored = directory / f"{label}-restored.png"
+        restored_download.value.save_as(restored)
+        with Image.open(output) as before, Image.open(restored) as after:
+            assert before.size == after.size
+            assert before.convert("RGBA").tobytes() == after.convert("RGBA").tobytes(), "Restored stencil changed"
+        page.screenshot(path=directory / f"{label}-restored-screen.png")
         assert not errors, f"Uncaught browser errors: {errors}"
         if profile:
             assert any("status=ok " in record and "total_ms=" in record for record in records), (
