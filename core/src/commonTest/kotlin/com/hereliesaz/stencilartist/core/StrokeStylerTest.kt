@@ -71,6 +71,27 @@ class StrokeStylerTest {
     }
 
     @Test
+    fun negativeBrushGapsEnterFromRightWhenLeftEdgeTouchesCanvas() {
+        val w = 150
+        val h = 120
+        val opening = BooleanArray(w * h) { i ->
+            val x = i % w
+            val y = i / w
+            x in 0..95 && y in 12..105
+        }
+        val input = Separation.fromMasks(w, h, listOf(black, gray),
+            listOf(BooleanArray(w * h) { true }, opening))
+        val actual = StrokeStyler.stylize(image(w, h), input).mask(1)
+        assertFalse(actual[19 * w + 95],
+            "The right edge must support a connected inward brush gap even when no left edge can")
+        assertTrue(actual.indices.all { !actual[it] || opening[it] },
+            "A negative brush gap must never add paint beyond the original opening")
+        assertTrue(StencilPrintTips.detect(actual, w, h, 150.0)
+            .none { it.kind == PrintTipKind.ISLAND },
+            "The new stroke entry must not create unsupported retained-stock islands")
+    }
+
+    @Test
     fun darkUncutDetailsAndUnrelatedOpeningsAreNotErasedToMakeTexture() {
         val w = 110
         val h = 92
