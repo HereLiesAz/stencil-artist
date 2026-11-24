@@ -152,6 +152,7 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
     var split by remember { mutableStateOf(true) }
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
+    var paneBounds by remember { mutableStateOf(IntSize.Zero) }
     val sourceBitmap = remember(state.source) {
         state.source?.let { argbToImageBitmap(it.pixels, it.width, it.height) }
     }
@@ -159,20 +160,33 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
         zoom = 1f
         pan = Offset.Zero
     }
+    // ContentScale.Fit may letterbox images. The content rather than the containing pane
+    // determines how far an image can move without disappearing under the clipping rectangle.
+    val clampPan: (Offset, Float, IntSize) -> Offset = { offset, scale, bounds ->
+        val source = state.source
+        if (source == null || bounds.width <= 0 || bounds.height <= 0 || scale <= 1f) Offset.Zero
+        else {
+            val fittedScale = minOf(bounds.width.toFloat() / source.width, bounds.height.toFloat() / source.height)
+            val maxX = maxOf(0f, (source.width * fittedScale * scale - bounds.width) / 2f)
+            val maxY = maxOf(0f, (source.height * fittedScale * scale - bounds.height) / 2f)
+            Offset(offset.x.coerceIn(-maxX, maxX), offset.y.coerceIn(-maxY, maxY))
+        }
+    }
     val applyTransform: (Offset, Float, Offset, IntSize) -> Unit = { centroid, factor, delta, bounds ->
         val next = (zoom * factor).coerceIn(1f, 8f)
         val ratio = next / zoom
-        // Hold the pixel under the user's fingers in place as the image grows or shrinks.
+        // Keep the pixel under the gesture's centroid in place while zooming.
         val focus = centroid - Offset(bounds.width / 2f, bounds.height / 2f)
         val nextPan = pan * ratio + focus * (1f - ratio) + delta
-        val maxX = bounds.width * (next - 1f) / 2f
-        val maxY = bounds.height * (next - 1f) / 2f
         zoom = next
-        pan = if (next == 1f) Offset.Zero else Offset(
-            nextPan.x.coerceIn(-maxX, maxX),
-            nextPan.y.coerceIn(-maxY, maxY),
-        )
+        pan = clampPan(nextPan, next, bounds)
     }
+    val zoomTo: (Float) -> Unit = { target ->
+        val next = target.coerceIn(1f, 8f)
+        pan = clampPan(pan * (next / zoom), next, paneBounds)
+        zoom = next
+    }
+    LaunchedEffect(split, paneBounds) { pan = clampPan(pan, zoom, paneBounds) }
 
     Box(modifier.background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize()) {
@@ -208,13 +222,13 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
                     Row(Modifier.weight(1f).fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         PreviewPane("SOURCE", sourceBitmap, zoom, pan, applyTransform,
-                            Modifier.weight(1f).fillMaxHeight())
+                            { paneBounds = it }, Modifier.weight(1f).fillMaxHeight())
                         PreviewPane(resultLabel, result, zoom, pan, applyTransform,
-                            Modifier.weight(1f).fillMaxHeight())
+                            { paneBounds = it }, Modifier.weight(1f).fillMaxHeight())
                     }
                 } else {
                     PreviewPane(resultLabel, result, zoom, pan, applyTransform,
-                        Modifier.weight(1f).fillMaxWidth())
+                        { paneBounds = it }, Modifier.weight(1f).fillMaxWidth())
                 }
             }
             if (result != null) {
@@ -226,14 +240,14 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
                     Text("Pinch to zoom · drag to pan", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f))
-                    OutlinedButton(onClick = { zoom = (zoom / 1.5f).coerceAtLeast(1f); if (zoom == 1f) pan = Offset.Zero },
+                    OutlinedButton(onClick = { zoomTo(zoom / 1.5f) },
                         enabled = zoom > 1f,
                         modifier = Modifier.semantics { contentDescription = "Zoom out" }) { Text("−") }
-                    OutlinedButton(onClick = { zoom = 1f; pan = Offset.Zero },
+                    OutlinedButton(onClick = { zoomTo(1f) },
                         modifier = Modifier.semantics { contentDescription = "Reset image zoom and position" }) {
                         Text("${(zoom * 100).roundToInt()}%")
                     }
-                    OutlinedButton(onClick = { zoom = (zoom * 1.5f).coerceAtMost(8f) },
+                    OutlinedButton(onClick = { zoomTo(zoom * 1.5f) },
                         enabled = zoom < 8f,
                         modifier = Modifier.semantics { contentDescription = "Zoom in" }) { Text("+") }
                 }
@@ -251,6 +265,7 @@ private fun PreviewPane(
     zoom: Float,
     pan: Offset,
     onTransform: (Offset, Float, Offset, IntSize) -> Unit,
+    onBounds: (IntSize) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var bounds by remember { mutableStateOf(IntSize.Zero) }
@@ -263,7 +278,7 @@ private fun PreviewPane(
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Box(
             Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                .checkerboard().onSizeChanged { bounds = it }.transformable(gestures),
+                .checkerboard().onSizeChanged { bounds = it; onBounds(it) }.transformable(gestures),
             contentAlignment = Alignment.Center,
         ) {
             Image(
