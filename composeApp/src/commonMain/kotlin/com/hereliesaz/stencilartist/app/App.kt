@@ -261,8 +261,7 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
                 Box(Modifier.weight(1f).fillMaxWidth().checkerboard(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text("Stencil Artist", style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Light)
+                        Text("Stencil Artist", style = MaterialTheme.typography.displaySmall)
                         Text("From image to paint-ready layers",
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(onClick = pick) { Text("Open image") }

@@ -1,8 +1,24 @@
+import java.awt.Color
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
+import javax.imageio.ImageIO
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kmp.library)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
+}
+
+// Private fonts are opt-in; public CI and releases never see their binaries.
+val privateBrandFonts = providers.gradleProperty("privateBrandFonts").map { it == "true" }.orElse(false)
+val privateBrandDirectory = rootProject.layout.projectDirectory.dir("private-branding")
+if (privateBrandFonts.get()) {
+    listOf("font/prodes_stencil.ttf", "font/cavier.ttf").forEach { relativePath ->
+        require(privateBrandDirectory.file(relativePath).asFile.isFile) {
+            "Missing private-branding/$relativePath; see README.md for local font setup."
+        }
+    }
 }
 
 kotlin {
@@ -23,6 +39,9 @@ kotlin {
     }
 
     sourceSets {
+        commonMain {
+            kotlin.srcDir(if (privateBrandFonts.get()) "src/privateBranding/kotlin" else "src/publicBranding/kotlin")
+        }
         commonMain.dependencies {
             implementation(project(":core"))
             implementation(libs.compose.runtime)
@@ -52,10 +71,26 @@ kotlin {
     }
 }
 
-// Keep the bundled, unmodified MTN 94 photograph accessible on Android and web.
+// Compose customDirectory replaces the normal resource directory, so private builds
+// stage the original resources as well as exactly the two permitted font inputs.
+val stagePrivateBrandResources by tasks.registering(Sync::class) {
+    from(layout.projectDirectory.dir("src/commonMain/composeResources"))
+    from(privateBrandDirectory) {
+        include("font/prodes_stencil.ttf", "font/cavier.ttf")
+    }
+    into(layout.buildDirectory.dir("generated/privateBrandResources"))
+}
+
+// Shared Compose resources include the original paint photographs; private fonts are opt-in.
 compose.resources {
     publicResClass = true
     packageOfResClass = "com.hereliesaz.stencilartist.app.generated.resources"
+    if (privateBrandFonts.get()) {
+        customDirectory(
+            sourceSetName = "commonMain",
+            directoryProvider = stagePrivateBrandResources.map { layout.buildDirectory.dir("generated/privateBrandResources").get() },
+        )
+    }
 }
 
 // --- Models and the web ONNX runtime, as static files of the web build -----------------------------
@@ -85,7 +120,41 @@ val copyZxingWasm by tasks.registering(Copy::class) {
     into(layout.buildDirectory.dir("webStatic/zxing"))
 }
 
+// Generate the PWA and Apple launchers from the same artwork Android uses.
+val launcherArtwork = rootProject.layout.projectDirectory.file("androidApp/src/main/res/drawable-nodpi/stencil_brand.jpg")
+val brandWebIcons = layout.buildDirectory.dir("generated/brandWebIcons")
+val generateBrandWebIcons by tasks.registering {
+    inputs.file(launcherArtwork)
+    outputs.dir(brandWebIcons)
+    doLast {
+        val source = requireNotNull(ImageIO.read(launcherArtwork.asFile))
+        require(source.width == source.height) { "Launcher artwork must be square" }
+        val icons = brandWebIcons.get().asFile.resolve("icons").apply { mkdirs() }
+        listOf(
+            Triple("icon-192.png", 192, false),
+            Triple("icon-512.png", 512, false),
+            Triple("icon-maskable-512.png", 512, true),
+            Triple("apple-touch-icon.png", 180, false),
+        ).forEach { (name, size, maskable) ->
+            val bitmap = BufferedImage(size, size, BufferedImage.TYPE_INT_RGB)
+            val graphics = bitmap.createGraphics()
+            try {
+                graphics.color = Color(0x416770)
+                graphics.fillRect(0, 0, size, size)
+                graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+                val edge = if (maskable) size * 3 / 4 else size
+                val offset = (size - edge) / 2
+                graphics.drawImage(source, offset, offset, edge, edge, null)
+            } finally {
+                graphics.dispose()
+            }
+            check(ImageIO.write(bitmap, "png", icons.resolve(name))) { "PNG writer unavailable" }
+        }
+    }
+}
+
 tasks.named<ProcessResources>("wasmJsProcessResources") {
+    from(generateBrandWebIcons)
     from(copyOnnxRuntimeWeb) { into("ort") }
     from(copyZxingWasm) { into("zxing") }
     from(rootProject.layout.projectDirectory.dir("models")) { into("models") }
