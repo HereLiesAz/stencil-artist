@@ -15,6 +15,8 @@ data class IslandPlan(
     val reconstructedIslands: Int = 0,
     /** Islands repaired with small later-layer source-matched corrective marks. */
     val sourceGuidedIslands: Int = 0,
+    /** Number of expensive corrective-geometry validations, including rejected attempts. */
+    val sourceGuidedAttempts: Int = 0,
 )
 
 /**
@@ -72,6 +74,42 @@ object IslandPlanner {
         return supported
     }
 
+    /** Give each unsupported stock component a stable ID for split checks. */
+    private fun unsupportedComponents(
+        cut: BooleanArray,
+        supported: BooleanArray,
+        w: Int,
+        h: Int,
+    ): IntArray {
+        val n = w * h
+        val ids = IntArray(n)
+        val queue = IntArray(n)
+        var nextId = 0
+        for (start in 0 until n) {
+            if (cut[start] || supported[start] || ids[start] != 0) continue
+            nextId++
+            ids[start] = nextId
+            var head = 0
+            var tail = 1
+            queue[0] = start
+            while (head < tail) {
+                val p = queue[head++]
+                val x = p % w
+                fun visit(q: Int) {
+                    if (!cut[q] && !supported[q] && ids[q] == 0) {
+                        ids[q] = nextId
+                        queue[tail++] = q
+                    }
+                }
+                if (x > 0) visit(p - 1)
+                if (x + 1 < w) visit(p + 1)
+                if (p >= w) visit(p - w)
+                if (p + w < n) visit(p + w)
+            }
+        }
+        return ids
+    }
+
     fun repair(
         original: Separation,
         source: RgbaImage? = null,
@@ -92,11 +130,12 @@ object IslandPlanner {
         var repaired = 0
         var reconstructed = 0
         var sourceGuided = 0
+        var sourceGuidedAttempts = 0
         var unresolved = 0
         val n = w * h
         val correctedPixels = BooleanArray(n)
         // Limit the work spent validating geometry for source-guided corrections.
-        val maxSourceGuidedIslands = 16
+        val maxSourceGuidedValidations = 16
         val maxSourceErrorSquared = 3 * 36 * 36
         fun colourError(a: Int, b: Int): Int {
             val dr = (a shr 16 and 255) - (b shr 16 and 255)
@@ -228,7 +267,7 @@ object IslandPlanner {
                     // an opaque later paint, and that paint must improve the source
                     // colour match over the current composite. A dark feature, uncertain
                     // detail, or transparent source pixel is never repainted on a guess.
-                    if (source != null && sourceGuided < maxSourceGuidedIslands &&
+                    if (source != null && sourceGuidedAttempts < maxSourceGuidedValidations &&
                         maxCorrectivePaintPixels > 0 && sheet + 1 < cuts.size) {
                         val targets = IntArray(tail) { -1 }
                         var missing = 0
@@ -249,28 +288,38 @@ object IslandPlanner {
                                 if (it ushr 24 == 0) original.sheets[sheet].color else it
                             }
                             val oldError = colourError(sampled, currentPaint)
-                            var bestError = maxSourceErrorSquared + 1
+                            var bestError = Int.MAX_VALUE
+                            var secondBestError = Int.MAX_VALUE
                             var bestSheet = -1
                             for (later in sheet + 1 until cuts.size) {
                                 val colour = original.sheets[later].color
                                 if (colour ushr 24 != 255) continue
                                 val error = colourError(sampled, colour)
                                 if (error < bestError) {
+                                    secondBestError = bestError
                                     bestError = error
                                     bestSheet = later
+                                } else if (error < secondBestError) {
+                                    secondBestError = error
                                 }
                             }
+                            // Two similarly good colours do not provide enough
+                            // evidence to choose one by arbitrary sheet order.
                             if (bestSheet < 0 || bestError > maxSourceErrorSquared ||
-                                bestError >= oldError) {
+                                bestError >= oldError || secondBestError - bestError <= 192) {
                                 viable = false
                                 break
                             }
                             targets[i] = bestSheet
                         }
                         if (viable && missing > 0) {
+                            sourceGuidedAttempts++
                             val changedSheets = targets.filter { it >= 0 }.distinct()
                             val originalSupport = changedSheets.associateWith { later ->
                                 supportedStock(cuts[later], w, h)
+                            }
+                            val originalIslands = changedSheets.associateWith { later ->
+                                unsupportedComponents(cuts[later], originalSupport.getValue(later), w, h)
                             }
                             for (i in 0 until tail) if (targets[i] >= 0) {
                                 cuts[targets[i]][queue[i]] = true
@@ -280,9 +329,26 @@ object IslandPlanner {
                             // instead of exchanging one island for another.
                             val safe = changedSheets.all { later ->
                                 val afterSupport = supportedStock(cuts[later], w, h)
+                                val afterIslands = unsupportedComponents(cuts[later], afterSupport, w, h)
                                 val beforeSupport = originalSupport.getValue(later)
-                                (0 until n).none { pixel ->
-                                    beforeSupport[pixel] && !cuts[later][pixel] && !afterSupport[pixel]
+                                val beforeIslands = originalIslands.getValue(later)
+                                val remainingComponents = HashMap<Int, Int>()
+                                (0 until n).all { pixel ->
+                                    if (cuts[later][pixel]) true else if (beforeSupport[pixel]) {
+                                        afterSupport[pixel] // a supported piece must not be detached
+                                    } else {
+                                        val oldId = beforeIslands[pixel]
+                                        if (oldId == 0) true else {
+                                            val newId = afterIslands[pixel]
+                                            val previous = remainingComponents[oldId]
+                                            if (newId == 0 || (previous != null && previous != newId)) {
+                                                false
+                                            } else {
+                                                remainingComponents[oldId] = newId
+                                                true
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             if (safe) {
@@ -329,6 +395,7 @@ object IslandPlanner {
             }
         }
         return IslandPlan(after, repaired, unresolved,
-            reconstructedIslands = reconstructed, sourceGuidedIslands = sourceGuided)
+            reconstructedIslands = reconstructed, sourceGuidedIslands = sourceGuided,
+            sourceGuidedAttempts = sourceGuidedAttempts)
     }
 }
