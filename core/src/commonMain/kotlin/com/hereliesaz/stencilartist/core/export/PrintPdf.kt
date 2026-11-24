@@ -161,9 +161,10 @@ class PrintPlan(
  * shapes are vectors clipped to the printable area, filled in the sheet's colour and outlined in dark
  * ink so a pale sheet stays visible.
  *
- * Cutting tips ([StencilPrintTips]) are printed only on surviving uncut material, with a cut-free
- * buffer, never across a cut. A tip that cannot be placed on its page, including one whose page is
- * blank, goes to a reference page beside a copy of its cut detail; nothing is dropped. Islands are
+ * Cutting tips ([StencilPrintTips]) prefer fully cutaway space, falling back to surviving stock
+ * if the cutaway is too small. Painting tips only occupy surviving stock. Every tip keeps a
+ * protective buffer and never crosses a cut edge. A tip that cannot be placed on its page,
+ * including one whose page is blank, goes to a reference page beside its cut detail; nothing is dropped. Islands are
  * diagnosed once on the full sheet, not per tile. One sheet's masks and clearance tables are alive at
  * a time, and a count of details or pages that cannot be printed is rejected up front.
  *
@@ -445,7 +446,7 @@ object PrintPdf {
                 )
             }
             return Note(
-                "S$sheet:${tip.kind}:${tip.x}:${tip.y}", sheet, lines, x, y, x + shiftX(b), y + shiftY(b), tile, tileCode(grid.tiles[tile]),
+                "S$sheet:${tip.kind}:${tip.x}:${tip.y}", sheet, tip.kind, lines, x, y, x + shiftX(b), y + shiftY(b), tile, tileCode(grid.tiles[tile]),
                 if (boards.isEmpty()) 0 else boards[b].cell.number,
             )
         }
@@ -725,7 +726,7 @@ object PrintPdf {
 
     /** A cutting tip's text and where its anchor is, in finished-piece mm ([x], [y]) and in grid mm ([rx], [ry]); [tile] is the index of the tile that owns it. */
     internal class Note(
-        val key: String, val sheet: Int, val lines: List<String>, val x: Double, val y: Double,
+        val key: String, val sheet: Int, val kind: PrintTipKind, val lines: List<String>, val x: Double, val y: Double,
         val rx: Double, val ry: Double, val tile: Int, val code: String, val board: Int,
     )
 
@@ -775,6 +776,18 @@ object PrintPdf {
             val y1 = ceil((y + h + buffer) / mmPerPx).toInt() + 1
             if (x0 < 0 || y0 < 0 || x1 > width || y1 > height) return false
             return sums[y1 * stride + x1] - sums[y0 * stride + x1] - sums[y1 * stride + x0] + sums[y0 * stride + x0] == 0
+        }
+
+        /** Cutting notes may sit wholly in removed material, with the same physical safety margin. */
+        fun cutaway(x: Double, y: Double, w: Double, h: Double, buffer: Double): Boolean {
+            val x0 = floor((x - buffer) / mmPerPx).toInt() - 1
+            val x1 = ceil((x + w + buffer) / mmPerPx).toInt() + 1
+            val y0 = floor((y - buffer) / mmPerPx).toInt() - 1
+            val y1 = ceil((y + h + buffer) / mmPerPx).toInt() + 1
+            if (x0 < 0 || y0 < 0 || x1 > width || y1 > height) return false
+            val pixels = sums[y1 * stride + x1] - sums[y0 * stride + x1] -
+                sums[y1 * stride + x0] + sums[y0 * stride + x0]
+            return pixels == (x1 - x0) * (y1 - y0)
         }
     }
 
@@ -938,17 +951,26 @@ object PrintPdf {
 
             used += labelBox
             if (notes.isNotEmpty()) {
-                val candidates = candidates(tile, TIP_W, TIP_H, 12.0 / K, TIP_CLEARANCE, uncut)
+                // Once per tile, never once per note. Cutting advice belongs on waste where
+                // possible; painting advice must survive on uncut stock.
+                val stock = candidates(tile, TIP_W, TIP_H, 12.0 / K, TIP_CLEARANCE, uncut, cutaway = false)
+                val waste = if (notes.any { it.kind != PrintTipKind.SOFT_GRADIENT }) {
+                    candidates(tile, TIP_W, TIP_H, 12.0 / K, TIP_CLEARANCE, uncut, cutaway = true)
+                } else emptyList()
                 for (note in notes) {
                     if (note.lines.withIndex().any { (i, l) -> PdfText.width(l, if (i == 0) 7.4 else 7.0, i == 0) + 4.0 > TIP_W * K }) continue
                     var best: Rect? = null
                     var bestDist = Double.POSITIVE_INFINITY
-                    for (r in candidates) {
-                        if (used.any { it.overlaps(r) }) continue
-                        val dx = r.x + r.w / 2 - note.rx
-                        val dy = r.y + r.h / 2 - note.ry
-                        val d = dx * dx + dy * dy
-                        if (d < bestDist) { bestDist = d; best = r }
+                    val options = if (note.kind == PrintTipKind.SOFT_GRADIENT) listOf(stock) else listOf(waste, stock)
+                    for (available in options) {
+                        for (r in available) {
+                            if (used.any { it.overlaps(r) }) continue
+                            val dx = r.x + r.w / 2 - note.rx
+                            val dy = r.y + r.h / 2 - note.ry
+                            val d = dx * dx + dy * dy
+                            if (d < bestDist) { bestDist = d; best = r }
+                        }
+                        if (best != null) break // A cutaway is preferable even when stock is closer.
                     }
                     val r = best ?: continue
                     used += r
@@ -1077,7 +1099,7 @@ object PrintPdf {
         }
 
         /** Boxes of [w] x [h] mm inside [tile]'s visible printable area, inset, that lie on the piece (within one board's cut area) and are clear. */
-        private fun candidates(tile: Tile, w: Double, h: Double, step: Double, buffer: Double, uncut: UncutSpace): List<Rect> {
+        private fun candidates(tile: Tile, w: Double, h: Double, step: Double, buffer: Double, uncut: UncutSpace, cutaway: Boolean): List<Rect> {
             val out = ArrayList<Rect>()
             val x0 = tile.clip.x0 + INSET
             val y0 = tile.clip.y0 + INSET
@@ -1087,7 +1109,7 @@ object PrintPdf {
             while (y <= yMax) {
                 var x = x0
                 while (x <= xMax) {
-                    if (ok(x, y, w, h, buffer, uncut, false)) out += Rect(x, y, w, h)
+                    if (ok(x, y, w, h, buffer, uncut, false, cutaway)) out += Rect(x, y, w, h)
                     x += step
                 }
                 y += step
@@ -1100,9 +1122,11 @@ object PrintPdf {
          * Mounted: it must keep 1.5 mm off every board edge (the dotted lines), then either lie wholly within a board's art and
          * be clear, or (a label only) lie wholly on blank paper: beyond the piece, or in a board's border clear of its tabs.
          */
-        private fun ok(x: Double, y: Double, w: Double, h: Double, buffer: Double, uncut: UncutSpace, labelMode: Boolean): Boolean {
+        private fun ok(x: Double, y: Double, w: Double, h: Double, buffer: Double, uncut: UncutSpace, labelMode: Boolean, cutaway: Boolean = false): Boolean {
             if (boards.isEmpty()) {
-                if (x >= piece.x0 && y >= piece.y0 && x + w <= piece.x1 && y + h <= piece.y1) return uncut.clear(x, y, w, h, buffer)
+                if (x >= piece.x0 && y >= piece.y0 && x + w <= piece.x1 && y + h <= piece.y1) {
+                    return if (cutaway) uncut.cutaway(x, y, w, h, buffer) else uncut.clear(x, y, w, h, buffer)
+                }
                 return labelMode && (x >= widthMm || y >= heightMm)
             }
             val bw = boards[0].rect.width
@@ -1114,7 +1138,10 @@ object PrintPdf {
             val b = boards.getOrNull(by * boardCols + bx) ?: return false
             if (x < b.rect.x0 || y < b.rect.y0 || x + w > b.rect.x1 || y + h > b.rect.y1) return false
             val ar = b.artRect
-            if (x >= ar.x0 && y >= ar.y0 && x + w <= ar.x1 && y + h <= ar.y1) return uncut.clear(x - b.shiftX, y - b.shiftY, w, h, buffer)
+            if (x >= ar.x0 && y >= ar.y0 && x + w <= ar.x1 && y + h <= ar.y1) {
+                return if (cutaway) uncut.cutaway(x - b.shiftX, y - b.shiftY, w, h, buffer)
+                    else uncut.clear(x - b.shiftX, y - b.shiftY, w, h, buffer)
+            }
             if (!labelMode) return false
             if (x - b.shiftX >= widthMm || y - b.shiftY >= heightMm) return true
             val cut = b.cutRect
