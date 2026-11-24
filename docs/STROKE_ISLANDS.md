@@ -113,8 +113,12 @@ pixel-width connection does not prove a millimetre-width connection.
   are not yet composed as long flowing strokes. Ambiguous or unsupported
   repairs remain unresolved; do not claim the solver rebuilds every feature.
 - Confidence/saliency checks around pupils, letters, hands and silhouettes.
-- Scale-aware material width, real cutter tests and wall tests of shim size,
-  spray pressure, distance and the direction of overspray.
+- The Print/Cutter physical-size control now compares the island planner's nominal
+  two-working-pixel bridge with an adjustable minimum safe stock width in mm and
+  warns when it is undersized. The planner still operates in pixels: this is a
+  conservative inspection warning, **not** an automatic bridge-width repair or
+  certification of material strength. Real cutter tests and wall tests of shim
+  size, spray pressure, distance and overspray direction are still required.
 - Independent visual comparison on supplied layered reference artwork. Until this
   is verified, the app must not promise it has matched any particular artist's
   brushwork.
