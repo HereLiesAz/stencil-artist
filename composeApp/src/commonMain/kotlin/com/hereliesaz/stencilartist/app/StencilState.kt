@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import com.hereliesaz.stencilartist.core.ColorParams
 import com.hereliesaz.stencilartist.core.ColorSeparator
 import com.hereliesaz.stencilartist.core.ReliefScene
+import com.hereliesaz.stencilartist.core.DepthLighting
 import com.hereliesaz.stencilartist.core.LightingParams
 import com.hereliesaz.stencilartist.core.IslandPlanner
 import com.hereliesaz.stencilartist.core.SoftGradientZones
@@ -424,6 +425,11 @@ class StencilState(
     var lighting: LightingParams by mutableStateOf(LightingParams())
         private set
 
+    /** Separate flat-mode settings retain their own defaults and do not overwrite scene lights. */
+    var flatLighting: LightingParams by mutableStateOf(LightingParams(elevation = 35f, intensity = 1f,
+        ambient = .18f, flatMatteMix = .65f))
+        private set
+
     /** The current relief scene, available only for the current generation's orbit preview. */
     var reliefScene: ReliefScene? by mutableStateOf(null)
         private set
@@ -590,6 +596,19 @@ class StencilState(
             depthError = null
         }
         lighting = next
+        if (next.enabled) flatLighting = flatLighting.copy(enabled = false)
+        remake(settle = true)
+    }
+
+    /** Select flat depth relighting without changing the saved 3D scene configuration. */
+    fun updateFlatLighting(next: LightingParams) {
+        if (next == flatLighting) return
+        if (next.enabled && !flatLighting.enabled && depthMap == null) {
+            depthAttempted = false
+            depthError = null
+        }
+        flatLighting = next
+        if (next.enabled) lighting = lighting.copy(enabled = false)
         remake(settle = true)
     }
 
@@ -615,6 +634,7 @@ class StencilState(
         val wantedTone = toneParams
         val wantedColor = colorParams
         val wantedLighting = lighting
+        val wantedFlatLighting = flatLighting
         val wantedEngine = strokeEngine
         val wantedStrokes = strokeBased
         val wantedStrokeWidth = strokeWidthPixels
@@ -637,7 +657,7 @@ class StencilState(
                 if (settle) delay(SETTLE_MILLIS)
                 delay(1) // Allow the busy indicator to paint before inference in the browser.
                 val notes = ArrayList<String>()
-                val needsDepth = wantedLighting.enabled ||
+                val needsDepth = wantedLighting.enabled || wantedFlatLighting.enabled ||
                     (remove && assist && !image.hasTransparency())
                 if (needsDepth && depthMap == null && !depthAttempted) {
                     try {
@@ -670,7 +690,10 @@ class StencilState(
                 }
                 markStage(0.40f)
                 val isolated = cutOut?.takeIf { remove } ?: image
-                val lit = if (wantedLighting.enabled && depthMap != null) {
+                val lit = if (wantedFlatLighting.enabled && depthMap != null) {
+                    val map = checkNotNull(depthMap)
+                    withContext(Dispatchers.Default) { DepthLighting.relight(isolated, map, wantedFlatLighting) }
+                } else if (wantedLighting.enabled && depthMap != null) {
                     val map = checkNotNull(depthMap)
                     try {
                         val rendered = withContext(Dispatchers.Default) {
@@ -689,7 +712,7 @@ class StencilState(
                 } else isolated
                 if (generation != request) return@launch
                 markStage(0.60f)
-                // The fixed frontal scene render is the prepared image for every separator,
+                // The flat relight or fixed frontal scene render is the prepared image for every separator,
                 // paint-plan, island and export path. Orbit views never enter this pipeline.
                 var asked = if (wantedMode == SeparationMode.TONE) wantedTone.sheets else wantedColor.sheets
                 var layers: List<SnappedLayer> = emptyList()

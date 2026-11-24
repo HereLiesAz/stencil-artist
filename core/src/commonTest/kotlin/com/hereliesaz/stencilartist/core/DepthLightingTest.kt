@@ -96,4 +96,34 @@ class DepthLightingTest {
             right.pixels.map { it ushr 24 })
         assertEquals(colors[0], right.pixels[0])
     }
+
+    @Test
+    fun broadDepthRampRespondsStronglyAtWorkingImageResolution() {
+        val source = RgbaImage(1600, 1, IntArray(1600) { 0xFFB4B4B4.toInt() })
+        val map = FloatArray(1600) { it / 1599f }
+        val light = LightingParams(enabled = true, azimuth = 0f, elevation = 0f, intensity = 1f, ambient = .18f)
+        val dark = DepthLighting.relight(source, map, light)
+        val bright = DepthLighting.relight(source, map, light.copy(azimuth = 180f))
+        // Ambient-only is 180 * .18 = 32; a meaningful lit/shadow difference is >100 levels.
+        assertEquals(32, dark.pixels[800] and 255)
+        assertTrue((bright.pixels[800] and 255) - 32 > 100)
+        assertContentEquals(bright.pixels, DepthLighting.relight(source, map, light.copy(reverseDepth = true)).pixels)
+    }
+
+    @Test
+    fun transparentBackgroundCannotCreateArtificialSurfaceSlope() {
+        val source = RgbaImage(3, 1, intArrayOf(0x00123456, 0x80FFFFFF.toInt(), 0xFFFFFFFF.toInt()))
+        val light = LightingParams(enabled = true, elevation = 90f, ambient = 0f, intensity = 1f)
+        val result = DepthLighting.relight(source, floatArrayOf(1f, .2f, .2f), light)
+        assertContentEquals(source.pixels, result.pixels)
+    }
+
+    @Test
+    fun matteCanReplaceBakedBlackWithoutInventingDepth() {
+        val source = RgbaImage(2, 1, intArrayOf(0x80000000.toInt(), 0xFF804020.toInt()))
+        val light = LightingParams(enabled = true, elevation = 90f, ambient = 0f, intensity = .5f, flatMatteMix = 1f)
+        val result = DepthLighting.relight(source, floatArrayOf(.5f, .5f), light)
+        assertContentEquals(intArrayOf(0x80808080.toInt(), 0xFF808080.toInt()), result.pixels)
+        assertEquals(0x80000000.toInt(), source.pixels[0])
+    }
 }

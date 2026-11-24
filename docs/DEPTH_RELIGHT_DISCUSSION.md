@@ -49,6 +49,12 @@ The Light stage exposes two mutually exclusive choices: **Image skin** uses orig
 
 The shared RGB controls edit surface or emitter colour without duplicating channel editing logic. The source image is unchanged. No claim is made about recovery of intrinsic photographic albedo. Two additional JVM scene tests verify the exact solid RGB under white light, reduced intensity, partial alpha and transparent gaps, reversibility, uniform material on inferred surfaces and unchanged diagnostic output. Eleven focused standalone JVM scene tests passed, and synthetic comparisons were visually inspected; Android/Wasm and device verification remain outstanding.
 
+### Flat relight repair
+
+The artist reported that flat depth lighting was weak even before extrusion was added. The original code scaled a normalized full-width depth ramp to approximately 0.28 slope at strength 3 (two samples per derivative, 24/518 multiplier); a 50-degree light and ambient 0.55 further suppressed variation. Multiplying the existing RGB could never recover detail in black pixels, and sampling across transparent silhouette edges could invent normals. The later scene integration also removed the flat mode from the app call path.
+
+The Light stage now independently selects Original, Depth relight, or 3D scene, retaining settings for both lighting modes. Flat mode uses a foreground 2nd–98th percentile depth range with a 0.15 minimum, actual one-/two-sided sample distances, image-relative height scaling (1.05 nominal units at strength 3), and no derivatives across transparent pixels. Default flat elevation is 35 degrees, ambient 0.18, intensity 1 and matte mix 65%; the 3D defaults are unchanged. Matte mix is deliberate white material replacement, not intrinsic albedo recovery. A zero strength bypasses flat relighting. Flat mode computes surface shading only, not geometric cast shadows. The source-aligned output of either mode is the input to the same stencil separator. Original image and alpha remain unchanged. Broad-ramp contrast, silhouette sampling and matte replacement have dedicated regression fixtures. Real photograph and device validation remain necessary.
+
 ## Previous implementation (before scene integration)
 
 1. `DepthEstimator.estimate` invokes Depth Anything V2 Small on the original RGB image. `DepthLighting.depth` normalizes the relative inverse depth to [0, 1] *per image* and resamples it to the source dimensions.
@@ -97,4 +103,4 @@ The earlier A+C proposal is superseded by the approved closed, depth-displaced f
 3. Existing photographic shadows: retain them with Image skin, or discard original RGB using Solid colour. Intrinsic albedo estimation and mixed material choices remain separate design work.
 4. Shadows within the subject and an optional receiver are planned; whether a receiver shadow becomes a separate printable layer is not yet decided.
 
-The geometry renderer is now the opt-in lighting path. The separator and export contract do not change.
+Flat depth relight and 3D scene rendering are independent opt-in lighting paths. The separator and export contract do not change.

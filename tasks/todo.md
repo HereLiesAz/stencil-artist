@@ -14,6 +14,12 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 - [ ] Visually inspect both wide web and narrow Android layouts, including keyboard and touch input, and verify pinch-pan, clipped zoom and side-by-side accuracy on devices.
 - [x] Approve the 3D extrusion, actual scene lighting and rendered-source stencil architecture. See `docs/DEPTH_RELIGHT_DISCUSSION.md`.
 
+## Flat depth relighting and image preparation (2026-11-24)
+
+- [x] Restore flat depth relighting as a separate Light mode. Fix image-relative gradient scaling, foreground-only robust range and alpha-aware differences; add independent matte mix, direction, intensity, ambient, strength and depth reversal. App caller: `StencilState.remake` → `DepthLighting.relight`. Device quality checks remain open.
+- [ ] Add shared stencil-oriented image adjustments and filters before all separation paths, preserving alpha and the original source.
+- [ ] Verify actual photographs, depth quality and tonal-layer usefulness on Android and Wasm.
+
 ## True 3D relief and lighting (approved 2026-11-24)
 
 - [x] Connect the shared closed relief mesh to the MVP scene renderer; app caller: `StencilState.remake` → `ReliefScene.prepare` → `renderSource`. Common geometry and scene tests cover closure, shadows and orbit independence.
