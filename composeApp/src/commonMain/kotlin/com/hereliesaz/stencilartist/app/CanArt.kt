@@ -42,7 +42,7 @@ private fun darker(rgb: Int, by: Double) = Color(CanColours.darken(rgb, by))
  * Exact unmodified supplied spray-can TOP artwork, composited over one solid RGB circle
  * for this can. The grid (not this tile) supplies the SINGLE shared white background.
  *
- * The supplied 724×2172 PNG holds five vertically stacked metal tops. Each 397px-tall source window excludes the next top. We
+ * The supplied 724×2172 PNG contains five metal tops spaced roughly 420px apart. Each individually aligned 400px-tall source window avoids its neighbours. We
  * crop only at draw time; no uploaded file pixels are recoloured, masked or resampled
  * before Compose draws them. The per-can paint circle remains an independent layer.
  */
@@ -65,10 +65,19 @@ internal fun CanTop(
         // Five separate views from one unchanged image file. Source coordinates deliberately
         // preserve the full metal ring and transparent shoulder of each top.
         val frame = artIndex.mod(5)
+        // Measured against the five separate spray-can tops in the source PNG;
+        // uniform 397px offsets clipped rims and bled neighbouring art into tiles.
+        val frameTop = when (frame) {
+            0 -> 0
+            1 -> 420
+            2 -> 839
+            3 -> 1251
+            else -> 1668
+        }
         drawImage(
             image = original,
-            srcOffset = IntOffset(120, frame * 397),
-            srcSize = IntSize(440, 397),
+            srcOffset = IntOffset(140, frameTop),
+            srcSize = IntSize(440, 400),
             dstSize = IntSize(this.size.width.roundToInt(), this.size.height.roundToInt()),
             filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
         )
