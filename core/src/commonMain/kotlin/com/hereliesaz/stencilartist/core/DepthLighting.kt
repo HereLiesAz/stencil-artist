@@ -7,6 +7,26 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/**
+ * Artist-assumed original photographic illumination, independent of the new scene lights.
+ * [amount] blends identity with bounded compensation; zero disables it. [ambient] is a
+ * nonzero diffuse floor, not a measured environmental light level. [depthStrength] and
+ * [reverseDepth] describe the original surface, not later geometry edits.
+ */
+data class OriginalLightCompensation(
+    val amount: Float = 0f,
+    val azimuth: Float = 45f,
+    val elevation: Float = 45f,
+    val ambient: Float = .25f,
+    val depthStrength: Float = 3f,
+    val reverseDepth: Boolean = false,
+) {
+    init {
+        require(amount in 0f..1f && azimuth in -180f..180f && elevation in 0f..90f)
+        require(ambient in .15f..1f && depthStrength in 0f..10f)
+    }
+}
+
 /** Lighting changes the source image before tonal separation, never individual cut layers. */
 data class LightingParams(
     val enabled: Boolean = false,
@@ -142,6 +162,41 @@ object DepthLighting {
                 (c + (depthScore - c) * 0.7f * gate).coerceIn(0f, 1f)
             }
         }
+    }
+
+    /**
+     * Approximate removal of an assumed original directional diffuse light. Reuse the
+     * mask-aware surface-normal renderer on a white matte to estimate illumination, then
+     * divide relative to a front-facing reference. Gain is bounded to [0.5, 2] before
+     * blending, and capped uniformly at the RGB gamut boundary to retain hue. Black,
+     * hidden RGB, alpha, dimensions and the input image are unchanged. The estimate uses
+     * relative depth, not calibrated geometry; it cannot recover clipped highlights,
+     * cast shadows or unique intrinsic albedo.
+     */
+    fun compensateOriginal(image: RgbaImage, inferredDepth: FloatArray, settings: OriginalLightCompensation): RgbaImage {
+        require(inferredDepth.size == image.pixels.size)
+        if (settings.amount == 0f || settings.depthStrength == 0f || image.pixels.isEmpty()) return image
+        val assumed = LightingParams(enabled = true, azimuth = settings.azimuth,
+            elevation = settings.elevation, ambient = settings.ambient,
+            intensity = 1f - settings.ambient, depthStrength = settings.depthStrength,
+            reverseDepth = settings.reverseDepth, flatMatteMix = 1f)
+        val illumination = relight(image, inferredDepth, assumed)
+        val frontal = ((settings.ambient + (1f - settings.ambient) *
+            sin(settings.elevation * PI / 180.0)) * 255).roundToInt()
+        val output = IntArray(image.pixels.size) { i ->
+            val p = image.pixels[i]
+            if (p ushr 24 == 0) p else {
+                val level = maxOf(p ushr 16 and 255, p ushr 8 and 255, p and 255)
+                if (level == 0) p else {
+                    val shade = (illumination.pixels[i] and 255).coerceAtLeast(1)
+                    val correction = (frontal.toFloat() / shade).coerceIn(.5f, 2f)
+                    val gain = minOf(1f + settings.amount * (correction - 1f), 255f / level)
+                    fun channel(shift: Int) = ((p ushr shift and 255) * gain).roundToInt().coerceIn(0, 255)
+                    (p and 0xFF000000.toInt()) or (channel(16) shl 16) or (channel(8) shl 8) or channel(0)
+                }
+            }
+        }
+        return RgbaImage(image.width, image.height, output)
     }
 
     /**

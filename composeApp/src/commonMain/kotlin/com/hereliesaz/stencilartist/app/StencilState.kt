@@ -14,6 +14,7 @@ import com.hereliesaz.stencilartist.core.ReliefScene
 import com.hereliesaz.stencilartist.core.DepthLighting
 import com.hereliesaz.stencilartist.core.DepthEdits
 import com.hereliesaz.stencilartist.core.LightingParams
+import com.hereliesaz.stencilartist.core.OriginalLightCompensation
 import com.hereliesaz.stencilartist.core.LoadingNotice
 import com.hereliesaz.stencilartist.core.IslandPlanner
 import com.hereliesaz.stencilartist.core.SoftGradientZones
@@ -439,6 +440,10 @@ class StencilState(
         ambient = .18f, flatMatteMix = .65f))
         private set
 
+    /** One assumed photographic light, shared by both textured lighting modes. */
+    var originalLightCompensation by mutableStateOf(OriginalLightCompensation())
+        private set
+
     /** The current relief scene, available only for the current generation's orbit preview. */
     var reliefScene: ReliefScene? by mutableStateOf(null)
         private set
@@ -730,6 +735,13 @@ class StencilState(
         remake(settle = true)
     }
 
+    /** Change only the assumed original light, never the inferred depth or new scene lights. */
+    fun updateOriginalLightCompensation(next: OriginalLightCompensation) {
+        if (next == originalLightCompensation) return
+        originalLightCompensation = next
+        remake(settle = true)
+    }
+
     fun showProcessed(on: Boolean) {
         viewProcessedImage = on
         if (on) processed?.let { preview = argbToImageBitmap(it.pixels, it.width, it.height) }
@@ -753,6 +765,7 @@ class StencilState(
         val wantedColor = colorParams
         val wantedLighting = lighting
         val wantedFlatLighting = flatLighting
+        val wantedCompensation = originalLightCompensation
         val wantedMaskStrokes = maskStrokes
         val wantedDepthEdits = depthEdits
         val wantedSourceAdjustments = sourceAdjustments
@@ -847,14 +860,24 @@ class StencilState(
                 val adjusted = withContext(Dispatchers.Default) { wantedSourceAdjustments.apply(isolated) }
                 if (generation != request) return@launch
                 profileStage("source_adjustments_ms")
+                // Compensate assumed original illumination using unedited inference, not
+                // the artist's new geometry or new light. Solid material ignores source RGB.
+                val compensated = if (rawDepth != null && wantedCompensation.amount > 0f &&
+                    (wantedFlatLighting.enabled || (wantedLighting.enabled && wantedLighting.useSourceTexture))) {
+                    withContext(Dispatchers.Default) {
+                        DepthLighting.compensateOriginal(adjusted, rawDepth, wantedCompensation)
+                    }
+                } else adjusted
+                if (generation != request) return@launch
+                profileStage("original_light_ms")
                 val renderedImage = if (wantedFlatLighting.enabled && effectiveDepth != null) {
                     val map = effectiveDepth
-                    withContext(Dispatchers.Default) { DepthLighting.relight(adjusted, map, wantedFlatLighting) }
+                    withContext(Dispatchers.Default) { DepthLighting.relight(compensated, map, wantedFlatLighting) }
                 } else if (wantedLighting.enabled && effectiveDepth != null) {
                     val map = effectiveDepth
                     try {
                         val rendered = withContext(Dispatchers.Default) {
-                            val scene = ReliefScene.prepare(adjusted, map, wantedLighting)
+                            val scene = ReliefScene.prepare(compensated, map, wantedLighting)
                             scene to scene.renderSource(wantedLighting)
                         }
                         if (generation != request) return@launch
