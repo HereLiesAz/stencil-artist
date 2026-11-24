@@ -171,7 +171,8 @@ class PrintPlan(
  *
  * Upright page labels use lowercase paper and uppercase board coordinates and identify the paint.
  * They are placed on visible retained stock only, never on an opening. A wholly removed visible
- * tile is omitted. Every emitted tile must carry its identifier on retained stock.
+ * tile is omitted. Labels use retained stock when available; a placement failure never blocks export.
+ * The assembly map remains available for identification.
  */
 object PrintPdf {
     /** The unprintable border of every page, from the paper's edge, in mm. Fixed. */
@@ -991,19 +992,21 @@ object PrintPdf {
             // and inside the same visible, retained rectangle.
             val labelText = label(sheet, tile)
             val paintText = "TOP - " + paintLabel(color, paintName)
-            // Try compact, upright stacked text before declaring the stock unusable.
+            // Try compact, upright stacked text without blocking export if none fits.
             // The clearance and overlap checks are unchanged at every size.
             val lines = listOf(labelText, paintText)
             val placement = listOf(LABEL_PT, 6.0, 5.5, 5.0).firstNotNullOfOrNull { size ->
                 val lh = 2 * size / K + 2.0
                 val lw = lines.maxOf { PdfText.width(it, size) } / K + 1.0
                 place(tile, lw, lh, 1.0, 1.0, uncut, used)?.let { it to size }
-            } ?: error("No retained label space on sheet ${sheet + 1}, paper ${tileCode(tile)}.")
-            val (labelBox, size) = placement
-            sb.append("0 g\n")
-            text(sb, size, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K, labelText)
-            text(sb, size, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K + size + K, paintText)
-            used += labelBox
+            }
+            if (placement != null) {
+                val (labelBox, size) = placement
+                sb.append("0 g\n")
+                text(sb, size, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K, labelText)
+                text(sb, size, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K + size + K, paintText)
+                used += labelBox
+            }
             if (notes.isNotEmpty()) {
                 val candidates = candidates(tile, TIP_W, TIP_H, 12.0 / K, TIP_CLEARANCE, uncut)
                 for (note in notes) {
