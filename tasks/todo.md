@@ -20,7 +20,8 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 - [x] Generate bounded geometry from masked depth, preserving every visible source pixel and working-image resolution in the frontal render. Coarse geometry still needs quality evaluation.
 - [x] Render an orbitable 3D scene preview and a separately locked source-aligned orthographic view with directional light, ambient fill, geometric shadows and source-alpha preservation. JVM regression tests pass; device verification below remains open.
 - [x] Route the rendered RGBA image into the existing tone/colour separator with original-lighting fallback and generation guards. Full Android/Wasm integration verification remains open.
-- [ ] Add multiple positioned directional, point and spot lights, handles, key/fill/rim presets, colour/intensity/softness and shadow-only/combined views, optional background receiver.
+- [x] Add multiple positioned directional, point and spot lights, front/rear placement handle and accessible controls, key/fill/rim preset, RGB colour/intensity, per-light shadow filtering and shadow-only/combined diagnostic views. App caller: `SceneLightsEditor` → `StencilState.updateLighting` → `ReliefScene.renderSource`; orbit diagnostics do not affect separation. JVM tests cover finite light occlusion and filter behavior; device validation remains open.
+- [ ] Add optional background receiver (separate scene object); do not make transparent pixels opaque by default.
 - [ ] Add thickness, relief strength, smoothing, flatten/clamp, depth inversion/remapping and artist depth corrections; separate material/photographic-shadow choices from geometry.
 - [ ] Add separation-boundary and island/cut-risk diagnostics from the same committed render.
 - [ ] Verify Android and Wasm scene rendering, visual comparison, cancellation, transparent/empty/flat inputs, shadow reversal/occlusion, deterministic results, performance and hardware usability.

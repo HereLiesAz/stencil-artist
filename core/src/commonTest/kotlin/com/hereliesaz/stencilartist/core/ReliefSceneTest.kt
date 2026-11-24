@@ -61,4 +61,63 @@ class ReliefSceneTest {
         assertContentEquals(source.pixels, scene.renderSource(frontal).pixels)
         assertTrue(scene.renderOrbit(frontal, 45f, 30f).pixels.all { it == 0 })
     }
+    @Test
+    fun independentColoredLightsAddAndPointLightFallsOff() {
+        val source = RgbaImage(1, 1, intArrayOf(0x80FFFFFF.toInt()))
+        val point = SceneLight(kind = SceneLightKind.POINT, elevation = 90f, distance = 2f,
+            intensity = 2f, color = 0xFF0000)
+        val blue = SceneLight(elevation = 90f, intensity = .25f, color = 0x0000FF)
+        val light = frontal.copy(lights = listOf(point, blue))
+        val scene = ReliefScene.prepare(source, floatArrayOf(0f), light)
+        assertEquals(0x80800040.toInt(), scene.renderSource(light).pixels.single())
+        assertEquals(0x80200040.toInt(), scene.renderSource(light.copy(lights = listOf(point.copy(distance = 4f), blue))).pixels.single())
+        assertEquals(0x80000000.toInt(), scene.renderSource(light.copy(lights = emptyList())).pixels.single())
+    }
+
+    @Test
+    fun spotAimAndConeExcludeAnOffAxisReceiver() {
+        val source = RgbaImage(1, 1, intArrayOf(0xFFFFFFFF.toInt()))
+        val spot = SceneLight(kind = SceneLightKind.SPOT, elevation = 90f, distance = 2f, intensity = 4f, cone = 5f)
+        val light = frontal.copy(lights = listOf(spot))
+        val scene = ReliefScene.prepare(source, floatArrayOf(0f), light)
+        assertEquals(0xFFFFFFFF.toInt(), scene.renderSource(light).pixels.single())
+        assertEquals(0xFF000000.toInt(), scene.renderSource(light.copy(lights = listOf(spot.copy(targetX = .5f)))).pixels.single())
+    }
+
+    @Test
+    fun finitePositionCastsGeometricShadowsAndPerLightToggleWorks() {
+        val source = RgbaImage(12, 4, IntArray(48) { if (it % 12 in 6..7 || it % 12 == 11) 0 else 0xFFAAAAAA.toInt() })
+        val depth = FloatArray(48) { if (it % 12 in 8..10) 1f else 0f }
+        val point = SceneLight(kind = SceneLightKind.POINT, azimuth = 0f, elevation = 25f, distance = 4f, intensity = 4f)
+        val light = frontal.copy(depthStrength = 8f, ambient = .1f, lights = listOf(point))
+        val scene = ReliefScene.prepare(source, depth, light)
+        val shadow = scene.renderSource(light)
+        val lit = scene.renderSource(light.copy(lights = listOf(point.copy(castsShadows = false))))
+        assertEquals(17, shadow.pixels[15] and 255)
+        assertTrue((lit.pixels[15] and 255) > 17)
+        assertEquals(0, shadow.pixels[18])
+        val spot = point.copy(kind = SceneLightKind.SPOT, cone = 60f)
+        assertEquals(17, scene.renderSource(light.copy(lights = listOf(spot))).pixels[15] and 255)
+        assertTrue((scene.renderSource(light.copy(lights = listOf(spot.copy(castsShadows = false)))).pixels[15] and 255) > 17)
+    }
+
+    @Test
+    fun softnessCreatesPartialVisibilityAtGeometricShadowEdge() {
+        val w = 128; val h = 64
+        val source = RgbaImage(w, h, IntArray(w * h) { if (it % w in 75..83) 0 else 0xFFFFFFFF.toInt() })
+        val depth = FloatArray(w * h) { if (it % w in 84..95 && it / w in 20..43) .8f else 0f }
+        val key = SceneLight(azimuth = 0f, elevation = 45f, intensity = 1f)
+        val light = frontal.copy(lights = listOf(key), depthStrength = 6f)
+        val scene = ReliefScene.prepare(source, depth, light)
+        val hard = scene.renderSource(light)
+        val soft = scene.renderSource(light.copy(lights = listOf(key.copy(softness = 4))))
+        val unshadowed = scene.renderSource(light.copy(castShadows = false))
+        assertTrue(soft.pixels.indices.any { i -> i % w < 60 && (hard.pixels[i] and 255) == 0 &&
+            (soft.pixels[i] and 255) in 1 until (unshadowed.pixels[i] and 255) })
+        assertContentEquals(hard.pixels, scene.renderSource(light).pixels)
+        val diagnostic = scene.renderOrbit(light, 0f, 0f, shadowOnly = true)
+        assertTrue(diagnostic.pixels.any { it == 0xFF000000.toInt() })
+        assertTrue(diagnostic.pixels.any { it == 0xFFFFFFFF.toInt() })
+        assertContentEquals(hard.pixels, scene.renderSource(light).pixels)
+    }
 }
