@@ -17,3 +17,8 @@ kotlin {
         }
     }
 }
+
+// Temporary CI diagnostic for updating intentional PDF wording goldens.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    testLogging.showStandardStreams = true
+}
