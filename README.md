@@ -53,7 +53,7 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   [Spray Planet's MTN 94 selection](https://www.sprayplanet.com/collections/mtn-94)) are approximate
   references, not licensed source artwork or automatically imported colour measurements.
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
-- A guided eight-stage studio separates source cleanup, lighting, layer planning, edge construction, inspection, image exports, printing and cutter output. Each stage explains the consequence of its controls instead of showing the entire configuration at once.
+- A guided eight-stage studio separates source cleanup, lighting, layer planning, edge construction, inspection, image exports, printing and cutter output. Each stage explains the consequence of its controls instead of showing the entire configuration at once. An animated loading state rotates concise stencil-making, cutting and painting tips; matching cutting hazards and gradient-handling advice are also printed by affected details.
 - A persistent source/result comparison (or single-image view) supports synchronized pinch-zoom and panning on both panes, plus explicit zoom and reset buttons. The result may show the processed image, finished stencil, or any sheet alone. Visual and touch behavior still require device verification.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
   transparent PNG; or every sheet plus the composite in one ZIP. Also exports a versioned
@@ -64,8 +64,8 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   then per sheet an assembly map and the tiled pages. Nothing is trimmed: pages are laid left to right, top to
   bottom, each on top of the earlier ones, with the paper edge on thin guide marks the page underneath prints. A fixed
   3 mm border is unprintable, so at every join there is a 3 mm strip of blank paper (the top page's margin);
-  the artwork either side is at its true place and cut lines simply continue across the strip. Printouts label trapped islands,
-  delicate openings and tile codes inside uncut material; a note that cannot safely fit goes to a
+  the artwork either side is at its true place and cut lines simply continue across the strip. Printouts label trapped islands and
+  delicate openings preferentially in safe cutaway areas, while gradient-lift painting notes stay on surviving stock. Tile codes avoid cut lines; a note that cannot safely fit goes to a
   non-cutting reference page beside the affected detail. Pages with nothing to cut are skipped and
   shown as blank on the map.
 - Optionally mounts the print on poster board (22 x 28 in, or a custom board of at least 18 in a side) with an
