@@ -161,8 +161,9 @@ class PrintPlan(
  * shapes are vectors clipped to the printable area, filled in the sheet's colour and outlined in dark
  * ink so a pale sheet stays visible.
  *
- * Cutting tips ([StencilPrintTips]) are printed only on surviving uncut material, with a cut-free
- * buffer, never across a cut. A tip that cannot be placed on its page, including one whose page is
+ * Cutting tips ([StencilPrintTips]) may be printed entirely inside removed openings or surviving
+ * stock, with a clear buffer from every cut edge; soft-gradient painting tips stay on surviving
+ * stock. A tip that cannot be placed on its page, including one whose page is
  * blank, goes to a reference page beside a copy of its cut detail; nothing is dropped. Islands are
  * diagnosed once on the full sheet, not per tile. One sheet's masks and clearance tables are alive at
  * a time, and a count of details or pages that cannot be printed is rejected up front.
@@ -729,7 +730,7 @@ object PrintPdf {
         val rx: Double, val ry: Double, val tile: Int, val code: String, val board: Int,
     )
 
-    private class Rect(val x: Double, val y: Double, val w: Double, val h: Double) {
+    private class Rect(val x: Double, val y: Double, val w: Double, val h: Double, val removed: Boolean = false) {
         fun overlaps(o: Rect, gap: Double = 1.4): Boolean =
             x < o.x + o.w + gap && x + w + gap > o.x && y < o.y + o.h + gap && y + h + gap > o.y
     }
@@ -767,15 +768,28 @@ object PrintPdf {
             return cut to maxOf(1, (x1 - x0) * (y1 - y0))
         }
 
-        /** Whether the mm rectangle, widened by [buffer] mm and one pixel (the outlines are simplified), is wholly on the piece and cut-free. */
-        fun clear(x: Double, y: Double, w: Double, h: Double, buffer: Double): Boolean {
+        /**
+         * Returns false on surviving stock, true inside an opening, or null where the buffered
+         * note would overlap a cut edge or leave the piece. One pixel beyond the buffer protects
+         * against the simplified vector outline extending beyond the raster edge.
+         */
+        fun region(x: Double, y: Double, w: Double, h: Double, buffer: Double): Boolean? {
             val x0 = floor((x - buffer) / mmPerPx).toInt() - 1
             val x1 = ceil((x + w + buffer) / mmPerPx).toInt() + 1
             val y0 = floor((y - buffer) / mmPerPx).toInt() - 1
             val y1 = ceil((y + h + buffer) / mmPerPx).toInt() + 1
-            if (x0 < 0 || y0 < 0 || x1 > width || y1 > height) return false
-            return sums[y1 * stride + x1] - sums[y0 * stride + x1] - sums[y1 * stride + x0] + sums[y0 * stride + x0] == 0
+            if (x0 < 0 || y0 < 0 || x1 > width || y1 > height) return null
+            val cut = sums[y1 * stride + x1] - sums[y0 * stride + x1] - sums[y1 * stride + x0] + sums[y0 * stride + x0]
+            return when (cut) {
+                0 -> false
+                (x1 - x0) * (y1 - y0) -> true
+                else -> null
+            }
         }
+
+        /** Existing stock-only check, still used by page labels and mounting captions. */
+        fun clear(x: Double, y: Double, w: Double, h: Double, buffer: Double): Boolean =
+            region(x, y, w, h, buffer) == false
     }
 
     private fun num(v: Double) = Decimal.format(v, 3)
@@ -944,6 +958,7 @@ object PrintPdf {
                     var best: Rect? = null
                     var bestDist = Double.POSITIVE_INFINITY
                     for (r in candidates) {
+                        if (note.key.contains(":SOFT_GRADIENT:") && r.removed) continue
                         if (used.any { it.overlaps(r) }) continue
                         val dx = r.x + r.w / 2 - note.rx
                         val dy = r.y + r.h / 2 - note.ry
@@ -954,7 +969,10 @@ object PrintPdf {
                     used += r
                     placed += note.key
                     // Muted words and nothing else: no boxes, leaders or arrows, so nothing can cross a cut.
-                    sb.append("q 0.42 g\n")
+                    // Removed openings are printed in the sheet's colour. Dark paint needs light
+                    // lettering there; on bare stock, the subdued dark ink remains legible.
+                    val darkOpening = r.removed && (color ushr 24) >= 192 && luminance(color) < 0.45
+                    sb.append(if (darkOpening) "q 1 g\n" else "q 0.42 g\n")
                     for ((i, line) in note.lines.withIndex()) {
                         text(sb, if (i == 0) 7.4 else 7.0, px(tile, r.x) + 2.0, py(tile, r.y) - 11.0 - i * 11.0, line, bold = i == 0)
                     }
@@ -1087,7 +1105,16 @@ object PrintPdf {
             while (y <= yMax) {
                 var x = x0
                 while (x <= xMax) {
-                    if (ok(x, y, w, h, buffer, uncut, false)) out += Rect(x, y, w, h)
+                    if (ok(x, y, w, h, buffer, uncut, false, allowRemoved = true)) {
+                        val board = if (boards.isEmpty()) null else {
+                            val bx = min(boardCols - 1, max(0, floor((x + w / 2) / boards[0].rect.width).toInt()))
+                            val by = min(boardRows - 1, max(0, floor((y + h / 2) / boards[0].rect.height).toInt()))
+                            boards.getOrNull(by * boardCols + bx)
+                        }
+                        val removed = uncut.region(x - (board?.shiftX ?: 0.0), y - (board?.shiftY ?: 0.0),
+                            w, h, buffer) == true
+                        out += Rect(x, y, w, h, removed)
+                    }
                     x += step
                 }
                 y += step
@@ -1100,9 +1127,12 @@ object PrintPdf {
          * Mounted: it must keep 1.5 mm off every board edge (the dotted lines), then either lie wholly within a board's art and
          * be clear, or (a label only) lie wholly on blank paper: beyond the piece, or in a board's border clear of its tabs.
          */
-        private fun ok(x: Double, y: Double, w: Double, h: Double, buffer: Double, uncut: UncutSpace, labelMode: Boolean): Boolean {
+        private fun ok(x: Double, y: Double, w: Double, h: Double, buffer: Double, uncut: UncutSpace, labelMode: Boolean, allowRemoved: Boolean = false): Boolean {
             if (boards.isEmpty()) {
-                if (x >= piece.x0 && y >= piece.y0 && x + w <= piece.x1 && y + h <= piece.y1) return uncut.clear(x, y, w, h, buffer)
+                if (x >= piece.x0 && y >= piece.y0 && x + w <= piece.x1 && y + h <= piece.y1) {
+                    val removed = uncut.region(x, y, w, h, buffer)
+                    return removed == false || (allowRemoved && removed == true)
+                }
                 return labelMode && (x >= widthMm || y >= heightMm)
             }
             val bw = boards[0].rect.width
@@ -1114,7 +1144,10 @@ object PrintPdf {
             val b = boards.getOrNull(by * boardCols + bx) ?: return false
             if (x < b.rect.x0 || y < b.rect.y0 || x + w > b.rect.x1 || y + h > b.rect.y1) return false
             val ar = b.artRect
-            if (x >= ar.x0 && y >= ar.y0 && x + w <= ar.x1 && y + h <= ar.y1) return uncut.clear(x - b.shiftX, y - b.shiftY, w, h, buffer)
+            if (x >= ar.x0 && y >= ar.y0 && x + w <= ar.x1 && y + h <= ar.y1) {
+                val removed = uncut.region(x - b.shiftX, y - b.shiftY, w, h, buffer)
+                return removed == false || (allowRemoved && removed == true)
+            }
             if (!labelMode) return false
             if (x - b.shiftX >= widthMm || y - b.shiftY >= heightMm) return true
             val cut = b.cutRect
