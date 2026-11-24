@@ -377,7 +377,11 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     LaunchedEffect(step) { stepScroll.scrollTo(0) }
     val openStep: (Int) -> Unit = { next ->
         step = next.coerceIn(STUDIO_STEPS.indices)
-        if (step == 1) state.showProcessed(true) else state.show(state.shownSheet)
+        if (step <= 1) state.showProcessed(true) else state.show(state.shownSheet)
+    }
+    LaunchedEffect(state.source) {
+        // A new image begins at preparation, where its isolated base is the useful comparison.
+        if (state.source != null) openStep(0)
     }
 
     // The Android picker completes asynchronously. Keep every export control locked until the
