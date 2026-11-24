@@ -3,7 +3,7 @@
 Source: GraffitiXR `StencilTones.kt`, `StencilProcessor.kt`, `SubjectIsolator.kt`, `StencilTonesTest.kt`
 (copied; GraffitiXR is not modified).
 
-Status: **all planned phases implemented.** What has not been verified on real hardware is listed under Review.
+Status: **original planned phases implemented; approved 3D extrusion/scene-lighting work in progress.** What has not been verified on real hardware is listed under Review.
 
 ## Guided studio redesign (2026-11-23)
 
@@ -12,7 +12,18 @@ Status: **all planned phases implemented.** What has not been verified on real h
 - [x] Show rotating creation/cutting/painting advice over a blurred, dimmed full-screen loading overlay, with a determinate horizontal progress indicator below the tip reflecting finished pipeline stages; permit cutaway or retained stock for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
 - [x] Put advanced lighting and edge-adjustment sliders behind deliberate disclosure; leave depth-lighting behavior unchanged pending design review.
 - [ ] Visually inspect both wide web and narrow Android layouts, including keyboard and touch input, and verify pinch-pan, clipped zoom and side-by-side accuracy on devices.
-- [ ] Agree on the depth-extrusion/relighting model, shadow behavior, light controls and editing workflow before changing the renderer. See `docs/DEPTH_RELIGHT_DISCUSSION.md` for the current implementation and proposed choices.
+- [x] Approve the 3D extrusion, actual scene lighting and rendered-source stencil architecture. See `docs/DEPTH_RELIGHT_DISCUSSION.md`.
+
+## True 3D relief and lighting (approved 2026-11-24)
+
+- [ ] Connect the shared closed relief mesh to a production scene renderer. Foundation added: depth-displaced front, silhouette walls/back cap, UVs, mask holes and disconnected solids, common tests (including all 512 3×3 masks). Not checked off: no app caller yet.
+- [ ] Generate bounded geometry from the masked image and normalized model depth without erasing thin source features or silently changing source/export resolution.
+- [ ] Render an orbitable 3D scene preview and a separately locked source-aligned orthographic view; start with directional light plus ambient, actual visibility and self-shadowing. Verify silhouette/alpha and non-square framing.
+- [ ] Make the rendered RGBA image the prepared-image input to the existing tone/colour separator; retain original-lighting and no-depth fallback, cancellation/generation guards, and exact preview/export correspondence.
+- [ ] Add multiple positioned directional, point and spot lights, handles, key/fill/rim presets, colour/intensity/softness and shadow-only/combined views, optional background receiver.
+- [ ] Add thickness, relief strength, smoothing, flatten/clamp, depth inversion/remapping and artist depth corrections; separate material/photographic-shadow choices from geometry.
+- [ ] Add separation-boundary and island/cut-risk diagnostics from the same committed render.
+- [ ] Verify Android and Wasm scene rendering, visual comparison, cancellation, transparent/empty/flat inputs, shadow reversal/occlusion, deterministic results, performance and hardware usability.
 
 ## Decisions (answered)
 
@@ -32,7 +43,7 @@ stencil-artist/
   core/         KMP library, commonMain only, no platform deps
                 tone/     StencilTones (N sheets), k-means thresholds, dark/light call
                 raster/   median blur, morphological close, flood fill   (replaces OpenCV)
-                light/    depth -> normals -> relit luminance
+                light/    current: depth -> normals -> relit luminance; approved: mesh -> scene -> render
                 vector/   contour trace, simplify, islands
                 export/   PNG planes, PDF writer + tiler, SVG, DXF, HPGL, G-code
   composeApp/   Compose Multiplatform UI and state: commonMain + androidMain + wasmJsMain
