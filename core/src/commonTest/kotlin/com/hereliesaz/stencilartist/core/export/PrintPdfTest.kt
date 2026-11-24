@@ -509,6 +509,49 @@ class PrintPdfTest {
     private fun pdfText(s: Separation, width: Double) = parse(PrintPdf.make(s, options(width))).let { it to it.contents }
 
     @Test
+    fun cuttingAdviceCanUseCutawayWhenThereIsSafeRoom() {
+        val width = 240
+        val sizeMm = 200.0
+        // Broad waste surrounds a small trapped stock island; unlike the old all-stock
+        // placement, the printed warning belongs in the area we will remove.
+        val cut: (Int, Int) -> Boolean = { x, y ->
+            x in 20..220 && y in 20..220 && !(x in 100..110 && y in 100..110)
+        }
+        val pdf = parse(PrintPdf.make(stencil(width, width, cut), options(sizeMm)))
+        val tile = pdf.contents.single { pageKind(it) == "tile" }
+        val pos = assertNotNull(Regex("""/F2 7\.4 Tf\n([0-9.]+) ([0-9.]+) Td\n\(ISLAND""").find(tile))
+        val leftMm = (pos.groupValues[1].toDouble() - 3 * k - 2.0) / k
+        val topMm = (792.0 - pos.groupValues[2].toDouble() - 11.0) / k - 3.0
+        // Independently sample the full note region, not just its anchor, against the
+        // explicitly constructed cut mask.
+        for (a in 1..8) for (b in 1..5) {
+            val x = ((leftMm + (146.0 / k) * a / 9.0) * width / sizeMm).toInt()
+            val y = ((topMm + (49.0 / k) * b / 6.0) * width / sizeMm).toInt()
+            assertTrue(cut(x, y), "Cutting advice is not in the cutaway at pixel $x,$y")
+        }
+        assertTrue(tile.contains("q 1 g\nBT\n/F2 7.4 Tf"), "White type must contrast against black cutaways")
+    }
+
+    @Test
+    fun paintingAdviceNeverEntersCutaway() {
+        val width = 240
+        val sizeMm = 200.0
+        val cut: (Int, Int) -> Boolean = { x, _ -> x < 145 }
+        val marked = stencil(width, width, cut)
+            .withLiftZones(listOf(LiftZone(0, 144, 120, LiftDirection.RIGHT)))
+        val pdf = parse(PrintPdf.make(marked, options(sizeMm)))
+        val tile = pdf.contents.single { pageKind(it) == "tile" }
+        val pos = assertNotNull(Regex("""/F2 7\.4 Tf\n([0-9.]+) ([0-9.]+) Td\n\(SOFT GRADIENT""").find(tile))
+        val leftMm = (pos.groupValues[1].toDouble() - 3 * k - 2.0) / k
+        val topMm = (792.0 - pos.groupValues[2].toDouble() - 11.0) / k - 3.0
+        for (a in 1..8) for (b in 1..5) {
+            val x = ((leftMm + (146.0 / k) * a / 9.0) * width / sizeMm).toInt()
+            val y = ((topMm + (49.0 / k) * b / 6.0) * width / sizeMm).toInt()
+            assertFalse(cut(x, y), "Painting advice overlaps the cutaway at pixel $x,$y")
+        }
+    }
+
+    @Test
     fun aFineDetailTipIsPrintedOnUncutStockNeverOverTheCut() {
         val s = stencil(240, 240) { x, y -> x == 100 && y == 110 }
         val (pdf, contents) = pdfText(s, 200.0)
@@ -551,27 +594,53 @@ class PrintPdfTest {
     }
 
     @Test
-    fun aCuttingProblemWithNoRoomGetsItsOwnAdjacentReferenceDetail() {
+    fun aCuttingTipCanBePrintedOnRemovedMaterialWhenStockIsTooSmall() {
+        // Most of the image is an opening; the only surviving island cannot fit a note.
         val s = stencil(30, 30) { x, y -> x !in 12..17 || y !in 12..17 }
         val pdf = parse(PrintPdf.make(s, options(100.0)))
-        assertEquals(4, pdf.pages.size, "instructions, map, tile, one reference page")
-        val all = pdf.s
-        assertTrue("(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE) Tj" in all)
-        assertTrue("(ISLAND) Tj" in all)
-        assertTrue("(SHEET 1 - LOCAL DETAIL) Tj" in all)
+        assertEquals(3, pdf.pages.size, "instructions, map, tile: the removed region fits the note")
         val tile = pdf.contents.single { pageKind(it) == "tile" }
-        assertFalse("(ISLAND) Tj" in tile, "the template page stays unannotated")
-        assertTrue(pdf.contents.single { pageKind(it) == "reference" }.contains("(ISLAND) Tj"))
+        assertTrue("(ISLAND) Tj" in tile)
+        assertFalse("(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE) Tj" in pdf.s)
+        // Ink over an opaque dark opening must contrast with the printed dark paint.
+        assertTrue("q 1 g\n" in tile)
     }
 
     @Test
-    fun pervasiveIslandsAllGetNearbyReferenceDetailsRatherThanBeingDropped() {
+    fun aCuttingProblemWithNeitherSafeRegionGetsItsOwnAdjacentReferenceDetail() {
+        // Alternating vertical openings and stock are all narrower than the annotation.
+        // Enclosing a pocket of stock produces an island without providing room for text.
+        val s = stencil(60, 60) { x, y ->
+            x % 12 < 5 || (x in 24..36 && (y == 24 || y == 36)) ||
+                (y in 24..36 && (x == 24 || x == 36))
+        }
+        val pdf = parse(PrintPdf.make(s, options(120.0)))
+        assertTrue("(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE) Tj" in pdf.s)
+        assertTrue(pdf.contents.any { pageKind(it) == "reference" && "(ISLAND) Tj" in it })
+        assertTrue(pdf.contents.any { pageKind(it) == "reference" && "(SHEET 1 - LOCAL DETAIL) Tj" in it })
+    }
+
+    @Test
+    fun bufferedTipPositionsCannotCrossFromStockIntoOpenings() {
+        val mask = BooleanArray(100 * 100) { i -> (i % 100) >= 50 }
+        val space = PrintPdf.UncutSpace(mask, 100, 100, 1.0)
+        assertEquals(false, space.region(10.0, 10.0, 8.0, 8.0, 1.0))
+        assertEquals(true, space.region(70.0, 10.0, 8.0, 8.0, 1.0))
+        assertEquals(null, space.region(44.0, 10.0, 8.0, 8.0, 0.0))
+        assertEquals(null, space.region(0.0, 10.0, 8.0, 8.0, 1.0))
+        assertFalse(space.clear(70.0, 10.0, 8.0, 8.0, 1.0),
+            "Page labels retain their stock-only policy")
+    }
+
+    @Test
+    fun pervasiveIslandsArePrintedOnTilesOrNearbyReferenceDetailsWithoutBeingDropped() {
         val s = stencil(40, 40) { x, y -> !(x in setOf(4, 11, 18, 25, 32) && y in setOf(4, 11, 18, 25, 32)) }
         val pdf = parse(PrintPdf.make(s, options(150.0)))
-        assertEquals(1 + 1 + 1 + 7, pdf.pages.size, "instructions, map, tile, seven reference pages of four")
         assertEquals(25, Regex("""\(ISLAND\) Tj""").findAll(pdf.s).count())
-        assertEquals(7, pdf.contents.count { pageKind(it) == "reference" })
-        assertFalse("(ISLAND) Tj" in pdf.contents.single { pageKind(it) == "tile" })
+        assertFalse("(ISLAND) Tj" in pdf.contents.single { pageKind(it) == "tile" },
+            "Scattered stock islands interrupt every sufficiently wide buffered note region")
+        assertEquals(7, pdf.contents.count { pageKind(it) == "reference" },
+            "All 25 tips remain on adjacent reference pages when no continuous safe rectangle fits")
     }
 
     @Test
