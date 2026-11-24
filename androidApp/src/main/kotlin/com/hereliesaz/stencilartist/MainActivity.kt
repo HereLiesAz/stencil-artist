@@ -1,6 +1,7 @@
 package com.hereliesaz.stencilartist
 
 import android.os.Bundle
+import com.hereliesaz.aznavrail.updates.AzUpdateChecker
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -12,5 +13,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent { App() }
+        AzUpdateChecker.check(this, "HereLiesAz/stencil-artist")
     }
 }

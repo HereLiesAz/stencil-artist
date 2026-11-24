@@ -3,7 +3,13 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositories { google(); mavenCentral() }
+    repositories {
+        google()
+        mavenCentral()
+        maven("https://raw.githubusercontent.com/HereLiesAz/AzNavRail/update-maven/") {
+            content { includeModule("com.github.HereLiesAz.AzNavRail", "aznavrail-updates") }
+        }
+    }
 }
 
 rootProject.name = "stencil-artist"
