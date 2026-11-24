@@ -53,6 +53,7 @@ The artist has approved the entire depth/stencil plan and instructed continuous 
 - [ ] Improve shadow quality where controlled fixtures expose acne, striping or bias; test finite and directional lights, opacity, self/cast visibility and source framing. Keep coarse mesh limits explicit.
 - [ ] Collect opt-in pipeline timing records and real device memory observations using [the performance protocol](../docs/PERFORMANCE.md); CI's small synthetic browser fixture is a telemetry smoke test, not a performance baseline.
 - [ ] Benchmark real photographs on representative Android and browser devices, then improve preview responsiveness and working-image/full-resolution processing as evidence warrants. Report actual latency and memory separately from build status.
+- [ ] Generate and inspect the controlled tonal/colour physical kit from CI, then record actual cut, registration and paint outcomes using [the physical validation protocol](../docs/PHYSICAL_VALIDATION.md). Digital evidence alone does not close this gate.
 - [ ] Assess physical stencil cuts, registration, island repairs and fine detail on real coloured and tonal artwork; continue the existing island/stroke synthesis work where findings justify changes. Do not mark hardware verification complete without evidence.
 
 ## Decisions (answered)
