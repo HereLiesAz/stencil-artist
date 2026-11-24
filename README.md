@@ -87,8 +87,9 @@ can also be added when the processed source strongly supports their colour and t
 soft source-image gradients on cut edges and labels the appropriate edge for controlled
 stencil lifting in the print PDF, with scrap-test guidance. **Stroke construction** offers
 Classic (the original masks) and opt-in Brush strokes, which now reconstruct broad
-later-layer openings from narrow additive paint ribbons following the processed image's
-luminance contours. Small, thin features and the black base stay untouched; stencil
+later-layer openings from adjustable-width additive paint ribbons (1–24 working-image pixels)
+following the processed image's luminance contours. Areas narrower than the chosen brush
+keep their original solid, potentially blotchy, paint openings rather than forcing strokes. Small, thin features and the black base stay untouched; stencil
 islands created by new gaps are filled back in. Explicit semantic reconstruction of
 exposed islands is still outstanding. See [the implementation and limitations](docs/STROKE_ISLANDS.md).
 
