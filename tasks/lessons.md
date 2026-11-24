@@ -96,3 +96,7 @@ Rules written after corrections. Read at the start of every session on this repo
 - Use the existing Android/Skia PNG encoders and ZIP writer rather than duplicating codecs.
   Bound in-memory archive size, and keep individual sheet export available when an archive
   is too large.
+
+## 2026-11-24 — Wasm loading modal accessibility
+
+- CI screenshot and accessibility evidence contradicted each other: Continue dismissed the canvas dialog, but Compose's accessibility tree stayed frozen on that dialog (CMP-10623). Use a native HTML top-layer loading dialog on Wasm and keep the Android Compose dialog. Preserve the guarded one-tip lifecycle; do not bypass modal or export assertions to make browser CI green.

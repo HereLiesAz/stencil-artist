@@ -65,9 +65,13 @@ def smoke(browser, url, width, height, directory, profile=False):
         chooser.value.set_files({"name": "smoke.png", "mimeType": "image/png",
                                  "buffer": buffer.getvalue()})
         # Completion acknowledgement is mandatory; do not skip it by sleeping.
-        control(page, "Continue").wait_for(state="visible", timeout=120000)
+        # The native browser dialog is a real modal DOM element, not a canvas overlay.
+        modal = page.locator("dialog#stencil-loading-notice[open]")
+        modal.get_by_role("button", name="Continue", exact=True).wait_for(timeout=120000)
         page.screenshot(path=directory / f"{label}-acknowledgement.png")
-        control(page, "Continue").click(force=True)
+        assert control(page, "Next: Palette").count() == 0, "Workspace exposed through the modal"
+        modal.get_by_role("button", name="Continue", exact=True).click()
+        modal.wait_for(state="detached")
         control(page, "Continue").wait_for(state="hidden")
         # Require actual Subject navigation after the modal has gone away.
         control(page, "Next: Palette").wait_for(state="visible")
