@@ -128,9 +128,9 @@ private val WIDE_LAYOUT = 720.dp
 
 /** One decision per stage; all stages use the same in-memory processing and export state. */
 private val STUDIO_STEPS = listOf(
-    "Source" to "Choose your image and decide what belongs in the stencil. Removing the background changes the subject's silhouette, not its colours.",
-    "Light" to "Keep the original image, relight its estimated depth without extrusion, or light a solid 3D scene before cutting any sheets.",
-    "Layers" to "Each sheet is one pass of paint. Fewer sheets are easier to align; more sheets preserve additional tones or colours.",
+    "Setup" to "Choose your image, layer count and paint palette first. Use any colours, or let the image suggest them.",
+    "Light" to "Choose the image or an extruded 3D subject. Keep original lighting, use flat depth relight, or place lights in the scene.",
+    "Adjust" to "Isolate the subject and refine its source and rendered image to make the chosen paint layers useful.",
     "Edges" to "Choose how paint openings are constructed. Keep fine detail intact, then adjust edge cleanup only where necessary.",
     "Inspect" to "Compare the source with your result, then inspect each cut sheet. Tiny unsupported islands may need special handling.",
     "Images" to "Save a finished image, an individual sheet, or an aligned layer pack for another app.",
@@ -410,10 +410,10 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     LaunchedEffect(step) { stepScroll.scrollTo(0) }
     val openStep: (Int) -> Unit = { next ->
         step = next.coerceIn(STUDIO_STEPS.indices)
-        if (step <= 1) state.showProcessed(true) else state.show(state.shownSheet)
+        if (step == 1 || step == 2) state.showProcessed(true) else state.show(state.shownSheet)
     }
     LaunchedEffect(state.source) {
-        // A new image begins at preparation, where its isolated base is the useful comparison.
+        // A new image begins with its requested paint palette and layer count.
         if (state.source != null) openStep(0)
     }
 
@@ -525,7 +525,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        if (step == 0) Section("Background") {
+        if (step == 2) Section("Background") {
             Text("Removing the background usually means fewer cuts. Depth assistance can help uncertain edges; the app keeps confident foreground/background decisions.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -546,7 +546,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        if (step == 0) Section("Source adjustments") {
+        if (step == 2) Section("Source adjustments") {
             Text("Adjust the isolated photograph or its 3D skin. Depth and the subject mask are estimated from the original image.", style = MaterialTheme.typography.bodySmall)
             ImageAdjustmentEditor(state.sourceAdjustments, state::updateSourceAdjustments)
         }
@@ -675,30 +675,28 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        if (step == 1) Section("Stencil image adjustments") {
+        if (step == 2) Section("Stencil image adjustments") {
             Text("Shape the final image before separation, with or without depth or extrusion. These filters do not change the number of sheets or transparency.", style = MaterialTheme.typography.bodySmall)
             ImageAdjustmentEditor(state.preparedAdjustments, state::updatePreparedAdjustments)
         }
 
-        if (step == 2) {
+        if (step == 0) {
         Section("Separate by") {
-            Text("Tone makes a brightness-based stack. Colour matches the source's hues or the real cans you choose.",
+            Text("Colour matches hues to your paint set. Tone maps brightness to any chosen colours in paint order, including for a solid relief.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DecisionCard("By tone", "Build a dark-to-light or light-to-dark set of values.",
-                    state.mode == SeparationMode.TONE, Modifier.weight(1f)) {
-                    state.selectMode(SeparationMode.TONE)
-                }
-                DecisionCard("By colour", "Preserve hues, or match real cans of paint.",
+                DecisionCard("By colour", "Match the source or render to any selected paint colours.",
                     state.mode == SeparationMode.COLOUR, Modifier.weight(1f)) {
                     state.selectMode(SeparationMode.COLOUR)
+                }
+                DecisionCard("By tone", "Map brightness bands to your chosen paints, not necessarily greys.",
+                    state.mode == SeparationMode.TONE, Modifier.weight(1f)) {
+                    state.selectMode(SeparationMode.TONE)
                 }
             }
         }
 
-        if (state.mode == SeparationMode.COLOUR) PaintSection(state)
-
-        if (!state.snapped) Section("Sheets") {
+        if (!state.snapped) Section("Layer count") {
             Stepper(
                 value = state.sheetCount,
                 range = 1..state.maxSheets,
@@ -706,6 +704,9 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 onChange = state::setSheetCount,
             )
         }
+
+        if (state.mode == SeparationMode.COLOUR) PaintSection(state)
+        else Section("Paint palette") { FreePaletteEditor(state) }
 
         if (state.mode == SeparationMode.TONE) {
             Section("Base") {

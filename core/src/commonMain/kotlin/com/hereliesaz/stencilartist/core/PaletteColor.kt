@@ -7,6 +7,32 @@ package com.hereliesaz.stencilartist.core
  * palettes containing two sheets with the same RGB value.
  */
 object PaletteColor {
+    /**
+     * Fit a palette to a requested layer count without discarding existing distinct colours.
+     * Preserve their order and make them opaque, then fill vacant slots with distinct editable
+     * starter colours. The starter values are suggestions, never automatic image analysis.
+     * A count decrease retains the first slots; an increase retains every existing slot.
+     */
+    fun resize(colors: List<Int>, count: Int): List<Int> {
+        require(count in 1..ColorParams.MAX_SHEETS)
+        val result = ArrayList<Int>(count)
+        val used = HashSet<Int>()
+        fun add(rgb: Int) {
+            val opaque = rgb or 0xFF000000.toInt()
+            if (result.size < count && used.add(opaque)) result.add(opaque)
+        }
+        for (color in colors) add(color)
+        for (color in listOf(0x223344, 0xD34A32, 0xE9B949, 0x349E9C, 0x7352A1, 0xF1DCC3)) add(color)
+        // An odd step traverses distinct 24-bit RGB values. This is only a fallback for
+        // larger palettes; it cannot repeat before all possible RGB values have been visited.
+        var rgb = 0
+        while (result.size < count) {
+            rgb = (rgb + 0x9E3779) and 0xFFFFFF
+            add(rgb)
+        }
+        return result.toList()
+    }
+
     /** Format [argb] as a six-digit upper-case #RRGGBB string, ignoring the input alpha. */
     fun hex(argb: Int): String = "#" + (argb and 0xFFFFFF).toString(16).uppercase().padStart(6, '0')
 
