@@ -607,8 +607,6 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("WORKSPACE", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
                 if (state.source != null) {
                     Choice("Compare", selected = split) { split = true }
@@ -795,8 +793,6 @@ private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifi
         modifier.background(MaterialTheme.colorScheme.surface).verticalScroll(stepScroll).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("MAKE A STENCIL", style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
         LinearProgressIndicator(progress = { (step + 1).toFloat() / STUDIO_STEPS.size },
             modifier = Modifier.fillMaxWidth())
         Text(STUDIO_STEPS[step].first, style = MaterialTheme.typography.headlineMedium)
