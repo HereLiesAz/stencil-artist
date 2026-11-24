@@ -6,11 +6,12 @@ checks remain separate acceptance gates. Save screenshots even on failure.
 """
 import argparse
 import io
+import json
 from pathlib import Path
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
-from tempfile import TemporaryDirectory
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from PIL import Image
 from playwright.sync_api import sync_playwright
@@ -25,13 +26,21 @@ def control(page, name):
     return page.get_by_text(name, exact=True).first
 
 
-def smoke(browser, url, width, height, directory):
+def smoke(browser, url, width, height, directory, profile=False):
     context = browser.new_context(viewport={"width": width, "height": height},
                                   device_scale_factor=1, accept_downloads=True,
                                   has_touch=width < 720)
     page = context.new_page()
     errors = []
+    records = []
     page.on("pageerror", lambda error: errors.append(str(error)))
+    if profile:
+        page.on("console", lambda message: records.append(message.text)
+                if message.text.startswith("StencilPerf ") else None)
+        parts = urlsplit(url)
+        query = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
+                 if key != "profile"]
+        url = urlunsplit(parts._replace(query=urlencode(query + [("profile", "1")])))
     page.set_default_timeout(20000)
     label = f"{width}x{height}"
     try:
@@ -75,11 +84,16 @@ def smoke(browser, url, width, height, directory):
             assert rgba.getpixel((18, 24)) != rgba.getpixel((56, 24)), "Distinct regions collapsed"
         page.screenshot(path=directory / f"{label}-images.png")
         assert not errors, f"Uncaught browser errors: {errors}"
+        if profile:
+            assert any("status=ok " in record and "total_ms=" in record for record in records), (
+                "No successful processing timing record")
         print(f"PASS {label}: startup, transparent image import, acknowledgement, stages, PNG download")
     finally:
         try:
             page.screenshot(path=directory / f"{label}-last.png")
         finally:
+            if profile:
+                (directory / f"{label}-timings.json").write_text(json.dumps(records, indent=2) + "\n")
             context.close()
 
 
@@ -90,6 +104,7 @@ def main():
     target.add_argument("--distribution", type=Path)
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--chromium", help="Optional path to an installed Chromium executable")
+    parser.add_argument("--profile", action="store_true", help="Capture local processing timings")
     args = parser.parse_args()
     args.artifacts.mkdir(parents=True, exist_ok=True)
     server = None
@@ -109,7 +124,7 @@ def main():
                 args=["--force-renderer-accessibility"])
             try:
                 for width, height in ((1280, 900), (390, 844)):
-                    smoke(browser, url, width, height, args.artifacts)
+                    smoke(browser, url, width, height, args.artifacts, args.profile)
             finally:
                 browser.close()
     finally:

@@ -76,3 +76,12 @@ private fun decode(context: Context, uri: Uri): RgbaImage? {
 
 actual fun argbToImageBitmap(pixels: IntArray, width: Int, height: Int): ImageBitmap =
     Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888).asImageBitmap()
+
+/** Enable via adb shell setprop log.tag.StencilPerf DEBUG; disabled at the normal INFO level. */
+internal actual fun stencilPerformanceEnabled(): Boolean =
+    android.util.Log.isLoggable("StencilPerf", android.util.Log.DEBUG)
+
+/** Numeric and categorical diagnostics only, in local Android logcat. */
+internal actual fun reportStencilPerformance(record: String) {
+    android.util.Log.d("StencilPerf", record)
+}

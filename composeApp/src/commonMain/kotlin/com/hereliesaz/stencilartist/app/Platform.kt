@@ -22,3 +22,9 @@ expect fun rememberImagePicker(onPicked: (RgbaImage) -> Unit, onError: (String) 
 
 /** Straight-alpha ARGB [pixels], row-major, as something Compose can draw. */
 expect fun argbToImageBitmap(pixels: IntArray, width: Int, height: Int): ImageBitmap
+
+/** Whether local, opt-in timing diagnostics are enabled for this process/page. */
+internal expect fun stencilPerformanceEnabled(): Boolean
+
+/** Report one timing record locally; never include image data or send network telemetry. */
+internal expect fun reportStencilPerformance(record: String)
