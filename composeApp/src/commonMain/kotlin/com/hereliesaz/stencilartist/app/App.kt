@@ -83,6 +83,7 @@ import com.hereliesaz.stencilartist.core.export.TileSpec
 import com.hereliesaz.stencilartist.core.export.Tiling
 import com.hereliesaz.stencilartist.core.Sheet
 import com.hereliesaz.stencilartist.core.Separation
+import com.hereliesaz.stencilartist.core.StrokeStyler
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -609,11 +610,19 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     state.useStrokeBased(true)
                 }
             }
-            Text(
-                "Fine, flow-aligned negative strokes shape large regions. The original cuts remain available in Classic mode.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (state.strokeBased) {
+                Text(
+                    "Adjust the width of the paint marks. Any area narrower than the brush keeps its original solid fill, rather than forcing in a stroke.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                LabelledSlider(
+                    "Brush size",
+                    "${state.strokeWidthPixels} px",
+                    state.strokeWidthPixels.toFloat(),
+                    StrokeStyler.MIN_BRUSH_WIDTH_PIXELS.toFloat()..StrokeStyler.MAX_BRUSH_WIDTH_PIXELS.toFloat(),
+                ) { state.setStrokeWidthPixels(it.roundToInt()) }
+            }
         }
         OutlinedButton(onClick = { advancedEdges = !advancedEdges }, modifier = Modifier.fillMaxWidth()) {
             Text(if (advancedEdges) "Hide edge adjustments" else "Fine-tune smoothing, closing and tonal bias")
