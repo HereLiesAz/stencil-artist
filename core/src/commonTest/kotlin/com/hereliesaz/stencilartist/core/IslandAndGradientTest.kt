@@ -26,8 +26,11 @@ class IslandAndGradientTest {
         top[2 * w + 4] = true
         val source = Separation.fromMasks(w, h, listOf(black, grey, white), listOf(base, middle, top))
         val before = source.render().copyOf()
-        val result = IslandPlanner.repair(source, minimumBridgePixels = 1)
+        val photograph = RgbaImage(w, h, IntArray(w * h) { white.color })
+        val result = IslandPlanner.repair(source, photograph, minimumBridgePixels = 1)
         assertEquals(1, result.concealedBridges)
+        assertEquals(0, result.sourceGuidedIslands,
+            "an invisible structural bridge is preferable to changing visible paint")
         assertEquals(0, result.unresolved)
         assertFalse(result.separation.mask(1)[2 * w + 4], "only the hidden grey opening should become a negative stroke")
         assertContentEquals(before, result.separation.render(), "finished appearance must not be modified")
