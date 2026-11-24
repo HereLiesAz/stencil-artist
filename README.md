@@ -64,7 +64,7 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   bottom, each on top of the earlier ones, with the paper edge on thin guide marks the page underneath prints. A fixed
   3 mm border is unprintable, so at every join there is a 3 mm strip of blank paper (the top page's margin);
   the artwork either side is at its true place and cut lines simply continue across the strip. Printouts label trapped islands,
-  delicate openings and tile codes inside uncut material; a note that cannot safely fit goes to a
+  delicate openings inside either removed or retained regions, whichever safely fits without crossing a cut; page labels remain on uncut material when possible. A note that cannot safely fit goes to a
   non-cutting reference page beside the affected detail. Pages with nothing to cut are skipped and
   shown as blank on the map.
 - Optionally mounts the print on poster board (22 x 28 in, or a custom board of at least 18 in a side) with an
