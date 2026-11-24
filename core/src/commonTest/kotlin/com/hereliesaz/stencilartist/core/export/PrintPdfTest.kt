@@ -509,6 +509,49 @@ class PrintPdfTest {
     private fun pdfText(s: Separation, width: Double) = parse(PrintPdf.make(s, options(width))).let { it to it.contents }
 
     @Test
+    fun cuttingAdvicePrefersCutawayWhenThereIsSafeRoom() {
+        val width = 240
+        val sizeMm = 200.0
+        // Broad waste surrounds a small trapped stock island; unlike the old all-stock
+        // placement, the printed warning belongs in the area we will remove.
+        val cut: (Int, Int) -> Boolean = { x, y ->
+            x in 20..220 && y in 20..220 && !(x in 100..110 && y in 100..110)
+        }
+        val pdf = parse(PrintPdf.make(stencil(width, width, cut), options(sizeMm)))
+        val tile = pdf.contents.single { pageKind(it) == "tile" }
+        val pos = assertNotNull(Regex("""/F2 7\.4 Tf\n([0-9.]+) ([0-9.]+) Td\n\(ISLAND""").find(tile))
+        val leftMm = (pos.groupValues[1].toDouble() - 3 * k - 2.0) / k
+        val topMm = (792.0 - pos.groupValues[2].toDouble() - 11.0) / k - 3.0
+        // Independently sample the full note region, not just its anchor, against the
+        // explicitly constructed cut mask.
+        for (a in 1..8) for (b in 1..5) {
+            val x = ((leftMm + (146.0 / k) * a / 9.0) * width / sizeMm).toInt()
+            val y = ((topMm + (49.0 / k) * b / 6.0) * width / sizeMm).toInt()
+            assertTrue(cut(x, y), "Cutting advice is not in the cutaway at pixel $x,$y")
+        }
+        assertTrue(tile.contains("q 1 g\nBT\n/F2 7.4 Tf"), "White type must contrast against black cutaways")
+    }
+
+    @Test
+    fun paintingAdviceNeverEntersCutaway() {
+        val width = 240
+        val sizeMm = 200.0
+        val cut: (Int, Int) -> Boolean = { x, _ -> x < 145 }
+        val marked = stencil(width, width, cut)
+            .withLiftZones(listOf(LiftZone(0, 144, 120, LiftDirection.RIGHT)))
+        val pdf = parse(PrintPdf.make(marked, options(sizeMm)))
+        val tile = pdf.contents.single { pageKind(it) == "tile" }
+        val pos = assertNotNull(Regex("""/F2 7\.4 Tf\n([0-9.]+) ([0-9.]+) Td\n\(SOFT GRADIENT""").find(tile))
+        val leftMm = (pos.groupValues[1].toDouble() - 3 * k - 2.0) / k
+        val topMm = (792.0 - pos.groupValues[2].toDouble() - 11.0) / k - 3.0
+        for (a in 1..8) for (b in 1..5) {
+            val x = ((leftMm + (146.0 / k) * a / 9.0) * width / sizeMm).toInt()
+            val y = ((topMm + (49.0 / k) * b / 6.0) * width / sizeMm).toInt()
+            assertFalse(cut(x, y), "Painting advice overlaps the cutaway at pixel $x,$y")
+        }
+    }
+
+    @Test
     fun aFineDetailTipIsPrintedOnUncutStockNeverOverTheCut() {
         val s = stencil(240, 240) { x, y -> x == 100 && y == 110 }
         val (pdf, contents) = pdfText(s, 200.0)
