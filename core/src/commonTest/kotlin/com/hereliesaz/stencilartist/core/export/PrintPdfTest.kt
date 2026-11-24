@@ -674,7 +674,7 @@ class PrintPdfTest {
     @Test
     fun cuttingInstructionsDescribeBothSafePlacementRegions() {
         val pdf = parse(PrintPdf.make(stencil(20, 20) { x, _ -> x in 5..14 }, options(120.0)))
-        val expected = "may sit inside openings or on retained material, clear of cut edges"
+        val expected = "Cutting notes may sit in openings or retained stock, clear of cut edges"
         val words = Regex("""\(([^)]*)\) Tj""").findAll(pdf.contents.first())
             .joinToString(" ") { it.groupValues[1] }
         println("CUT_INSTRUCTIONS_TEXT=$words")
