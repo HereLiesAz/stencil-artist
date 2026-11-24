@@ -386,8 +386,8 @@ private fun CanPicker(state: StencilState) {
                 modifier = Modifier.clickable(role = Role.Button) { state.clearCans() }.padding(4.dp),
             )
         }
-        if (chosen.isEmpty()) {
-            Text("Nothing selected.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+        if (chosen.none { it.rgb != null }) {
+            Text("No selected cans have resolved colours.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         } else {
             Column(Modifier.heightIn(max = 130.dp).verticalScroll(rememberScrollState())) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -433,10 +433,13 @@ private fun CanBrowser(
                 (catalogue.byKey(can.canKey) ?: can).takeIf { it.rgb != null }
             }
         }
+        val firstKey = open.cans.getOrNull(open.start)?.canKey
+        val firstIndex = currentCans.indexOfFirst { it.canKey == firstKey }
+            .takeIf { it >= 0 } ?: open.start.coerceAtMost((currentCans.size - 1).coerceAtLeast(0))
         if (currentCans.isEmpty()) {
             LaunchedEffect(catalogue) { browsing = null }
         } else CanCarousel(
-            state, currentCans, open.start.coerceAtMost(currentCans.lastIndex), readOnly = false, onBack = { browsing = null },
+            state, currentCans, firstIndex, readOnly = false, onBack = { browsing = null },
             onAssign = onPick?.let { pick ->
                 { can: Can -> if (pick(can)) browsing = null }
             },
@@ -470,7 +473,7 @@ private fun CanBrowser(
             // viewport to remain lazy and avoid infinite-height nested-scroll exceptions.
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 68.dp),
-                modifier = Modifier.fillMaxWidth().height(320.dp),
+                modifier = Modifier.fillMaxWidth().height(320.dp).background(Color.White),
                 state = gridState,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
