@@ -51,8 +51,8 @@ pixel-width connection does not prove a millimetre-width connection.
   island to existing later layers, choosing only opaque paint closely matching
   the processed source and improving the original pixel match. The change is
   atomic: it is rejected if any existing border-supported retained stock in a
-  later sheet becomes detached. At most sixteen such island corrections are
-  accepted per image. Unlike existing-cut reconstruction, this can intentionally
+  later sheet becomes detached. At most sixteen costly geometry validations (successful or rejected) are
+  attempted per image; unsafe corrections remain warnings. Unlike existing-cut reconstruction, this can intentionally
   change the composite at the newly painted pixels; those changes are constrained
   and reported in the app for inspection. Dark details, transparent pixels and
   ambiguous colours are not automatically repainted.
