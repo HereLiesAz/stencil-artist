@@ -16,7 +16,7 @@ Status: **full depth/extrusion, lighting, material and stencil-preparation plan 
 
 - [x] Choose layer count and arbitrary paint palette before Original/Depth relight/3D scene, then source/render adjustments (the subsequent Subject-first refinement is below). Colour matching is the default; tonal bands also allow custom colours. `FreePaletteEditor` → `StencilState.editablePalette`, `useCustomPalette`, `setSheetColor`, `setSheetCount` → shared separator parameters. Manual palettes are independent of generated sheets; count edits preserve retained slots. Integration and device verification remain open.
 
-- [x] Separate Image → Subject → Palette → Light → Adjust; opening an image leads to Subject. Add manual remove/restore brush, zoom/pan, red overlay/cutout preview, undo, reset, draft and explicit apply. `SubjectMaskEditor` → `updateMaskEdits` → `MaskCorrections.apply` before lighting; explicit exclusions remain out of all cuts unless the artist opts into an opaque scene backdrop.
+- [x] Separate Image → Subject → Palette → Light → Adjust; opening an image leads to Subject. Add manual remove/restore brush, zoom/pan, red overlay/cutout preview, undo, reset, draft and explicit apply. `Workspace` / `SubjectMaskControls` → `updateMaskEdits` → `MaskCorrections.apply` before lighting; explicit exclusions remain out of all cuts unless the artist opts into an opaque scene backdrop.
 - [x] Distinguish early paint constraints from deferred colour choices: choose specific paints in Palette to influence layer generation, or assign RGB to existing sheets in Inspect with `recolorSheet` → `Separation.withSheetColor`, preserving ranks, masks and paint order. Rebuilding layers discards late assignments rather than silently remapping them. Can-based paint plans retain their early catalogue selection. Integration/device verification remains open.
 
 ## Flat depth relighting and image preparation (2026-11-24)
@@ -37,7 +37,7 @@ Status: **full depth/extrusion, lighting, material and stencil-preparation plan 
 - [x] Add multiple positioned directional, point and spot lights, front/rear placement handle and accessible controls, key/fill/rim preset, RGB colour/intensity, per-light shadow filtering and shadow-only/combined diagnostic views. App caller: `SceneLightsEditor` → `StencilState.updateLighting` → `ReliefScene.renderSource`; orbit diagnostics do not affect separation. JVM tests cover finite light occlusion and filter behavior; device validation remains open.
 - [x] Add an optional image-sized, receive-only backdrop behind the relief with RGB and gap controls. Off by default; explicit opt-in composites the backdrop into the final image. Caller: Light stage → `ReliefScene.renderSource` and `renderOrbit`. CI/device validation remains open.
 - [x] Choose source-image skin or a custom opaque solid RGB material independently of geometry and lights. Solid covers front, walls and cap; source transparency is preserved. `SceneRgbEditor` and the Light stage update `LightingParams`, consumed by `ReliefScene.renderSource` and `renderOrbit`.
-- [x] Add smoothing, flatten/clamp, depth remapping and artist depth corrections beyond existing thickness, relief strength and depth inversion. Light → `DepthGeometryEditor` → `updateDepthEdits` → `DepthEdits.apply` → `DepthLighting.relight` / `ReliefScene.prepare`. Draft-only strokes and global controls; inference and subject remain unchanged. Android/Wasm visual verification remains open.
+- [x] Add smoothing, flatten/clamp, depth remapping and artist depth corrections beyond existing thickness, relief strength and depth inversion. Light → `Workspace` / `DepthGeometryControls` → `updateDepthEdits` → `DepthEdits.apply` → `DepthLighting.relight` / `ReliefScene.prepare`. Draft-only strokes and global controls; inference and subject remain unchanged. Android/Wasm visual verification remains open.
 - [x] Add optional bounded original-light compensation for flat and textured 3D lighting; preserve hue, alpha, original image and independent scene lights. Light stage → `updateOriginalLightCompensation` → guarded `StencilState.remake` → `DepthLighting.compensateOriginal` → flat relight or textured relief. Uses unedited inferred depth, shared assumed light and hue-preserving bounded gain. This is an approximation, not intrinsic albedo recovery; CI and real-photo validation remain open.
 - [ ] Run the controlled material comparison and review its outputs; evaluate licensed real captures using the [material evaluation protocol](../docs/MATERIAL_EVALUATION.md). A synthetic pass cannot close the actual-photo gate.
 - [ ] Evaluate actual-photo intrinsic material estimation and shadow/highlight separation against the compensation and solid-coat baselines.
@@ -382,3 +382,10 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
   Physical cutter validation is still outstanding.
 - The web pipeline still runs on the page's only thread.
 
+
+
+## Workspace checkpoint and contextual previews
+
+- [ ] Verify local checkpoint restoration after reload, Android activity recreation and process death; test corrupt data, blocked storage and interrupted writes.
+- [ ] Verify contextual tabs, mask/depth draft retention, paint/transform gesture exclusivity, fitted coordinate mapping and sheet diagnostics on actual Android and web devices.
+- [ ] Verify restored late sheet colours never migrate to different cut geometry, export settings persist, and pending generations remain non-exportable.

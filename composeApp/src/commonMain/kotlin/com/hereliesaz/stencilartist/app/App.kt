@@ -5,6 +5,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -52,6 +57,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -123,6 +129,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.collect
 
 /** The mats and papers a cutter file can be split across. */
 private val CUTTER_FITS = listOf(TileSpec.MAT_12X12, TileSpec.MAT_12X24, TileSpec.US_LETTER, TileSpec.A4, TileSpec.A3)
@@ -137,7 +148,7 @@ private fun oneDecimal(value: Float): String {
 /** Below this width the controls go under the preview instead of beside it. */
 private val WIDE_LAYOUT = 720.dp
 
-/** One decision per stage; all stages use the same in-memory processing and export state. */
+/** One decision per stage; all stages use the same processing and export state. */
 private val STUDIO_STEPS = listOf(
     "Image" to "Choose the image to stencil.",
     "Subject" to "Keep the whole frame or isolate the subject. Correct missed background and foreground by painting on the mask.",
@@ -172,23 +183,62 @@ fun App() {
         val catalogueLoader = rememberCatalogueLoader()
         val store = rememberKeyValueStore()
         val state = remember { StencilState(scope, SubjectIsolator(models), DepthEstimator(models), catalogueLoader, store, models) }
-        val pick = rememberImagePicker(onPicked = state::open, onError = state::fail)
+        val ui = remember { StudioUi() }
+        val workspace = rememberWorkspaceStore()
+        var ready by remember { mutableStateOf(false) }
+        LaunchedEffect(state, workspace) {
+            try {
+                val encoded = workspace.read()
+                if (encoded != null) {
+                    val checkpoint = withContext(Dispatchers.Default) { WorkspaceCodec.decode(encoded) }
+                    ui.restore(checkpoint.ui)
+                    state.restoreCheckpoint(checkpoint.stencil)
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                state.workspaceWarning = "Couldn't restore saved work: ${error.message.orEmpty()}"
+            } finally { ready = true }
+            // Snapshot immutable authoring values on the UI thread; storage writes are serialized.
+            snapshotFlow { state.checkpoint()?.let { WorkspaceSnapshot(it, ui.checkpoint()) } }
+                .onEach { state.workspaceSaved = false }.conflate().collect { checkpoint ->
+                    if (checkpoint != null) try {
+                        state.workspaceSaved = false
+                        withContext(NonCancellable) {
+                            val encoded = withContext(Dispatchers.Default) { WorkspaceCodec.encode(checkpoint) }
+                            workspace.write(encoded)
+                        }
+                        state.workspaceWarning = null
+                        state.workspaceSaved = state.checkpoint()?.let { WorkspaceSnapshot(it, ui.checkpoint()) } == checkpoint
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) {
+                        state.workspaceWarning = "Work not saved: ${error.message.orEmpty()}"
+                    }
+                }
+        }
+        val pick = rememberImagePicker(onPicked = { image ->
+            ui.newImage(image)
+            if (!state.removeBackground) ui.view = WorkspaceView.PREPARED
+            state.open(image)
+            state.showProcessed(true)
+        }, onError = state::fail)
         val notice = state.loadingNotice
 
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                BoxWithConstraints(
+                if (!ready) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Restoring workspace…") }
+                } else BoxWithConstraints(
                     Modifier.fillMaxSize().then(if (notice.visible) Modifier.blur(8.dp) else Modifier),
                 ) {
                     if (maxWidth >= WIDE_LAYOUT) {
                         Row(Modifier.fillMaxSize()) {
-                            Preview(state, pick, Modifier.weight(1f).fillMaxHeight())
-                            Controls(state, pick, Modifier.width(370.dp).fillMaxHeight())
+                            Workspace(state, ui, pick, Modifier.weight(1f).fillMaxHeight())
+                            Controls(state, ui, pick, Modifier.width(370.dp).fillMaxHeight())
                         }
                     } else {
                         Column(Modifier.fillMaxSize()) {
-                            Preview(state, pick, Modifier.weight(1f).fillMaxWidth())
-                            Controls(state, pick, Modifier.weight(1f).fillMaxWidth())
+                            Workspace(state, ui, pick, Modifier.weight(1f).fillMaxWidth())
+                            Controls(state, ui, pick, Modifier.weight(1f).fillMaxWidth())
                         }
                     }
                 }
@@ -207,6 +257,290 @@ fun App() {
         }
     }
 }
+
+/** Views are contextual; only the shared upper workspace displays the image or stencil. */
+internal enum class WorkspaceView(val label: String) {
+    PREVIEW("Preview"), PREPARED("Prepared"), MASKING("Masking"), LAYERS("Layers"),
+    DEPTH("Depth"), FALSE_COLOUR("False colour"), SHADED("Shaded relief"),
+    ORBIT("Orbit"), OCCLUSION("Occlusion"), CUT_RISKS("Cut risks"),
+}
+private val DEPTH_VIEWS = listOf(WorkspaceView.DEPTH, WorkspaceView.FALSE_COLOUR, WorkspaceView.SHADED)
+
+/** One owner for drafts and workflow controls, independent of screen size or active tab. */
+private class StudioUi {
+    val print = PrintSettings()
+    var step: Int by mutableStateOf(0)
+    var view: WorkspaceView by mutableStateOf(WorkspaceView.PREVIEW)
+    var maskDraft: List<MaskStroke> by mutableStateOf(emptyList())
+    var depthDraft: DepthEdits by mutableStateOf(DepthEdits())
+    var maskRestore: Boolean by mutableStateOf(false)
+    var maskOverlay: Boolean by mutableStateOf(true)
+    var maskRadius: Float by mutableStateOf(1f)
+    var maskRegion: Boolean by mutableStateOf(true)
+    var depthMode: DepthBrush by mutableStateOf(DepthBrush.RAISE)
+    var depthRadius: Float by mutableStateOf(1f)
+    var depthStrength: Float by mutableStateOf(.25f)
+    var depthHardness: Float by mutableStateOf(.75f)
+    var depthTarget: Float by mutableStateOf(.5f)
+    var yaw: Float by mutableStateOf(35f)
+    var pitch: Float by mutableStateOf(20f)
+    var printWidthMm: Float by mutableStateOf(203.2f)
+    var safeBridgeWidthMm: Float by mutableStateOf(1.5f)
+    var cutterFormat: CutterFormat by mutableStateOf(CutterFormat.SVG)
+    var cutterFitChoice: Int by mutableStateOf(-1)
+    var cutterCustomWidthMm: Double by mutableStateOf(304.8)
+    var cutterCustomHeightMm: Double by mutableStateOf(304.8)
+    var cutterRollWidthMm: Double by mutableStateOf(304.8)
+    var cutterEdgeMm: Double by mutableStateOf(6.35)
+    var cutterOverlapMm: Double by mutableStateOf(10.0)
+    var cutterCutLines: Boolean by mutableStateOf(true)
+    var gcodeLaser: Boolean by mutableStateOf(true)
+    var gcodeFeed: Double by mutableStateOf(1200.0)
+    var gcodeTravel: Double by mutableStateOf(6000.0)
+    var gcodePower: Double by mutableStateOf(1000.0)
+    var gcodePasses: Int by mutableStateOf(1)
+    var gcodeSafeZ: Double by mutableStateOf(5.0)
+    var gcodeCutZ: Double by mutableStateOf(-1.0)
+    fun newImage(image: RgbaImage) {
+        step = 1; view = WorkspaceView.MASKING
+        maskDraft = emptyList(); depthDraft = DepthEdits()
+        maskRadius = (maxOf(image.width, image.height) / 80f).coerceAtLeast(1f)
+        depthRadius = (maxOf(image.width, image.height) / 40f).coerceAtLeast(1f)
+        maskRestore = false; maskOverlay = true; maskRegion = true; depthMode = DepthBrush.RAISE
+        yaw = 35f; pitch = 20f
+    }
+    fun checkpoint(): StudioUiSnapshot = StudioUiSnapshot(
+        step = step,
+        view = view,
+        maskDraft = maskDraft,
+        depthDraft = depthDraft,
+        maskRestore = maskRestore,
+        maskOverlay = maskOverlay,
+        maskRadius = maskRadius,
+        maskRegion = maskRegion,
+        depthMode = depthMode,
+        depthRadius = depthRadius,
+        depthStrength = depthStrength,
+        depthHardness = depthHardness,
+        depthTarget = depthTarget,
+        yaw = yaw,
+        pitch = pitch,
+        printWidthMm = printWidthMm,
+        safeBridgeWidthMm = safeBridgeWidthMm,
+        cutterFormat = cutterFormat,
+        cutterFitChoice = cutterFitChoice,
+        cutterCustomWidthMm = cutterCustomWidthMm,
+        cutterCustomHeightMm = cutterCustomHeightMm,
+        cutterRollWidthMm = cutterRollWidthMm,
+        cutterEdgeMm = cutterEdgeMm,
+        cutterOverlapMm = cutterOverlapMm,
+        cutterCutLines = cutterCutLines,
+        gcodeLaser = gcodeLaser,
+        gcodeFeed = gcodeFeed,
+        gcodeTravel = gcodeTravel,
+        gcodePower = gcodePower,
+        gcodePasses = gcodePasses,
+        gcodeSafeZ = gcodeSafeZ,
+        gcodeCutZ = gcodeCutZ,
+        paper = print.paper,
+        customWidthMm = print.customWidthMm,
+        customHeightMm = print.customHeightMm,
+        landscape = print.landscape,
+        mountMode = print.mountMode,
+        boardWidthIn = print.boardWidthIn,
+        boardHeightIn = print.boardHeightIn,
+        borderIn = print.borderIn,
+    )
+    fun restore(saved: StudioUiSnapshot) {
+        step = saved.step
+        view = saved.view
+        maskDraft = saved.maskDraft
+        depthDraft = saved.depthDraft
+        maskRestore = saved.maskRestore
+        maskOverlay = saved.maskOverlay
+        maskRadius = saved.maskRadius
+        maskRegion = saved.maskRegion
+        depthMode = saved.depthMode
+        depthRadius = saved.depthRadius
+        depthStrength = saved.depthStrength
+        depthHardness = saved.depthHardness
+        depthTarget = saved.depthTarget
+        yaw = saved.yaw
+        pitch = saved.pitch
+        printWidthMm = saved.printWidthMm
+        safeBridgeWidthMm = saved.safeBridgeWidthMm
+        cutterFormat = saved.cutterFormat
+        cutterFitChoice = saved.cutterFitChoice
+        cutterCustomWidthMm = saved.cutterCustomWidthMm
+        cutterCustomHeightMm = saved.cutterCustomHeightMm
+        cutterRollWidthMm = saved.cutterRollWidthMm
+        cutterEdgeMm = saved.cutterEdgeMm
+        cutterOverlapMm = saved.cutterOverlapMm
+        cutterCutLines = saved.cutterCutLines
+        gcodeLaser = saved.gcodeLaser
+        gcodeFeed = saved.gcodeFeed
+        gcodeTravel = saved.gcodeTravel
+        gcodePower = saved.gcodePower
+        gcodePasses = saved.gcodePasses
+        gcodeSafeZ = saved.gcodeSafeZ
+        gcodeCutZ = saved.gcodeCutZ
+        print.paper = saved.paper
+        print.customWidthMm = saved.customWidthMm
+        print.customHeightMm = saved.customHeightMm
+        print.landscape = saved.landscape
+        print.mountMode = saved.mountMode
+        print.boardWidthIn = saved.boardWidthIn
+        print.boardHeightIn = saved.boardHeightIn
+        print.borderIn = saved.borderIn
+    }
+}
+
+/** Context tabs are derived from stage and enabled tools; a temporary generation never erases the selected tab. */
+@Composable
+private fun Workspace(state: StencilState, ui: StudioUi, pick: () -> Unit, modifier: Modifier) {
+    val source = state.source
+    val views = buildList {
+        add(WorkspaceView.PREVIEW)
+        if (source != null) {
+            add(WorkspaceView.PREPARED)
+            if (ui.step == 1 && state.removeBackground) add(WorkspaceView.MASKING)
+            if (ui.step == 3) {
+                addAll(DEPTH_VIEWS)
+                if (state.lighting.enabled) { add(WorkspaceView.ORBIT); add(WorkspaceView.OCCLUSION) }
+            }
+            add(WorkspaceView.LAYERS)
+            if (ui.step == 6) add(WorkspaceView.CUT_RISKS)
+        }
+    }
+    val active = ui.view.takeIf { it in views } ?: WorkspaceView.PREVIEW
+    Column(modifier) {
+        if (source != null) {
+            val status = state.workspaceWarning ?: if (state.workspaceSaved) "Workspace saved" else "Saving workspace…"
+            Text(status, modifier = Modifier.padding(horizontal = 8.dp).semantics { contentDescription = status },
+                style = MaterialTheme.typography.labelSmall,
+                color = if (state.workspaceWarning == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
+        }
+        LazyRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(views.size) { index ->
+                val tab = views[index]
+                Choice(tab.label, active == tab) {
+                    ui.view = tab
+                    when (tab) {
+                        WorkspaceView.PREVIEW -> state.showProcessed(false)
+                        WorkspaceView.PREPARED -> state.showProcessed(true)
+                        else -> Unit
+                    }
+                }
+            }
+        }
+        when (active) {
+            WorkspaceView.PREVIEW, WorkspaceView.PREPARED -> Preview(state, pick, Modifier.weight(1f).fillMaxWidth())
+            WorkspaceView.MASKING -> {
+                val automatic = state.automaticMask
+                if (source == null || automatic == null) WorkspacePlaceholder("Waiting for subject mask", Modifier.weight(1f))
+                else {
+                    val strokes = ui.maskDraft; val overlay = ui.maskOverlay
+                    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, source, automatic, strokes, overlay) {
+                        value = null
+                        val rendered = withContext(Dispatchers.Default) {
+                            val corrected = MaskCorrections.apply(source, automatic, strokes).image
+                            if (overlay) MaskCorrections.overlay(source, corrected) else corrected
+                        }
+                        value = argbToImageBitmap(rendered.pixels, rendered.width, rendered.height)
+                    }
+                    ImageBrushCanvas(source, bitmap, ui.maskRadius,
+                        if (ui.maskRestore) Color(0xAA34C983) else Color(0xAAFF1830),
+                        if (ui.maskRegion) "Subject mask area selection. Tap a region; zoom and pan with two fingers."
+                        else "Subject mask painting area. Paint with one finger; zoom and pan with two.",
+                        Modifier.weight(1f).fillMaxWidth(), tapRegion = ui.maskRegion) {
+                        ui.maskDraft = ui.maskDraft + MaskStroke(it, ui.maskRadius, ui.maskRestore, region = ui.maskRegion)
+                    }
+                }
+            }
+            WorkspaceView.DEPTH, WorkspaceView.FALSE_COLOUR, WorkspaceView.SHADED -> {
+                val subject = state.depthSubject; val inferred = state.inferredDepth
+                if (subject == null || inferred == null) WorkspacePlaceholder("Load estimated depth in Light", Modifier.weight(1f))
+                else {
+                    val draft = ui.depthDraft
+                    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, subject, inferred, draft, active) {
+                        delay(100)
+                        val image = withContext(Dispatchers.Default) {
+                            if (active == WorkspaceView.SHADED) DepthLighting.relight(subject, draft.apply(inferred, subject),
+                                LightingParams(enabled = true, flatMatteMix = 1f, elevation = 35f, ambient = .2f, intensity = 1f))
+                            else draft.preview(inferred, subject, active == WorkspaceView.FALSE_COLOUR)
+                        }
+                        value = argbToImageBitmap(image.pixels, image.width, image.height)
+                    }
+                    ImageBrushCanvas(subject, bitmap, ui.depthRadius, Color(0xAA14D6CF), "Depth painting area",
+                        Modifier.weight(1f).fillMaxWidth()) {
+                        ui.depthDraft = ui.depthDraft.copy(strokes = ui.depthDraft.strokes +
+                            DepthStroke(it, ui.depthRadius, ui.depthMode, ui.depthStrength, ui.depthHardness, ui.depthTarget))
+                    }
+                }
+            }
+            WorkspaceView.ORBIT, WorkspaceView.OCCLUSION -> {
+                val scene = state.reliefScene; val light = state.lighting
+                val yaw = ui.yaw; val pitch = ui.pitch; val shadowOnly = active == WorkspaceView.OCCLUSION
+                if (scene == null) WorkspacePlaceholder("Waiting for relief scene", Modifier.weight(1f))
+                else {
+                    val effects = state.preparedAdjustments
+                    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, scene, light, yaw, pitch, shadowOnly, effects) {
+                        value = null
+                        delay(80)
+                        val rendered = withContext(Dispatchers.Default) {
+                            val image = scene.renderOrbit(light, yaw, pitch, shadowOnly)
+                            if (shadowOnly) image else effects.apply(image)
+                        }
+                        value = argbToImageBitmap(rendered.pixels, rendered.width, rendered.height)
+                    }
+                    bitmap?.let { DiagnosticImage(it, active.label, Modifier.weight(1f).fillMaxWidth()) }
+                        ?: WorkspacePlaceholder("Rendering ${active.label}", Modifier.weight(1f))
+                }
+            }
+            WorkspaceView.LAYERS, WorkspaceView.CUT_RISKS -> {
+                val stencil = state.separation
+                val sheet = state.shownSheet
+                if (stencil == null) WorkspacePlaceholder("Waiting for the current stencil", Modifier.weight(1f))
+                else {
+                    SheetStrip(stencil.sheets, sheet, state::show, alwaysScroll = true)
+                    if (active == WorkspaceView.CUT_RISKS) {
+                        if (sheet == null || sheet !in stencil.sheets.indices) WorkspacePlaceholder("Select an individual sheet", Modifier.weight(1f))
+                        else key(stencil, sheet, ui.printWidthMm, ui.safeBridgeWidthMm) {
+                            CutInspectionView(stencil, sheet, ui.printWidthMm.toDouble(), ui.safeBridgeWidthMm.toDouble())
+                        }
+                    } else {
+                        val bitmap = remember(stencil, sheet) { argbToImageBitmap(stencil.render(sheet), stencil.width, stencil.height) }
+                        DiagnosticImage(bitmap, sheet?.let { "Sheet ${it + 1}" } ?: "Finished stencil", Modifier.weight(1f).fillMaxWidth())
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkspacePlaceholder(message: String, modifier: Modifier) {
+    Box(modifier.fillMaxWidth().checkerboard(), contentAlignment = Alignment.Center) { Text(message) }
+}
+
+/** Zoomable non-painting diagnostic viewer using the same fitted pane as the comparison. */
+@Composable
+private fun DiagnosticImage(bitmap: androidx.compose.ui.graphics.ImageBitmap, label: String, modifier: Modifier) {
+    var zoom by remember(bitmap.width, bitmap.height) { mutableFloatStateOf(1f) }
+    var pan by remember(bitmap.width, bitmap.height) { mutableStateOf(Offset.Zero) }
+    PreviewPane(label, bitmap, zoom, pan, { centroid, factor, delta, bounds ->
+        val next = (zoom * factor).coerceIn(1f, 8f)
+        val ratio = next / zoom
+        val focus = centroid - Offset(bounds.width / 2f, bounds.height / 2f)
+        val moved = pan * ratio + focus * (1f - ratio) + delta
+        val fitted = minOf(bounds.width.toFloat() / bitmap.width, bounds.height.toFloat() / bitmap.height) * next
+        val x = maxOf(0f, (bitmap.width * fitted - bounds.width) / 2f)
+        val y = maxOf(0f, (bitmap.height * fitted - bounds.height) / 2f)
+        pan = Offset(moved.x.coerceIn(-x, x), moved.y.coerceIn(-y, y)); zoom = next
+    }, {}, modifier)
+}
+
 
 /**
  * A permanent comparison workspace. Source and generated result share the same zoom and pan,
@@ -268,7 +602,9 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
                     Choice("Single", selected = !split) { split = false }
                 }
             }
-            val result = state.preview
+            val stencil = state.separation
+            val composite = remember(stencil) { stencil?.let { argbToImageBitmap(it.render(), it.width, it.height) } }
+            val result = if (state.viewProcessedImage) state.preview else composite ?: state.preview
             if (result == null) {
                 Box(Modifier.weight(1f).fillMaxWidth().checkerboard(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
@@ -281,7 +617,7 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
                 }
             } else {
                 val resultLabel = if (state.viewProcessedImage) "PREPARED IMAGE"
-                    else state.shownSheet?.let { "SHEET ${it + 1}" } ?: "FINISHED STENCIL"
+                    else "FINISHED STENCIL"
                 if (split && sourceBitmap != null) {
                     Row(Modifier.weight(1f).fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -360,31 +696,13 @@ private fun PreviewPane(
 }
 
 @Composable
-private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) {
+private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifier: Modifier) = with(ui) {
     val tone = state.toneParams
     val colour = state.colorParams
     val saver = rememberFileSaver()
     val stencilSharer = rememberStencilPackSharer()
     val exportScope = rememberCoroutineScope()
-    var printWidthMm by remember { mutableFloatStateOf(203.2f) }
-    var safeBridgeWidthMm by remember { mutableFloatStateOf(1.5f) }
     var exporting by remember { mutableStateOf<String?>(null) }
-    var cutterFormat by remember { mutableStateOf(CutterFormat.SVG) }
-    // -1: whole, 0..presets.lastIndex: preset, presets.size: custom mat, +1: roll.
-    var cutterFitChoice by remember { mutableIntStateOf(-1) }
-    var cutterCustomWidthMm by remember { mutableDoubleStateOf(304.8) }
-    var cutterCustomHeightMm by remember { mutableDoubleStateOf(304.8) }
-    var cutterRollWidthMm by remember { mutableDoubleStateOf(304.8) }
-    var cutterEdgeMm by remember { mutableDoubleStateOf(6.35) }
-    var cutterOverlapMm by remember { mutableDoubleStateOf(10.0) }
-    var cutterCutLines by remember { mutableStateOf(true) }
-    var gcodeLaser by remember { mutableStateOf(true) }
-    var gcodeFeed by remember { mutableDoubleStateOf(1200.0) }
-    var gcodeTravel by remember { mutableDoubleStateOf(6000.0) }
-    var gcodePower by remember { mutableDoubleStateOf(1000.0) }
-    var gcodePasses by remember { mutableIntStateOf(1) }
-    var gcodeSafeZ by remember { mutableDoubleStateOf(5.0) }
-    var gcodeCutZ by remember { mutableDoubleStateOf(-1.0) }
     // A temporarily blank or malformed number must not silently export its previous value.
     var invalidCutterDrafts by remember { mutableStateOf(emptySet<String>()) }
     val recordCutterDraft: (String, String, Boolean) -> Unit = { field, raw, whole ->
@@ -393,10 +711,6 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             (!whole || (number in 1.0..1000.0 && number == number.toInt().toDouble()))
         invalidCutterDrafts = if (valid) invalidCutterDrafts - field else invalidCutterDrafts + field
     }
-    val print = remember { PrintSettings() }
-    var step by remember { mutableIntStateOf(0) }
-    var maskDraft by remember(state.source, state.maskStrokes) { mutableStateOf(state.maskStrokes) }
-    var depthDraft by remember(state.source, state.depthEdits) { mutableStateOf(state.depthEdits) }
     var advancedLight by remember { mutableStateOf(false) }
     var advancedEdges by remember { mutableStateOf(false) }
     val stepScroll = rememberScrollState()
@@ -408,14 +722,14 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             state.fail("Apply or discard your depth edits before leaving Light.")
         } else if (next <= 0 || state.source != null) {
             step = next.coerceIn(STUDIO_STEPS.indices)
+            view = when {
+                step == 1 && state.removeBackground -> WorkspaceView.MASKING
+                step == 1 || step == 3 || step == 4 -> WorkspaceView.PREPARED
+                else -> WorkspaceView.PREVIEW
+            }
             if (step == 1 || step == 3 || step == 4) state.showProcessed(true) else state.show(state.shownSheet)
         }
     }
-    LaunchedEffect(state.source) {
-        // Image selection leads immediately to subject isolation, before choosing paints.
-        if (state.source != null) { step = 1; state.showProcessed(true) }
-    }
-
     // The Android picker completes asynchronously. Keep every export control locked until the
     // result callback, not merely until the file bytes have been passed to the picker.
     fun startExport(label: String, build: (Separation) -> ExportFile) {
@@ -494,34 +808,13 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             Text(if (state.source == null) "Open image" else "Open another image")
         }
         }
+        state.workspaceWarning?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium) }
 
-        if (step == 6) Section("Show") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Choice("Stencil", selected = !state.viewProcessedImage, modifier = Modifier.weight(1f)) {
-                    state.show(state.shownSheet)
-                }
-                Choice("Base image", selected = state.viewProcessedImage, modifier = Modifier.weight(1f)) {
-                    state.showProcessed(true)
-                }
-            }
-            SheetStrip(state.separation?.sheets.orEmpty(), state.shownSheet, state::show)
-        }
-
-        if (step == 6) Section("Cut inspection") {
-            var inspect by remember { mutableStateOf(false) }
-            Choice("Show cut risks", inspect) { inspect = !inspect }
-            if (inspect) {
-                LabelledSlider("Final width", printWidthMm.roundToInt().toString() + " mm", printWidthMm, 50f..1000f) { printWidthMm = it }
-                LabelledSlider("Minimum safe stock bridge", oneDecimal(safeBridgeWidthMm) + " mm", safeBridgeWidthMm, .5f..5f) { safeBridgeWidthMm = it }
-                val stencil = state.separation
-                val sheet = state.shownSheet
-                if (stencil == null || state.busy) Text("Waiting for the current stencil.")
-                else if (sheet == null) Text("Select an individual sheet above to inspect its actual openings.")
-                else key(stencil, sheet, printWidthMm, safeBridgeWidthMm) {
-                    CutInspectionView(stencil, sheet, printWidthMm.toDouble(), safeBridgeWidthMm.toDouble())
-                }
-            }
+        if (step == 6 && view == WorkspaceView.CUT_RISKS) Section("Cut inspection") {
+            LabelledSlider("Final width", printWidthMm.roundToInt().toString() + " mm", printWidthMm, 50f..1000f) { printWidthMm = it }
+            LabelledSlider("Minimum safe stock bridge", oneDecimal(safeBridgeWidthMm) + " mm", safeBridgeWidthMm, .5f..5f) { safeBridgeWidthMm = it }
+            Text("Select a sheet in the workspace above to inspect its actual openings.", style = MaterialTheme.typography.bodySmall)
         }
 
         if (step == 1) Section("Background") {
@@ -529,9 +822,9 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DecisionCard("Cut out subject", "Keep the subject; remove surrounding scenery.",
-                    state.removeBackground, Modifier.weight(1f)) { state.removeBackground(true) }
+                    state.removeBackground, Modifier.weight(1f)) { view = WorkspaceView.MASKING; state.removeBackground(true) }
                 DecisionCard("Keep the frame", "Stencil the entire image, including its background.",
-                    !state.removeBackground, Modifier.weight(1f)) { state.removeBackground(false) }
+                    !state.removeBackground, Modifier.weight(1f)) { view = WorkspaceView.PREVIEW; state.removeBackground(false) }
             }
             if (state.removeBackground) {
                 Text("AT THE OUTLINE", style = MaterialTheme.typography.labelSmall,
@@ -549,7 +842,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             val source = state.source
             val automatic = state.automaticMask
             if (source != null && automatic != null) Section("Correct subject mask") {
-                SubjectMaskEditor(source, automatic, maskDraft, state.maskStrokes, { maskDraft = it }) {
+                SubjectMaskControls(source, ui, state.maskStrokes) {
                     state.updateMaskEdits(source, maskDraft)
                 }
             }
@@ -637,31 +930,10 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 }
             }
             if (light.enabled) {
-                var yaw by remember(state.source) { mutableFloatStateOf(35f) }
-                var pitch by remember(state.source) { mutableFloatStateOf(20f) }
-                var shadowOnly by remember(state.source) { mutableStateOf(false) }
                 val scene = state.reliefScene
                 if (scene != null && !state.busy) {
-                    val orbit by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, scene, light, yaw, pitch, shadowOnly, state.preparedAdjustments) {
-                        value = null
-                        delay(80)
-                        val effects = state.preparedAdjustments
-                        val rendered = withContext(Dispatchers.Default) {
-                            val orbitImage = scene.renderOrbit(light, yaw, pitch, shadowOnly)
-                            if (shadowOnly) orbitImage else effects.apply(orbitImage)
-                        }
-                        value = argbToImageBitmap(rendered.pixels, rendered.width, rendered.height)
-                    }
-                    Box(Modifier.fillMaxWidth().height(200.dp).checkerboard(), contentAlignment = Alignment.Center) {
-                        orbit?.let { Image(it, contentDescription = "Orbit view of the extruded 3D subject",
-                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
-                    }
-                    LabelledSlider("Orbit yaw", yaw.roundToInt().toString() + "°", yaw, -180f..180f) { yaw = it }
-                    LabelledSlider("Orbit pitch", pitch.roundToInt().toString() + "°", pitch, -80f..80f) { pitch = it }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Choice("Combined", !shadowOnly) { shadowOnly = false }
-                        Choice("Occlusion", shadowOnly) { shadowOnly = true }
-                    }
+                    LabelledSlider("Orbit yaw", yaw.roundToInt().toString() + "°", yaw, -180f..180f) { yaw = it; if (view != WorkspaceView.OCCLUSION) view = WorkspaceView.ORBIT }
+                    LabelledSlider("Orbit pitch", pitch.roundToInt().toString() + "°", pitch, -80f..80f) { pitch = it; if (view != WorkspaceView.OCCLUSION) view = WorkspaceView.ORBIT }
                     Text("Orbit and occlusion views are diagnostic only; the stencil uses the frontal combined render.", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -716,12 +988,12 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             val subject = state.depthSubject
             val inferred = state.inferredDepth
             if (original != null && subject != null && inferred != null) {
-                DepthGeometryEditor(subject, inferred, depthDraft, state.depthEdits, { depthDraft = it }) {
+                DepthGeometryControls(subject, ui, state.depthEdits) {
                     state.updateDepthEdits(original, depthDraft)
                 }
             } else if (!state.busy && original != null) {
                 Text("Load estimated depth to paint and shape the relief, without changing your subject or palette.")
-                OutlinedButton(onClick = state::requestDepth) { Text("Load depth") }
+                OutlinedButton(onClick = { view = WorkspaceView.DEPTH; state.requestDepth() }) { Text("Load depth") }
             }
         }
 
@@ -1439,64 +1711,51 @@ internal fun Section(title: String, content: @Composable () -> Unit) {
 /** A non-destructive mask editor with explicit batch apply, so a drag never launches inference.
  * Zoom and pan affect both bitmap and brush coordinates. Pending edits are retained by Controls. */
 @Composable
-private fun SubjectMaskEditor(
-    source: RgbaImage, automatic: RgbaImage, strokes: List<MaskStroke>, committed: List<MaskStroke>,
-    onEdit: (List<MaskStroke>) -> Unit, onApply: () -> Unit,
-) {
-    var restore by remember { mutableStateOf(false) }
-    var overlay by remember { mutableStateOf(true) }
-    var radius by remember(source) { mutableFloatStateOf((maxOf(source.width, source.height) / 80f).coerceAtLeast(1f)) }
-    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, source, automatic, strokes, overlay) {
-        val rendered = withContext(Dispatchers.Default) {
-            val corrected = MaskCorrections.apply(source, automatic, strokes).image
-            if (overlay) MaskCorrections.overlay(source, corrected) else corrected
-        }
-        value = argbToImageBitmap(rendered.pixels, rendered.width, rendered.height)
-    }
-    Text("Red marks excluded background. Remove missed background or restore missed subject. Apply before continuing.",
+private fun SubjectMaskControls(source: RgbaImage, ui: StudioUi, committed: List<MaskStroke>, onApply: () -> Unit) = with(ui) {
+    Text("Red marks excluded background. Tap an area to select it, or use Brush for precise corrections. Two fingers zoom and pan. Apply before continuing.",
         style = MaterialTheme.typography.bodySmall)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Choice("Remove", !restore) { restore = false }
-        Choice("Restore", restore) { restore = true }
-        Choice("Red overlay", overlay) { overlay = true }
-        Choice("Cutout", !overlay) { overlay = false }
+        Choice("Select area", maskRegion) { maskRegion = true; view = WorkspaceView.MASKING }
+        Choice("Brush", !maskRegion) { maskRegion = false; view = WorkspaceView.MASKING }
+        Choice("Remove", !maskRestore) { maskRestore = false; view = WorkspaceView.MASKING }
+        Choice("Restore", maskRestore) { maskRestore = true; view = WorkspaceView.MASKING }
+        Choice("Red overlay", maskOverlay) { maskOverlay = true; view = WorkspaceView.MASKING }
+        Choice("Cutout", !maskOverlay) { maskOverlay = false; view = WorkspaceView.MASKING }
     }
-    LabelledSlider("Brush radius", radius.roundToInt().toString() + " px", radius,
-        1f..maxOf(2f, maxOf(source.width, source.height) / 5f)) { radius = it }
-    ImageBrushCanvas(source, bitmap, radius, if (restore) Color(0xAA34C983) else Color(0xAAFF1830),
-        "Subject mask painting area. Paint to remove or restore the original image.") {
-        onEdit(strokes + MaskStroke(it, radius, restore))
-    }
+    if (!maskRegion) LabelledSlider("Brush radius", maskRadius.roundToInt().toString() + " px", maskRadius,
+        1f..maxOf(2f, maxOf(source.width, source.height) / 5f)) { maskRadius = it }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        OutlinedButton(onClick = { onEdit(strokes.dropLast(1)) }, enabled = strokes.isNotEmpty()) { Text("Undo stroke") }
-        OutlinedButton(onClick = { onEdit(emptyList()) }, enabled = strokes.isNotEmpty()) { Text("Reset to automatic") }
-        OutlinedButton(onClick = { onEdit(committed) }, enabled = strokes != committed) { Text("Discard draft") }
-        Button(onClick = onApply, enabled = strokes != committed) { Text("Apply mask") }
+        OutlinedButton(onClick = { maskDraft = maskDraft.dropLast(1) }, enabled = maskDraft.isNotEmpty()) { Text("Undo edit") }
+        OutlinedButton(onClick = { maskDraft = emptyList() }, enabled = maskDraft.isNotEmpty()) { Text("Reset to automatic") }
+        OutlinedButton(onClick = { maskDraft = committed }, enabled = maskDraft != committed) { Text("Discard draft") }
+        Button(onClick = onApply, enabled = maskDraft != committed) { Text("Apply mask") }
     }
 }
 
-/** Shared image-space brush surface. Fitted zoom/pan and pointer mapping are identical for
- * subject masking and depth painting. One completed gesture produces one stroke. */
+/** Shared image-space editor. A second finger cancels the pending brush stroke and owns the
+ * entire remaining gesture, even after it lifts. Pinch/pan never commits paint or a region.
+ * Region mode accepts only a tap within touch slop; brush mode retains swept strokes. */
 @Composable
 private fun ImageBrushCanvas(source: RgbaImage, bitmap: androidx.compose.ui.graphics.ImageBitmap?,
-    radius: Float, indicator: Color, description: String, onStroke: (List<MaskPoint>) -> Unit) {
+    radius: Float, indicator: Color, description: String, modifier: Modifier,
+    tapRegion: Boolean = false, onStroke: (List<MaskPoint>) -> Unit) {
     var zoom by remember(source) { mutableFloatStateOf(1f) }
-    var panX by remember(source) { mutableFloatStateOf(0f) }
-    var panY by remember(source) { mutableFloatStateOf(0f) }
-    var active by remember { mutableStateOf(emptyList<MaskPoint>()) }
+    var pan by remember(source) { mutableStateOf(Offset.Zero) }
+    var active by remember(source) { mutableStateOf(emptyList<MaskPoint>()) }
     val commit by rememberUpdatedState(onStroke)
-    LabelledSlider("Brush zoom", oneDecimal(zoom) + "×", zoom, 1f..6f) { zoom = it }
-    if (zoom > 1f) {
-        LabelledSlider("Pan horizontal", oneDecimal(panX), panX, -1f..1f) { panX = it }
-        LabelledSlider("Pan vertical", oneDecimal(panY), panY, -1f..1f) { panY = it }
+    fun clamp(at: Offset, scale: Float, bounds: IntSize): Offset {
+        val fitted = minOf(bounds.width.toFloat() / source.width, bounds.height.toFloat() / source.height) * scale
+        val maxX = maxOf(0f, (source.width * fitted - bounds.width) / 2f)
+        val maxY = maxOf(0f, (source.height * fitted - bounds.height) / 2f)
+        return Offset(at.x.coerceIn(-maxX, maxX), at.y.coerceIn(-maxY, maxY))
     }
     fun imageRect(bounds: IntSize): Pair<IntOffset, IntSize> {
         val scale = minOf(bounds.width.toFloat() / source.width, bounds.height.toFloat() / source.height) * zoom
         val w = (source.width * scale).roundToInt().coerceAtLeast(1)
         val h = (source.height * scale).roundToInt().coerceAtLeast(1)
-        val x = (bounds.width - w) / 2f + maxOf(0, w - bounds.width) / 2f * panX
-        val y = (bounds.height - h) / 2f + maxOf(0, h - bounds.height) / 2f * panY
-        return IntOffset(x.roundToInt(), y.roundToInt()) to IntSize(w, h)
+        val at = clamp(pan, zoom, bounds)
+        return IntOffset(((bounds.width - w) / 2f + at.x).roundToInt(),
+            ((bounds.height - h) / 2f + at.y).roundToInt()) to IntSize(w, h)
     }
     fun toImage(at: Offset, bounds: IntSize): MaskPoint {
         val (offset, extent) = imageRect(bounds)
@@ -1504,36 +1763,60 @@ private fun ImageBrushCanvas(source: RgbaImage, bitmap: androidx.compose.ui.grap
             (at.y - offset.y) * source.height / extent.height)
     }
     fun inside(p: MaskPoint) = p.x >= 0 && p.y >= 0 && p.x < source.width && p.y < source.height
-    Canvas(Modifier.fillMaxWidth().height(320.dp).clipToBounds().checkerboard()
+    Canvas(modifier.clipToBounds().checkerboard()
+        .onSizeChanged { pan = clamp(pan, zoom, it) }
         .semantics { contentDescription = description }
-        .pointerInput(source, radius, zoom, panX, panY, indicator) {
-            detectTapGestures { at ->
-                val p = toImage(at, size)
-                if (inside(p)) commit(listOf(p))
-            }
-        }
-        .pointerInput(source, radius, zoom, panX, panY, indicator) {
-            detectDragGestures(
-                onDragStart = { at -> val p = toImage(at, size); active = if (inside(p)) listOf(p) else emptyList() },
-                onDragEnd = {
-                    if (active.isNotEmpty()) commit(active)
-                    active = emptyList()
-                },
-                onDragCancel = { active = emptyList() },
-            ) { change, _ ->
-                change.consume()
-                if (active.isNotEmpty()) active = active + toImage(change.position, size)
+        .pointerInput(source, tapRegion) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                if (down.isConsumed) return@awaitEachGesture
+                val start = toImage(down.position, size)
+                active = if (inside(start)) listOf(start) else emptyList()
+                down.consume()
+                var navigating = false
+                var cancelled = false
+                var moved = false
+                try {
+                    do {
+                        val event = awaitPointerEvent()
+                        if (event.changes.any { it.isConsumed }) { cancelled = true; break }
+                        val count = event.changes.count { it.pressed || it.previousPressed }
+                        if (count >= 2) {
+                            navigating = true
+                            active = emptyList()
+                            if (event.changes.count { it.pressed && it.previousPressed } >= 2) {
+                                val factor = event.calculateZoom()
+                                val delta = event.calculatePan()
+                                val centroid = event.calculateCentroid(useCurrent = false)
+                                val next = (zoom * factor).coerceIn(1f, 8f)
+                                val ratio = next / zoom
+                                val focus = centroid - Offset(size.width / 2f, size.height / 2f)
+                                pan = clamp(pan * ratio + focus * (1f - ratio) + delta, next, size)
+                                zoom = next
+                            }
+                        } else if (!navigating && active.isNotEmpty()) {
+                            val change = event.changes.firstOrNull { it.id == down.id }
+                            if (change != null) {
+                                if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                                if (!tapRegion && change.position != change.previousPosition) {
+                                    active = active + toImage(change.position, size)
+                                }
+                            }
+                        }
+                        event.changes.forEach { it.consume() }
+                    } while (event.changes.any { it.pressed })
+                    if (!cancelled && !navigating && active.isNotEmpty() && (!tapRegion || !moved)) commit(active)
+                } finally { active = emptyList() }
             }
         }) {
         val (offset, extent) = imageRect(IntSize(size.width.roundToInt(), size.height.roundToInt()))
         bitmap?.let { drawImage(it, dstOffset = offset, dstSize = extent) }
-        val color = indicator
         val brushWidth = 2 * radius * extent.width / source.width
         fun screen(p: MaskPoint) = Offset(offset.x + p.x * extent.width / source.width,
             offset.y + p.y * extent.height / source.height)
         if (active.isNotEmpty()) {
-            drawCircle(color, brushWidth / 2f, screen(active.first()))
-            for (i in 1 until active.size) drawLine(color, screen(active[i - 1]), screen(active[i]),
+            drawCircle(indicator, if (tapRegion) 4.dp.toPx() else brushWidth / 2f, screen(active.first()))
+            for (i in 1 until active.size) drawLine(indicator, screen(active[i - 1]), screen(active[i]),
                 strokeWidth = brushWidth, cap = StrokeCap.Round)
         }
     }
@@ -1541,41 +1824,20 @@ private fun ImageBrushCanvas(source: RgbaImage, bitmap: androidx.compose.ui.grap
 
 /** Draft-only depth editor; preview computation never changes the current separation. */
 @Composable
-private fun DepthGeometryEditor(subject: RgbaImage, inferred: FloatArray, draft: DepthEdits,
-    committed: DepthEdits, onEdit: (DepthEdits) -> Unit, onApply: () -> Unit) {
-    var mode by remember { mutableStateOf(DepthBrush.RAISE) }
-    var radius by remember(subject.width, subject.height) { mutableFloatStateOf((maxOf(subject.width, subject.height) / 40f).coerceAtLeast(1f)) }
-    var strength by remember { mutableFloatStateOf(.25f) }
-    var hardness by remember { mutableFloatStateOf(.75f) }
-    var target by remember { mutableFloatStateOf(.5f) }
-    var view by remember { mutableIntStateOf(0) }
-    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, subject, inferred, draft, view) {
-        delay(100)
-        val result = withContext(Dispatchers.Default) {
-            if (view == 2) {
-                val map = draft.apply(inferred, subject)
-                DepthLighting.relight(subject, map, LightingParams(enabled = true, flatMatteMix = 1f,
-                    elevation = 35f, ambient = .2f, intensity = 1f))
-            } else draft.preview(inferred, subject, view == 1)
-        }
-        value = argbToImageBitmap(result.pixels, result.width, result.height)
-    }
-    Text("Paint relative height, not colour. White or warm is closer. The shaded view is a diagnostic; Apply updates both lighting paths.", style = MaterialTheme.typography.bodySmall)
+private fun DepthGeometryControls(subject: RgbaImage, ui: StudioUi,
+    committed: DepthEdits, onApply: () -> Unit) = with(ui) {
+    val draft = depthDraft
+    val onEdit: (DepthEdits) -> Unit = { depthDraft = it; if (view !in DEPTH_VIEWS) view = WorkspaceView.DEPTH }
+    Text("Paint relative height, not colour. Use one finger to paint, two to move or zoom. Apply updates both lighting paths.", style = MaterialTheme.typography.bodySmall)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((i, name) in listOf("Depth", "False colour", "Shaded relief").withIndex()) Choice(name, view == i) { view = i }
+        for (brush in DepthBrush.entries) Choice(brush.name.lowercase().replaceFirstChar { it.uppercase() }, depthMode == brush) { depthMode = brush; if (view !in DEPTH_VIEWS) view = WorkspaceView.DEPTH }
     }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (brush in DepthBrush.entries) Choice(brush.name.lowercase().replaceFirstChar { it.uppercase() }, mode == brush) { mode = brush }
-    }
-    LabelledSlider("Brush radius", radius.roundToInt().toString() + " px", radius,
-        1f..maxOf(2f, maxOf(subject.width, subject.height) / 5f)) { radius = it }
-    LabelledSlider("Brush strength", (strength * 100).roundToInt().toString() + "%", strength, 0f..1f) { strength = it }
-    LabelledSlider("Brush hardness", (hardness * 100).roundToInt().toString() + "%", hardness, 0f..1f) { hardness = it }
-    if (mode == DepthBrush.SET) LabelledSlider("Paint height", (target * 100).roundToInt().toString() + "%", target, 0f..1f) { target = it }
-    if (mode == DepthBrush.FLATTEN) Text("Flatten blends the painted area toward its mean height.", style = MaterialTheme.typography.bodySmall)
-    ImageBrushCanvas(subject, bitmap, radius, Color(0xAA14D6CF), "Depth painting area") {
-        onEdit(draft.copy(strokes = draft.strokes + DepthStroke(it, radius, mode, strength, hardness, target)))
-    }
+    LabelledSlider("Brush radius", depthRadius.roundToInt().toString() + " px", depthRadius,
+        1f..maxOf(2f, maxOf(subject.width, subject.height) / 5f)) { depthRadius = it }
+    LabelledSlider("Brush strength", (depthStrength * 100).roundToInt().toString() + "%", depthStrength, 0f..1f) { depthStrength = it }
+    LabelledSlider("Brush hardness", (depthHardness * 100).roundToInt().toString() + "%", depthHardness, 0f..1f) { depthHardness = it }
+    if (depthMode == DepthBrush.SET) LabelledSlider("Paint height", (depthTarget * 100).roundToInt().toString() + "%", depthTarget, 0f..1f) { depthTarget = it }
+    if (depthMode == DepthBrush.FLATTEN) Text("Flatten blends the painted area toward its mean height.", style = MaterialTheme.typography.bodySmall)
     Text("GLOBAL GEOMETRY", style = MaterialTheme.typography.labelSmall)
     LabelledSlider("Smoothing passes", draft.smoothingPasses.toString(), draft.smoothingPasses.toFloat(), 0f..4f) {
         onEdit(draft.copy(smoothingPasses = it.roundToInt()))
@@ -1608,7 +1870,7 @@ private fun DepthGeometryEditor(subject: RgbaImage, inferred: FloatArray, draft:
 /** Diagnostic-only view. The result is scoped to the committed sheet and physical settings;
  * keyed composition discards the old bitmap when the stencil or selected sheet changes. */
 @Composable
-private fun CutInspectionView(stencil: Separation, sheet: Int, widthMm: Double, minimumStockMm: Double) {
+private fun androidx.compose.foundation.layout.ColumnScope.CutInspectionView(stencil: Separation, sheet: Int, widthMm: Double, minimumStockMm: Double) {
     val report by produceState<Result<CutInspection>?>(null, stencil, sheet, widthMm, minimumStockMm) {
         delay(150)
         value = try {
@@ -1635,9 +1897,7 @@ private fun CutInspectionView(stencil: Separation, sheet: Int, widthMm: Double, 
     val image = inspection.image
     val bitmap = remember(inspection) { argbToImageBitmap(image.pixels, image.width, image.height) }
     Text("Sheet ${sheet + 1} · diagnostic only", style = MaterialTheme.typography.titleSmall)
-    Image(bitmap, contentDescription = "Actual cut sheet with cut boundaries and risk markers",
-        modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 360.dp),
-        contentScale = ContentScale.Fit)
+    DiagnosticImage(bitmap, "Actual cut sheet with cut boundaries and risk markers", Modifier.weight(1f).fillMaxWidth())
     val legend = listOf(
         StencilInspection.STOCK to "Retained stock",
         StencilInspection.CUT to "Paint opening",
@@ -1646,10 +1906,13 @@ private fun CutInspectionView(stencil: Separation, sheet: Int, widthMm: Double, 
         StencilInspection.FINE to "${inspection.fineCuts} fine openings (under 1.5 mm)",
         StencilInspection.NARROW to "${inspection.narrowStockPixels} narrow-stock pixels",
     )
-    for ((color, description) in legend) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(16.dp).background(Color(color)).border(1.dp, MaterialTheme.colorScheme.outline))
-            Text(description, style = MaterialTheme.typography.bodySmall)
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(legend.size) { i ->
+            val (color, description) = legend[i]
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.size(12.dp).background(Color(color)).border(1.dp, MaterialTheme.colorScheme.outline))
+                Text(description, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
     Text("Narrow stock is an axis-aligned width estimate, not a bridge count or strength guarantee. Markers and colours are not printed or exported.",
@@ -1658,7 +1921,7 @@ private fun CutInspectionView(stencil: Separation, sheet: Int, widthMm: Double, 
 
 /** "All", then one swatch per sheet in paint order. It scrolls, so the number of sheets is not its problem. */
 @Composable
-private fun SheetStrip(sheets: List<Sheet>, shown: Int?, onShow: (Int?) -> Unit) {
+private fun SheetStrip(sheets: List<Sheet>, shown: Int?, onShow: (Int?) -> Unit, alwaysScroll: Boolean = false) {
     @Composable
     fun swatch(i: Int) {
             val selected = shown == i
@@ -1683,7 +1946,7 @@ private fun SheetStrip(sheets: List<Sheet>, shown: Int?, onShow: (Int?) -> Unit)
     }
     // Up to this many sheets wrap, so a mouse can reach every swatch without dragging a row sideways
     // (30 chosen cans stay in view); beyond it the strip scrolls so a thousand sheets stay cheap.
-    if (sheets.size <= WRAPPED_SHEETS) {
+    if (!alwaysScroll && sheets.size <= WRAPPED_SHEETS) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("All", selected = shown == null) { onShow(null) }
             for (i in sheets.indices) swatch(i)

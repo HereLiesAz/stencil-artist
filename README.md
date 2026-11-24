@@ -10,6 +10,17 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 
 ## What it does today
 
+- A single local editing checkpoint resumes the working image, current stage, palette, lighting,
+  image adjustments, committed and draft mask/depth corrections, selected sheet, and valid print/cutter
+  settings. Android uses an app-private atomic file; the web app uses IndexedDB, not a server.
+  Derived output is regenerated before exports become available. A storage failure
+  is reported; browser eviction or app-data clearing can remove local work.
+- Preview, Prepared, Layers and contextual Masking/Depth/Orbit/Occlusion/Cut risks views share the
+  primary workspace. Masking defaults to tapping connected, colour- and edge-bounded regions of
+  the original image. Brush mode allows precise remove/restore corrections. Two fingers zoom or pan
+  without changing the mask; both edit types share undo, reset, persistence and explicit Apply.
+  The region selector is deterministic, not a semantic object-recognition model.
+
 - Opens an image, removes its background on the device (U²-Net), and separates the subject into
   sheets, **by tone** (a grey ramp) or **by colour** (the picture's own paint colours).
 - Any number of sheets, each with its own colour: greys by default in Tone mode, the colours found

@@ -198,8 +198,8 @@ class StencilState(
     private var catalogueJob: Job? = null
     /** Unmodified catalogue to restore the maker's RGB or missing-colour state on clearing a user value. */
     private var bundledCatalogue: PaintCatalogue? = null
-    private var savedCans = ""
-    private var savedAllowed = ""
+    private var savedCans by mutableStateOf("")
+    private var savedAllowed by mutableStateOf("")
 
     init {
         // Brands and cans are text keys until the catalogue is there to resolve them (see ensureCatalogue).
@@ -487,6 +487,7 @@ class StencilState(
     /** Explicitly request inference, even when both lighting modes are off. */
     fun requestDepth() {
         if (busy || source == null || depthMap != null) return
+        depthRequested = true
         depthAttempted = false
         depthError = null
         remake(settle = false, requestDepth = true)
@@ -559,11 +560,84 @@ class StencilState(
     var message: String? by mutableStateOf(null)
         private set
 
+    /** Persist whether depth was explicitly requested even without enabled lighting. */
+    private var depthRequested by mutableStateOf(false)
+    private var lateColours: List<LateColour> by mutableStateOf(emptyList())
+    var workspaceWarning: String? by mutableStateOf(null)
+        internal set
+    var workspaceSaved: Boolean by mutableStateOf(false)
+        internal set
+
+    /** Capture authored state, never a pending generation or stale export. */
+    internal fun checkpoint(): StencilSnapshot? {
+        val image = source ?: return null
+        return StencilSnapshot(
+            source = image,
+            mode = mode,
+            toneParams = toneParams,
+            colorParams = colorParams,
+            removeBackground = removeBackground,
+            depthAssistedBackground = depthAssistedBackground,
+            lighting = lighting,
+            flatLighting = flatLighting,
+            originalLightCompensation = originalLightCompensation,
+            sourceAdjustments = sourceAdjustments,
+            preparedAdjustments = preparedAdjustments,
+            maskStrokes = maskStrokes,
+            depthEdits = depthEdits,
+            strokeBased = strokeBased,
+            strokeEngine = strokeEngine,
+            strokeWidthPixels = strokeWidthPixels,
+            paintMode = paintMode,
+            pickCount = pickCount,
+            savedCans = savedCans,
+            savedAllowed = savedAllowed,
+            shownSheet = shownSheet,
+            viewProcessedImage = viewProcessedImage,
+            lateColours = lateColours,
+            depthRequested = depthRequested || depthMap != null,
+            keptUnused = keptUnused.toList(),
+        )
+    }
+
+    /** Restore validated authoring state before starting exactly one new generation. */
+    internal fun restoreCheckpoint(saved: StencilSnapshot) {
+        source = saved.source
+        mode = saved.mode
+        toneParams = saved.toneParams
+        colorParams = saved.colorParams
+        removeBackground = saved.removeBackground
+        depthAssistedBackground = saved.depthAssistedBackground
+        lighting = saved.lighting
+        flatLighting = saved.flatLighting
+        originalLightCompensation = saved.originalLightCompensation
+        sourceAdjustments = saved.sourceAdjustments
+        preparedAdjustments = saved.preparedAdjustments
+        maskStrokes = saved.maskStrokes
+        depthEdits = saved.depthEdits
+        strokeBased = saved.strokeBased
+        strokeEngine = saved.strokeEngine
+        strokeWidthPixels = saved.strokeWidthPixels
+        paintMode = saved.paintMode
+        pickCount = saved.pickCount
+        savedCans = saved.savedCans
+        savedAllowed = saved.savedAllowed
+        shownSheet = saved.shownSheet
+        viewProcessedImage = saved.viewProcessedImage
+        depthRequested = saved.depthRequested
+        lateColours = saved.lateColours
+        keptUnused = saved.keptUnused.toSet()
+        preview = argbToImageBitmap(saved.source.pixels, saved.source.width, saved.source.height)
+        remake(settle = false, requestDepth = depthRequested, restoring = true)
+    }
+
     private var run: Job? = null
     private var generation = 0L
 
     fun open(image: RgbaImage) {
         source = image
+        depthRequested = false
+        lateColours = emptyList()
         maskStrokes = emptyList()
         automaticMask = null
         cutOut = null
@@ -683,7 +757,11 @@ class StencilState(
      * these assignments rather than silently transferring them onto unrelated shapes. */
     fun recolorSheet(expected: Separation, sheet: Int, argb: Int): Boolean {
         if (busy || snapped || separation !== expected || sheet !in expected.sheets.indices) return false
-        separation = expected.withSheetColor(sheet, argb or 0xFF000000.toInt())
+        val color = argb or 0xFF000000.toInt()
+        lateColours = lateColours.filterNot { it.sheet == sheet } + LateColour(
+            sheet, color, expected.width, expected.height, expected.checkpointMask(sheet),
+        )
+        separation = expected.withSheetColor(sheet, color)
         show(shownSheet)
         return true
     }
@@ -758,8 +836,11 @@ class StencilState(
      * Makes the stencil again. With [settle], waits a moment first, so dragging a slider makes one
      * stencil when the drag pauses and not one per pixel of travel.
      */
-    private fun remake(settle: Boolean, requestDepth: Boolean = false) {
+    private fun remake(settle: Boolean, requestDepth: Boolean = false, restoring: Boolean = false) {
         val image = source ?: return
+        if (!restoring) lateColours = emptyList()
+        val restoredColours = lateColours
+        val wantedDepthRequest = depthRequested
         val wantedMode = mode
         val wantedTone = toneParams
         val wantedColor = colorParams
@@ -806,7 +887,7 @@ class StencilState(
                 delay(1) // Allow the busy indicator to paint before inference in the browser.
                 profileStage("settle_ms")
                 val notes = ArrayList<String>()
-                val needsDepth = requestDepth || wantedLighting.enabled || wantedFlatLighting.enabled ||
+                val needsDepth = requestDepth || wantedDepthRequest || wantedLighting.enabled || wantedFlatLighting.enabled ||
                     (remove && assist && !image.hasTransparency())
                 if (needsDepth && depthMap == null && !depthAttempted) {
                     try {
@@ -980,7 +1061,17 @@ class StencilState(
                     }
                     if (generation != request) return@launch
                     val bridgePlan = planned.first
-                    val output = planned.second
+                    var output = planned.second
+                    // Exact stored masks prevent a late paint assignment migrating to changed geometry.
+                    if (restoring) {
+                        val valid = restoredColours.filter { saved ->
+                            saved.sheet in output.sheets.indices && saved.width == output.width &&
+                                saved.height == output.height && saved.mask == output.checkpointMask(saved.sheet)
+                        }
+                        for (saved in valid) output = output.withSheetColor(saved.sheet, saved.color)
+                        lateColours = valid
+                        if (valid.size != restoredColours.size) notes += "Some saved paint assignments no longer match the regenerated cuts."
+                    }
                     if (bridgePlan.sourceGuidedIslands > 0) {
                         notes += "${bridgePlan.sourceGuidedIslands} stencil island(s) were reconstructed with source-matched corrective paint marks; inspect each layer before cutting."
                     }

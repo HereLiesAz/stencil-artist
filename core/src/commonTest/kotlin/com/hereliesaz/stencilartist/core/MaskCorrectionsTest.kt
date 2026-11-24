@@ -6,6 +6,55 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MaskCorrectionsTest {
+
+    @Test
+    fun regionTapFillsConnectedAreaButNotIdenticalDisconnectedColour() {
+        val a = 0xFF112233.toInt(); val b = 0xFFCCBBAA.toInt()
+        val source = RgbaImage(5, 3, intArrayOf(a,a,b,a,a, a,a,b,a,a, b,a,b,a,a))
+        val tap = MaskStroke(listOf(MaskPoint(.5f,.5f)), 1f, false, region = true)
+        val corrected = MaskCorrections.apply(source, source, listOf(tap))
+        assertContentEquals(booleanArrayOf(true,true,false,false,false, true,true,false,false,false,
+            false,true,false,false,false), corrected.excluded)
+        assertEquals(0x00112233, corrected.image.pixels[6])
+        assertEquals(a, corrected.image.pixels[8])
+    }
+
+    @Test
+    fun regionStopsAtEdgeAndCannotDriftAlongGradient() {
+        val source = RgbaImage(7, 1, intArrayOf(0xFF101010.toInt(), 0xFF202020.toInt(),
+            0xFF303030.toInt(), 0xFF404040.toInt(), 0xFF505050.toInt(), 0xFF909090.toInt(), 0xFF101010.toInt()))
+        val tap = MaskStroke(listOf(MaskPoint(.5f,.5f)), 1f, false, region = true)
+        assertContentEquals(booleanArrayOf(true,true,true,true,false,false,false),
+            MaskCorrections.apply(source, source, listOf(tap)).excluded)
+        val edge = RgbaImage(2, 1, intArrayOf(0xFF101010.toInt(), 0xFF303030.toInt()))
+        assertContentEquals(booleanArrayOf(true,false), MaskCorrections.apply(edge, edge, listOf(tap)).excluded)
+    }
+
+    @Test
+    fun regionAndBrushShareOrderedUndoAndRestoreOriginalAlpha() {
+        val a = 0x80123456.toInt(); val source = RgbaImage(3, 2, IntArray(6) { a })
+        val tap = MaskStroke(listOf(MaskPoint(.5f,.5f)), 1f, false, region = true)
+        val spot = MaskStroke(listOf(MaskPoint(1.5f,.5f)), .5f, true)
+        val corrected = MaskCorrections.apply(source, source, listOf(tap, spot))
+        assertContentEquals(booleanArrayOf(true,false,true,true,true,true), corrected.excluded)
+        assertEquals(a, corrected.image.pixels[1])
+        assertEquals(0x00123456, corrected.image.pixels[0])
+        assertTrue(MaskCorrections.apply(source, source, listOf(tap)).excluded.all { it })
+        val restore = tap.copy(restore = true)
+        assertContentEquals(source.pixels, MaskCorrections.apply(source, source, listOf(tap, restore)).image.pixels)
+    }
+
+    @Test
+    fun transparentSeedAndOutOfFrameTapDoNothing() {
+        val source = RgbaImage(2, 1, intArrayOf(0x00123456, 0xFF123456.toInt()))
+        for (point in listOf(MaskPoint(.5f,.5f), MaskPoint(-.1f,.5f), MaskPoint(2f,.5f))) {
+            val tap = MaskStroke(listOf(point), 1f, false, region = true)
+            val corrected = MaskCorrections.apply(source, source, listOf(tap))
+            assertContentEquals(source.pixels, corrected.image.pixels)
+            assertTrue(corrected.excluded.none { it })
+        }
+    }
+
     @Test
     fun sparseDragRemovesContinuousRowAndClipsAtBounds() {
         val source = RgbaImage(7, 3, IntArray(21) { 0xFF123456.toInt() })

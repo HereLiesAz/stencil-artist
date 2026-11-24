@@ -8,9 +8,13 @@ data class MaskPoint(val x: Float, val y: Float) {
     init { require(x.isFinite() && y.isFinite()) }
 }
 
-/** One undoable brush stroke. Restore uses original alpha rather than inventing opaque pixels. */
-data class MaskStroke(val points: List<MaskPoint>, val radius: Float, val restore: Boolean) {
-    init { require(points.isNotEmpty() && radius.isFinite() && radius >= .5f) }
+/** One undoable mask edit. [region] selects the connected region at a single source-space seed;
+ * otherwise [points] and [radius] describe a swept-disc brush stroke. Restore uses original alpha. */
+data class MaskStroke(val points: List<MaskPoint>, val radius: Float, val restore: Boolean, val region: Boolean = false) {
+    init {
+        require(points.isNotEmpty() && radius.isFinite() && radius >= .5f)
+        require(!region || points.size == 1)
+    }
 }
 
 /** Corrected source and explicit exclusions, distinct from automatic-mask holes. */
@@ -18,17 +22,19 @@ class MaskCorrection(val image: RgbaImage, val excluded: BooleanArray)
 
 /** Non-destructive foreground/background edits in working-image coordinates. */
 object MaskCorrections {
-    /** Last stroke wins. Swept discs join sparse samples without gaps; untouched alpha is retained. */
+    /** Last edit wins. Region taps and swept brush discs share the same exclusion and restore semantics. */
     fun apply(source: RgbaImage, automatic: RgbaImage, strokes: List<MaskStroke>): MaskCorrection {
         require(source.width == automatic.width && source.height == automatic.height)
         val w = source.width; val h = source.height
         val pixels = automatic.pixels.copyOf()
         val excluded = BooleanArray(pixels.size)
         for (stroke in strokes) {
-            visitBrushPixels(w, h, stroke.points, stroke.radius) { i, _ ->
+            val edit: (Int) -> Unit = { i ->
                 excluded[i] = !stroke.restore
                 pixels[i] = if (stroke.restore) source.pixels[i] else source.pixels[i] and 0xFFFFFF
             }
+            if (stroke.region) visitRegionPixels(source, stroke.points.single(), edit)
+            else visitBrushPixels(w, h, stroke.points, stroke.radius) { i, _ -> edit(i) }
         }
         return MaskCorrection(RgbaImage(w, h, pixels), excluded)
     }
@@ -72,4 +78,41 @@ internal fun visitBrushPixels(width: Int, height: Int, points: List<MaskPoint>, 
     }
     segment(points.first(), points.first())
     for (i in 1 until points.size) segment(points[i - 1], points[i])
+}
+
+/** Visit the four-connected colour region containing [seed] in the original image.
+ * Seed similarity prevents drift across gradual colour changes, while adjacent-pixel similarity
+ * stops at hard edges. Source alpha also participates; no automatic mask or prior edit changes
+ * the selected region on replay. The queue visits at most one entry per accepted pixel. */
+private fun visitRegionPixels(source: RgbaImage, seed: MaskPoint, visit: (Int) -> Unit) {
+    val w = source.width; val h = source.height
+    if (seed.x < 0 || seed.y < 0 || seed.x >= w || seed.y >= h) return
+    val start = seed.y.toInt() * w + seed.x.toInt()
+    val pixels = source.pixels
+    if (pixels[start] ushr 24 == 0) return
+    // Maximum channel difference in 8-bit ARGB. Fixed thresholds make stored seeds replayable.
+    fun difference(a: Int, b: Int): Int = maxOf(
+        kotlin.math.abs((a ushr 24) - (b ushr 24)),
+        kotlin.math.abs((a ushr 16 and 255) - (b ushr 16 and 255)),
+        kotlin.math.abs((a ushr 8 and 255) - (b ushr 8 and 255)),
+        kotlin.math.abs((a and 255) - (b and 255)),
+    )
+    val seedColor = pixels[start]
+    val queued = BooleanArray(pixels.size)
+    val queue = IntArray(pixels.size)
+    var head = 0; var tail = 1
+    queue[0] = start; queued[start] = true
+    fun enqueue(from: Int, next: Int) {
+        if (queued[next] || pixels[next] ushr 24 == 0 ||
+            difference(seedColor, pixels[next]) > 48 || difference(pixels[from], pixels[next]) > 24) return
+        queued[next] = true; queue[tail++] = next
+    }
+    while (head < tail) {
+        val i = queue[head++]
+        visit(i)
+        if (i % w > 0) enqueue(i, i - 1)
+        if (i % w < w - 1) enqueue(i, i + 1)
+        if (i >= w) enqueue(i, i - w)
+        if (i < pixels.size - w) enqueue(i, i + w)
+    }
 }
