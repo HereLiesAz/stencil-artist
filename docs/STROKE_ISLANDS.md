@@ -77,7 +77,8 @@ pixel-width connection does not prove a millimetre-width connection.
   substitute for painting its attached broad region. Ribbons never paint
   outside their original coverage, and a maximum loss budget prevents excessive
   missing paint. Some of that allowance is reserved for narrow **negative
-  brushstrokes** starting only at **border-connected retained material**.
+  brushstrokes** starting at **border-connected retained material** along all four
+  opening boundaries, including those whose left edge touches the canvas.
   They follow the same local form and tonal direction, providing physical
   connections and leaving safe, intentional gaps between positive paint
   ribbons. Protected thin features remain painted throughout, including where
