@@ -368,83 +368,114 @@ object StrokeStyler {
                 // Very wide brushes still need at least one chance to make a
                 // supported negative gap in ordinary image-sized paint regions.
                 val gapSpacing = max(12, min(48, strokeWidthPixels * 7))
-                var seedY = minY + gapSpacing / 2
-                while (seedY <= maxY - gapSpacing / 2 && unpainted < allowedMissing) {
-                    var seedX = -1
-                    for (x in max(1, minX)..min(maxX - 8, w - 9)) {
-                        val p = seedY * w + x
-                        // The first pixel is adjacent to retained material, and a
-                        // substantial body of paint extends inward from that edge.
-                        if (member[p] == component && supported[p - 1] &&
-                            !protected[p] && member[p + 8] == component &&
-                            distance[p + 8] >= 5) {
-                            seedX = x
-                            break
-                        }
+                // A negative brush mark must begin in stock that is connected to the
+                // outside of the sheet. Scan all four opening boundaries, not just
+                // left-facing ones: otherwise rotating the image changes whether
+                // the same fold can receive a physically supported brush gap.
+                for (side in 0 until 4) {
+                    if (unpainted >= allowedMissing) break
+                    val inwardX = when (side) {
+                        0 -> 1
+                        1 -> -1
+                        else -> 0
                     }
-                    if (seedX >= 0) {
-                        var px = seedX.toFloat()
-                        var py = seedY.toFloat()
-                        var vx = 1f
-                        var vy = 0f
-                        var lastX = seedX
-                        var lastY = seedY
-                        for (step in 0 until 38) {
-                            if (unpainted >= allowedMissing) break
-                            val x = px.roundToInt()
-                            val y = py.roundToInt()
-                            if (x !in 2 until w - 2 || y !in 2 until h - 2) break
+                    val inwardY = when (side) {
+                        2 -> 1
+                        3 -> -1
+                        else -> 0
+                    }
+                    val alongMin = if (side < 2) minY else minX
+                    val alongMax = if (side < 2) maxY else maxX
+                    val scanLength = if (side < 2) maxX - minX + 1 else maxY - minY + 1
+                    var along = alongMin + gapSpacing / 2
+                    while (along <= alongMax - gapSpacing / 2 && unpainted < allowedMissing) {
+                        var seedX = -1
+                        var seedY = -1
+                        for (depth in 0 until scanLength) {
+                            val x = when (side) {
+                                0 -> minX + depth
+                                1 -> maxX - depth
+                                else -> along
+                            }
+                            val y = when (side) {
+                                2 -> minY + depth
+                                3 -> maxY - depth
+                                else -> along
+                            }
+                            val aheadX = x + inwardX * 8
+                            val aheadY = y + inwardY * 8
+                            if (x !in 1 until w - 1 || y !in 1 until h - 1 ||
+                                aheadX !in 1 until w - 1 || aheadY !in 1 until h - 1) continue
                             val p = y * w + x
-                            if (member[p] != component || protected[p] ||
-                                (step > 8 && distance[p] <= 3)) break
-                            // Preserve four-connected stock even across a diagonal
-                            // rounding step, as an artist would keep a scribble joined.
-                            if (step > 0 && x != lastX && y != lastY) {
-                                val corner = lastY * w + x
-                                // A diagonal jump without this connecting pixel
-                                // would detach the new stock stroke. Never cut a
-                                // protected detail just to complete the jump.
-                                if (member[corner] != component || protected[corner]) break
-                                if (rebuilt[corner] && unpainted < allowedMissing) {
-                                    rebuilt[corner] = false
-                                    unpainted++
-                                }
+                            val ahead = aheadY * w + aheadX
+                            val outside = (y - inwardY) * w + x - inwardX
+                            // The entry point must touch the actual border-supported
+                            // stock, not merely a pre-existing detached stock island.
+                            if (member[p] == component && supported[outside] &&
+                                !protected[p] && member[ahead] == component &&
+                                distance[ahead] >= 5) {
+                                seedX = x
+                                seedY = y
+                                break
                             }
-                            val nx = -vy
-                            val ny = vx
-                            val span = if (step < 3) 1 else strokeWidthPixels
-                            for (side in 0 until span) {
-                                val offset = side - (span - 1) * 0.5f
-                                val xx = (x + nx * offset).roundToInt()
-                                val yy = (y + ny * offset).roundToInt()
-                                if (xx !in 0 until w || yy !in 0 until h) continue
-                                val q = yy * w + xx
-                                if (member[q] == component && !protected[q] &&
-                                    rebuilt[q] && unpainted < allowedMissing) {
-                                    rebuilt[q] = false
-                                    unpainted++
-                                }
-                            }
-                            lastX = x
-                            lastY = y
-                            val target = direction(p, vx, vy)
-                            // Keep the negative stroke moving into the paint mass
-                            // before following its contours. Turning at the very
-                            // boundary only scratches the edge; it cannot articulate
-                            // the broad interior of a fold or shaded face.
-                            val blend = if (step < 12) 0f else
-                                min(0.6f, 0.10f + 0.02f * (step - 12))
-                            val dx = (1f - blend) * vx + blend * target.first
-                            val dy = (1f - blend) * vy + blend * target.second
-                            val length = sqrt(dx * dx + dy * dy)
-                            if (length <= 0f) break
-                            vx = dx / length
-                            vy = dy / length
-                            px += vx
-                            py += vy
                         }
+                        if (seedX >= 0) {
+                            var px = seedX.toFloat()
+                            var py = seedY.toFloat()
+                            var vx = inwardX.toFloat()
+                            var vy = inwardY.toFloat()
+                            var lastX = seedX
+                            var lastY = seedY
+                            for (step in 0 until 38) {
+                                if (unpainted >= allowedMissing) break
+                                val x = px.roundToInt()
+                                val y = py.roundToInt()
+                                if (x !in 2 until w - 2 || y !in 2 until h - 2) break
+                                val p = y * w + x
+                                if (member[p] != component || protected[p] ||
+                                    (step > 8 && distance[p] <= 3)) break
+                                // A diagonal round-off needs the joining corner to
+                                // remain connected to the supported stock.
+                                if (step > 0 && x != lastX && y != lastY) {
+                                    val corner = lastY * w + x
+                                    if (member[corner] != component || protected[corner]) break
+                                    if (rebuilt[corner] && unpainted < allowedMissing) {
+                                        rebuilt[corner] = false
+                                        unpainted++
+                                    }
+                                }
+                                val nx = -vy
+                                val ny = vx
+                                val span = if (step < 3) 1 else strokeWidthPixels
+                                for (offsetIndex in 0 until span) {
+                                    val offset = offsetIndex - (span - 1) * 0.5f
+                                    val xx = (x + nx * offset).roundToInt()
+                                    val yy = (y + ny * offset).roundToInt()
+                                    if (xx !in 0 until w || yy !in 0 until h) continue
+                                    val q = yy * w + xx
+                                    if (member[q] == component && !protected[q] &&
+                                        rebuilt[q] && unpainted < allowedMissing) {
+                                        rebuilt[q] = false
+                                        unpainted++
+                                    }
+                                }
+                                lastX = x
+                                lastY = y
+                                val target = direction(p, vx, vy)
+                                val blend = if (step < 12) 0f else
+                                    min(0.6f, 0.10f + 0.02f * (step - 12))
+                                val dx = (1f - blend) * vx + blend * target.first
+                                val dy = (1f - blend) * vy + blend * target.second
+                                val length = sqrt(dx * dx + dy * dy)
+                                if (length <= 0f) break
+                                vx = dx / length
+                                vy = dy / length
+                                px += vx
+                                py += vy
+                            }
+                        }
+                        along += gapSpacing
                     }
-                    seedY += gapSpacing
                 }
             }
 
