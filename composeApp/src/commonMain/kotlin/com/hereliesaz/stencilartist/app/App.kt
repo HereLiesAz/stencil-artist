@@ -356,6 +356,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     val stencilSharer = rememberStencilPackSharer()
     val exportScope = rememberCoroutineScope()
     var printWidthMm by remember { mutableFloatStateOf(203.2f) }
+    var safeBridgeWidthMm by remember { mutableFloatStateOf(1.5f) }
     var exporting by remember { mutableStateOf<String?>(null) }
     var cutterFormat by remember { mutableStateOf(CutterFormat.SVG) }
     // -1: whole, 0..presets.lastIndex: preset, presets.size: custom mat, +1: roll.
@@ -699,6 +700,28 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                         "${oneDecimal(printWidthMm / 25.4f)} × ${oneDecimal(heightMm / 25.4f)} in",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                LabelledSlider(
+                    "Minimum safe stock bridge",
+                    "${oneDecimal(safeBridgeWidthMm)} mm",
+                    safeBridgeWidthMm, 0.5f..5f,
+                ) { safeBridgeWidthMm = it }
+                val nominalBridgeMm = printWidthMm * NOMINAL_BRIDGE_PIXELS / stencil.width
+                val belowMaterialMinimum = nominalBridgeMm < safeBridgeWidthMm
+                Text(
+                    if (belowMaterialMinimum) {
+                        "Bridge warning: the planner's ${NOMINAL_BRIDGE_PIXELS}px nominal support is about " +
+                            "${oneDecimal(nominalBridgeMm)} mm at this print size, below your " +
+                            "${oneDecimal(safeBridgeWidthMm)} mm material minimum. Inspect and widen " +
+                            "any generated bridges before cutting."
+                    } else {
+                        "The planner's ${NOMINAL_BRIDGE_PIXELS}px nominal support is about " +
+                            "${oneDecimal(nominalBridgeMm)} mm at this size. This is a pixel-scale " +
+                            "estimate, not a guarantee of material strength."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (belowMaterialMinimum) MaterialTheme.colorScheme.error else
+                        MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
