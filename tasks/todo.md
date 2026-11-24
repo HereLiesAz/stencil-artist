@@ -14,6 +14,8 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 - [ ] Visually inspect both wide web and narrow Android layouts, including keyboard and touch input, and verify pinch-pan, clipped zoom and side-by-side accuracy on devices.
 - [x] Approve the 3D extrusion, actual scene lighting and rendered-source stencil architecture. See `docs/DEPTH_RELIGHT_DISCUSSION.md`.
 
+- [x] Start with image, layer count and arbitrary paint palette, then choose Original/Depth relight/3D scene, then source/render adjustments. Colour matching is the default; tonal bands also allow custom colours. `FreePaletteEditor` → `StencilState.editablePalette`, `useCustomPalette`, `setSheetColor`, `setSheetCount` → shared separator parameters. Manual palettes are independent of generated sheets; count edits preserve retained slots. Integration and device verification remain open.
+
 ## Flat depth relighting and image preparation (2026-11-24)
 
 - [x] Restore flat depth relighting as a separate Light mode. Fix image-relative gradient scaling, foreground-only robust range and alpha-aware differences; add independent matte mix, direction, intensity, ambient, strength and depth reversal. App caller: `StencilState.remake` → `DepthLighting.relight`. Device quality checks remain open.

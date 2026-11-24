@@ -87,4 +87,30 @@ class ColorDownstreamTest {
             for ((i, sheet) in s.sheets.withIndex()) assertTrue(fillOf(sheet) in text, "sheet ${i + 1} fill missing (mount=$mount)")
         }
     }
+
+    @Test
+    fun customPaintSetSurvivesOriginalFlatAndExtrudedImagePreparation() {
+        val palette = listOf(0xFF203050.toInt(), 0xFFD84935.toInt(), 0xFFF4C84A.toInt(),
+            0xFF329D8C.toInt(), 0xFF895AB2.toInt())
+        val image = flatRegions(palette, 5, 12)
+        val depth = FloatArray(image.pixels.size) { (it % image.width).toFloat() / (image.width - 1) }
+        val light = LightingParams(enabled = true, ambient = .15f, intensity = .8f, flatMatteMix = .6f)
+        val adjusted = ImageAdjustments(contrast = .25f, saturation = .8f)
+        val images = listOf(image, DepthLighting.relight(image, depth, light),
+            ReliefScene.prepare(image, depth, light).renderSource(light),
+            ReliefScene.prepare(image, depth, light.copy(useSourceTexture = false)).renderSource(light.copy(useSourceTexture = false)))
+        for (render in images) {
+            val prepared = adjusted.apply(render)
+            val colour = ColorSeparator.separate(prepared, ColorParams(sheets = 5, smoothing = 1, closing = 1,
+                colors = palette))!!.separation
+            val tone = TonalSeparator.separate(prepared, TonalParams(sheets = 5, smoothing = 1, closing = 1,
+                base = Base.DARK, colors = palette))!!.separation
+            assertEquals(palette.toSet(), colour.sheets.map { it.color }.toSet())
+            assertEquals(palette, tone.sheets.map { it.color })
+            for (stencil in listOf(colour, tone)) {
+                assertTrue(stencil.render().all { it in palette })
+                assertEquals(stencil.sheets.map { it.color }, Vectorizer.vectorize(stencil).sheets.map { it.color })
+            }
+        }
+    }
 }

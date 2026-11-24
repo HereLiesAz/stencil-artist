@@ -7,6 +7,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import com.hereliesaz.stencilartist.core.ColorParams
 import com.hereliesaz.stencilartist.core.ColorSeparator
+import com.hereliesaz.stencilartist.core.PaletteColor
+import com.hereliesaz.stencilartist.core.Tones
+import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.ReliefScene
 import com.hereliesaz.stencilartist.core.DepthLighting
 import com.hereliesaz.stencilartist.core.LightingParams
@@ -37,7 +40,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** How the subject is split into sheets: by brightness into greys, or by colour into paints. */
+/** How the subject is split into sheets: by brightness or by colour distance, with arbitrary paint colours. */
 enum class SeparationMode { TONE, COLOUR }
 
 /** Nominal retained-stock connection requested from the island planner, in working pixels. */
@@ -62,7 +65,7 @@ class StencilState(
         private set
 
     /** Which separator makes the sheets. Each mode keeps its own settings, so switching back loses nothing. */
-    var mode: SeparationMode by mutableStateOf(SeparationMode.TONE)
+    var mode: SeparationMode by mutableStateOf(SeparationMode.COLOUR)
         private set
 
     /** The settings of the tonal separator, used in [SeparationMode.TONE]. */
@@ -538,11 +541,37 @@ class StencilState(
         changedParams(sheetCount)
     }
 
-    /** Asks the active mode for [count] sheets, with colours of its own choosing again. */
-    fun setSheetCount(count: Int) {
+    /** Explicit palette is independent of the current rendered separation, including before opening an image. */
+    val customPalette: List<Int>?
+        get() = if (mode == SeparationMode.TONE) toneParams.colors else colorParams.colors
+
+    /** Editable slots always match the requested count, even without a source or completed separation.
+     * An automatic palette is a suggestion until the artist explicitly locks or edits it. */
+    val editablePalette: List<Int>
+        get() {
+            val suggested = customPalette ?: separation?.sheets?.map { it.color }
+                ?: if (mode == SeparationMode.TONE) Tones.ramp(sheetCount, toneParams.base != Base.LIGHT).map { it.color }
+                else emptyList()
+            return PaletteColor.resize(suggested, sheetCount)
+        }
+
+    /** Lock the displayed colours or return to automatic image/tonal colours without changing count. */
+    fun useCustomPalette(on: Boolean) {
+        if (snapped || on == (customPalette != null)) return
+        val colors = if (on) editablePalette else null
         when (mode) {
-            SeparationMode.TONE -> update(toneParams.copy(sheets = count, colors = null))
-            SeparationMode.COLOUR -> update(colorParams.copy(sheets = count, colors = null))
+            SeparationMode.TONE -> update(toneParams.copy(colors = colors))
+            SeparationMode.COLOUR -> update(colorParams.copy(colors = colors))
+        }
+    }
+
+    /** Change count; retain explicitly selected colours and fill new slots with editable suggestions. */
+    fun setSheetCount(count: Int) {
+        if (count == sheetCount) return
+        val colors = customPalette?.let { PaletteColor.resize(it, count) }
+        when (mode) {
+            SeparationMode.TONE -> update(toneParams.copy(sheets = count, colors = colors))
+            SeparationMode.COLOUR -> update(colorParams.copy(sheets = count, colors = colors))
         }
     }
 
@@ -563,20 +592,18 @@ class StencilState(
     }
 
     /**
-     * Makes sheet [sheet] (a position in paint order) the colour [argb], keeping every other sheet
-     * as it is now. In colour mode the sheets' colours then become the given palette, so the other
-     * pixels are re-sorted to those colours and the order option may move the sheet. The
-     * Free-mode palette editor calls this on Apply, not on every slider tick. Asking for a colour
-     * another sheet already has is refused with a message.
+     * Edit a requested palette slot [sheet] before or after rendering. Keep the requested count
+     * and every other slot; lock the palette on the first edit. Tonal slots are in paint order;
+     * colour matching may independently reorder the rendered sheets. Refuse duplicate RGB.
      */
     fun setSheetColor(sheet: Int, argb: Int) {
         if (snapped) {
             message = "The colours come from the cans. Change the cans instead."
             return
         }
-        val current = separation?.sheets?.map { it.color } ?: return
+        val current = editablePalette
         if (sheet !in current.indices) return
-        val colors = current.toMutableList().also { it[sheet] = argb }
+        val colors = current.toMutableList().also { it[sheet] = argb or 0xFF000000.toInt() }
         if (colors.map { it and 0xFFFFFF }.toSet().size != colors.size) {
             message = "Another sheet already has that colour."
             return

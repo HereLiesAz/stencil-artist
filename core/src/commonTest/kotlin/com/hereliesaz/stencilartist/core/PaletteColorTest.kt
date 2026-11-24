@@ -46,4 +46,25 @@ class PaletteColorTest {
         val params = ColorParams(sheets = 2, colors = listOf(0xFF123456.toInt(), 0xFF654321.toInt()))
         assertEquals(listOf(0xFF123456.toInt(), 0xFF654321.toInt()), params.colors)
     }
+
+    @Test
+    fun preImagePaletteAndCountChangesPreserveChosenColors() {
+        val chosen = listOf(0x80123456.toInt(), 0xFF654321.toInt())
+        val grown = PaletteColor.resize(chosen, 4)
+        assertEquals(listOf(0xFF123456.toInt(), 0xFF654321.toInt(), 0xFF223344.toInt(), 0xFFD34A32.toInt()), grown)
+        assertEquals(listOf(0xFF123456.toInt()), PaletteColor.resize(grown, 1))
+        assertEquals(listOf(0xFF223344.toInt(), 0xFFD34A32.toInt()), PaletteColor.resize(emptyList(), 2))
+        assertEquals(listOf(0x80123456.toInt(), 0xFF654321.toInt()), chosen)
+    }
+
+    @Test
+    fun largeStarterPaletteHasDistinctOpaquePaintAndSkipsDuplicateSeeds() {
+        val palette = PaletteColor.resize(listOf(0xFF223344.toInt(), 0x00223344), ColorParams.MAX_SHEETS)
+        assertEquals(1024, palette.size)
+        assertEquals(1024, palette.toSet().size)
+        assertEquals(0xFF223344.toInt(), palette[0])
+        assertEquals(0xFFD34A32.toInt(), palette[1])
+        assertEquals(true, palette.all { it ushr 24 == 255 })
+        assertFailsWith<IllegalArgumentException> { PaletteColor.resize(emptyList(), 0) }
+    }
 }

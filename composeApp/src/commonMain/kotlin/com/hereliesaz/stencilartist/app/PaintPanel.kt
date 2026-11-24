@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import com.hereliesaz.stencilartist.core.PaletteColor
+import com.hereliesaz.stencilartist.core.Sheet
 import com.hereliesaz.stencilartist.core.paint.Can
 import com.hereliesaz.stencilartist.core.paint.CanFilter
 import com.hereliesaz.stencilartist.core.paint.HexSource
@@ -100,6 +101,7 @@ internal fun PaintSection(state: StencilState) {
             FreePaletteEditor(state)
             return@Section
         }
+        LaunchedEffect(state.paintMode) { state.ensureCatalogue() }
         val catalogue = state.catalogue
         if (catalogue == null) {
             Text(
@@ -121,7 +123,8 @@ internal fun PaintSection(state: StencilState) {
 }
 
 /**
- * Edits the actual sheet colours in Free mode, without modifying any can-based paint selection.
+ * Edits requested palette slots in either separator, without modifying can-based paint selection.
+ * Available before opening an image and while no completed separation exists.
  *
  * Only one layer is edited at a time. The local hex/RGB draft is applied on demand rather than on
  * every slider tick: a colour change regenerates and may reorder the sheets, so an in-flight drag
@@ -132,16 +135,20 @@ internal fun PaintSection(state: StencilState) {
  * without changing the requested sheet count.
  */
 @Composable
-private fun FreePaletteEditor(state: StencilState) {
-    val sheets = state.separation?.sheets.orEmpty()
+internal fun FreePaletteEditor(state: StencilState) {
+    val sheets = state.editablePalette.map(::Sheet)
     val scheme = MaterialTheme.colorScheme
-    var editing by remember { mutableStateOf<Int?>(null) }
+    var editing by remember(state.mode) { mutableStateOf<Int?>(null) }
 
-    Text("Tap a swatch to edit its colour. Changes update the stencil and all exports.",
+    Text(if (state.customPalette != null) "Custom palette locked. Edit any slot; rendering cannot change the chosen colours."
+        else if (state.source == null) "Choose your own colours now, or leave the palette automatic until an image is opened."
+        else "Automatic palette. Edit a swatch or lock the displayed colours to keep them through lighting changes.",
         style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-    if (sheets.isEmpty()) {
-        Text("Open an image to edit its palette.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-    } else {
+    if (state.mode == SeparationMode.COLOUR) {
+        Text("Swatches are palette slots; the selected paint order determines final sheet numbers.",
+            style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+    }
+    run {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             items(sheets.size) { index ->
                 val rgb = sheets[index].color
@@ -149,11 +156,11 @@ private fun FreePaletteEditor(state: StencilState) {
                     Modifier.size(44.dp).clip(RoundedCornerShape(6.dp))
                         .border(if (editing == index) 3.dp else 1.dp,
                             if (editing == index) scheme.primary else scheme.outline, RoundedCornerShape(6.dp))
-                        .clickable(role = Role.Button) {
+                        .clickable(enabled = !state.busy, role = Role.Button) {
                             editing = if (editing == index) null else index
                             if (editing != null) state.ensureCatalogue()
                         }
-                        .semantics { contentDescription = "Edit sheet ${index + 1} colour ${PaletteColor.hex(rgb)}" },
+                        .semantics { contentDescription = "Edit palette slot ${index + 1} colour ${PaletteColor.hex(rgb)}" },
                     contentAlignment = Alignment.Center,
                 ) {
                     Swatch(rgb, 40.dp)
@@ -164,11 +171,12 @@ private fun FreePaletteEditor(state: StencilState) {
         }
     }
 
-    if (state.colorParams.colors != null) {
-        OutlinedButton(onClick = {
-            editing = null
-            state.update(state.colorParams.copy(colors = null))
-        }, modifier = Modifier.fillMaxWidth()) { Text("Use image colours again") }
+    val custom = state.customPalette != null
+    OutlinedButton(onClick = {
+        editing = null
+        state.useCustomPalette(!custom)
+    }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+        Text(if (custom) "Use automatic colours" else "Lock custom palette")
     }
 
     val index = editing
@@ -185,7 +193,7 @@ private fun FreePaletteEditor(state: StencilState) {
                 .border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("SHEET ${index + 1} COLOUR", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            Text("PALETTE SLOT ${index + 1}", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             Text("SPRAY CAN COLOURS", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             if (state.catalogue != null) {
                 CanBrowser(
@@ -261,7 +269,7 @@ private fun FreePaletteEditor(state: StencilState) {
                         candidate?.let { state.setSheetColor(index, it) }
                         editing = null
                     },
-                    enabled = candidate != null && !duplicate && candidate != current && !state.busy,
+                    enabled = candidate != null && !duplicate && (candidate != current || !custom) && !state.busy,
                     modifier = Modifier.weight(1f),
                 ) { Text("Apply colour") }
             }

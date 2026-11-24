@@ -57,6 +57,12 @@ Rules written after corrections. Read at the start of every session on this repo
 - Preserve the no-depth path, source alpha/framing, generation guards and the single completed separation consumed by exports. Mesh geometry resolution is not the stencil/export resolution.
 - A tested mesh without an application caller is a foundation, not a completed feature. Do not retire the old renderer until the new path is integrated and verified.
 
+## 2026-11-24 — Paint choices precede image rendering
+
+- Setup must offer image, layer count and arbitrary paint selection before the image/3D choice. Never require a completed separation just to choose paints.
+- Colour matching is the initial mode. Tonal separation is a brightness-to-paint mapping, not a restriction to black, white or grey; arbitrary chosen RGB is valid.
+- Keep a locked palette independent of scene lighting, source texture, material and adjustments. A count edit retains the selected slots that fit, not an automatic reset. All outputs use the same committed separation.
+
 ## 2026-11-22 — Raster output must stay identical to the stencil preview
 
 - Encode per-sheet PNG pixels through `Separation.render(sheet)` and composite through
