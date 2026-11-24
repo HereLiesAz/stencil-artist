@@ -991,15 +991,18 @@ object PrintPdf {
             // and inside the same visible, retained rectangle.
             val labelText = label(sheet, tile)
             val paintText = "TOP - " + paintLabel(color, paintName)
-            val lh = 2 * LABEL_PT / K + 2.0
-            val lw = maxOf(PdfText.width(labelText, LABEL_PT), PdfText.width(paintText, LABEL_PT)) / K + 1.0
-            val labelBox = requireNotNull(
-                place(tile, lw, lh, 2.0, 1.0, uncut, used)
-                    ?: place(tile, lw, lh, 0.5, 0.5, uncut, used)
-            ) { "No retained label space on sheet ${sheet + 1}, paper ${tileCode(tile)}." }
+            // Try compact, upright stacked text before declaring the stock unusable.
+            // The clearance and overlap checks are unchanged at every size.
+            val lines = listOf(labelText, paintText)
+            val placement = listOf(LABEL_PT, 6.0, 5.5, 5.0).firstNotNullOfOrNull { size ->
+                val lh = 2 * size / K + 2.0
+                val lw = lines.maxOf { PdfText.width(it, size) } / K + 1.0
+                place(tile, lw, lh, 1.0, 1.0, uncut, used)?.let { it to size }
+            } ?: error("No retained label space on sheet ${sheet + 1}, paper ${tileCode(tile)}.")
+            val (labelBox, size) = placement
             sb.append("0 g\n")
-            text(sb, LABEL_PT, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K, labelText)
-            text(sb, LABEL_PT, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K + LABEL_PT + K, paintText)
+            text(sb, size, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K, labelText)
+            text(sb, size, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K + size + K, paintText)
             used += labelBox
             if (notes.isNotEmpty()) {
                 val candidates = candidates(tile, TIP_W, TIP_H, 12.0 / K, TIP_CLEARANCE, uncut)
