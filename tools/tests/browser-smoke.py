@@ -19,11 +19,10 @@ from playwright.sync_api import sync_playwright
 
 def control(page, name):
     """Resolve one visible real control, without relying on screen coordinates."""
-    # Compose can expose controls as buttons, radio buttons or clickable text.
-    role = page.get_by_role("button", name=name, exact=True).first
-    if role.count():
-        return role
-    return page.get_by_text(name, exact=True).first
+    # Every control exercised here is a real Compose Button or OutlinedButton.
+    # Do not choose a text fallback based on an instantaneous count: modal removal
+    # and stage navigation rebuild the accessibility tree asynchronously.
+    return page.get_by_role("button", name=name, exact=True).first
 
 
 def smoke(browser, url, width, height, directory, profile=False):
@@ -69,10 +68,13 @@ def smoke(browser, url, width, height, directory, profile=False):
         control(page, "Continue").wait_for(state="visible", timeout=120000)
         page.screenshot(path=directory / f"{label}-acknowledgement.png")
         control(page, "Continue").click(force=True)
+        control(page, "Continue").wait_for(state="hidden")
+        # Require actual Subject navigation after the modal has gone away.
         control(page, "Next: Palette").wait_for(state="visible")
         page.screenshot(path=directory / f"{label}-subject.png")
 
         for stage in ("Palette", "Light", "Adjust", "Edges", "Inspect", "Images"):
+            control(page, f"Next: {stage}").wait_for(state="visible")
             control(page, f"Next: {stage}").click(force=True)
         with page.expect_download(timeout=30000) as download:
             control(page, "Download composite PNG").click(force=True)
@@ -94,6 +96,9 @@ def smoke(browser, url, width, height, directory, profile=False):
     finally:
         try:
             page.screenshot(path=directory / f"{label}-last.png")
+            # Record which semantic controls remain when a transition fails.
+            (directory / f"{label}-accessibility.txt").write_text(
+                page.locator("body").aria_snapshot())
         finally:
             if profile:
                 (directory / f"{label}-timings.json").write_text(json.dumps(records, indent=2) + "\n")
