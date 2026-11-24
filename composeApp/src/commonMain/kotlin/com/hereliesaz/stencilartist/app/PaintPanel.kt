@@ -312,7 +312,7 @@ private fun PickForMe(state: StencilState) {
             CanCarousel(state, cans, index, readOnly = true, onBack = { viewing = null })
         } else {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((i, can) in cans.withIndex()) CanTile(can, selected = false) { viewing = i }
+                for ((i, can) in cans.withIndex()) CanTile(can, selected = false, artIndex = i) { viewing = i }
             }
         }
         Text(
@@ -387,7 +387,7 @@ private fun CanPicker(state: StencilState) {
             )
         }
         if (chosen.none { it.rgb != null }) {
-            Text("No selected cans have resolved colours.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+            Text(if (chosen.isEmpty()) "Nothing selected." else "No selected cans have resolved colours.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         } else {
             Column(Modifier.heightIn(max = 130.dp).verticalScroll(rememberScrollState())) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -450,7 +450,9 @@ private fun CanBrowser(
         SearchField(query, onChange = { query = it })
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SmallChoice("All brands", selected = brand == null) { brand = null }
-            for (b in catalogue.brands) SmallChoice(b, selected = brand == b) { brand = b }
+            for (b in catalogue.brands.filter { name -> catalogue.cans(name).any { it.rgb != null } }) {
+                SmallChoice(b, selected = brand == b) { brand = b }
+            }
         }
         val results = remember(query, brand, catalogue) {
             val b = brand
@@ -484,6 +486,7 @@ private fun CanBrowser(
                         can,
                         selected = if (onPick == null) can in state.selected
                             else selectedColour != null && can.rgb == selectedColour,
+                        artIndex = i,
                     ) { browsing = Browsing(results, i) }
                 }
             }
@@ -497,13 +500,13 @@ private fun CanBrowser(
 
 /** One can top in the grid: only cans with a known colour reach this composable. */
 @Composable
-private fun CanTile(can: Can, selected: Boolean, onOpen: () -> Unit) {
+private fun CanTile(can: Can, selected: Boolean, artIndex: Int = 0, onOpen: () -> Unit) {
     Column(
         Modifier.width(56.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onOpen)
             .semantics { contentDescription = can.displayName + (if (selected) ", selected" else "") },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        CanTop(can.rgb, selected, can.hexSource == HexSource.SAMPLED, 56.dp)
+        CanTop(can.rgb, selected, can.hexSource == HexSource.SAMPLED, 56.dp, artIndex = artIndex)
     }
 }
 
