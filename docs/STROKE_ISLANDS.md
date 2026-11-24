@@ -114,6 +114,8 @@ pixel-width connection does not prove a millimetre-width connection.
   is verified, the app must not promise it has matched any particular artist's
   brushwork.
 
+Cutting tips in the print PDF may be placed fully within either removable openings or retained stencil stock; the text and clearance never cross a cut. Gradient-lift painting tips remain on stock. Notes that cannot fit safely are shown with adjacent detail on reference pages.
+
 A gradient annotation is a **suggestion to deliberately soften** an indicated cut
 edge, never a promise that uncontrolled overspray will improve an image. The painter
 should keep neighboring crisp boundaries sealed and test the spray technique first.
