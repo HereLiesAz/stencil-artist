@@ -305,7 +305,7 @@ private fun PickForMe(state: StencilState) {
         Text("Matching the image's colours to cans...", style = MaterialTheme.typography.bodySmall, color = subdued)
     } else if (chosen.isNotEmpty()) {
         Text("CHOSEN CANS", style = MaterialTheme.typography.labelSmall, color = subdued)
-        val cans = chosen.map { it.layer.primary }
+        val cans = chosen.map { it.layer.primary }.filter { it.rgb != null }
         var viewing by remember { mutableStateOf<Int?>(null) }
         val index = viewing
         if (index != null && index in cans.indices) {
