@@ -37,7 +37,8 @@ class PhysicalValidationTest {
                 val x = i % w
                 val y = i / w
                 if (x !in 20 until 300 || y !in 20 until 220) 0 else {
-                    var rank = 0
+                    // Broad swatches seed all three quantiles independently of tiny details.
+                    var rank = if (y < 110) 0 else if (x < 160) 1 else 2
                     for (cx in listOf(100, 220)) {
                         val dx = x - cx
                         val dy = y - 86
@@ -48,6 +49,8 @@ class PhysicalValidationTest {
                     }
                     for ((n, thickness) in listOf(1, 2, 3, 4, 6).withIndex()) {
                         val left = 35 + n * 50
+                        // Dark surrounds keep the ladder distinct from the broad swatches.
+                        if (x in left - 2 until left + 30 && (y in 148 until 161 || y in 172 until 204)) rank = 0
                         if (x in left until left + 28 && y in 151 until 151 + thickness) rank = 2
                         if ((x in left until left + 8 || x in left + 8 + thickness until left + 16 + thickness) &&
                             y in 174 until 202) rank = 1
@@ -65,7 +68,7 @@ class PhysicalValidationTest {
             }
             assertEquals(palette.toSet(), raw.sheets.map { it.color }.toSet())
             assertEquals(0, raw.render()[0])
-            assertEquals(3, raw.render().filter { it != 0 }.toSet().size)
+            assertEquals(palette.toSet(), raw.render().filter { it != 0 }.toSet(), "$name must exercise all three paints")
             if (output != null) writePng(File(output, "$name-source.png"), w, h, pixels)
 
             for (style in listOf("classic", "brush")) {
