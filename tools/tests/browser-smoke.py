@@ -69,7 +69,40 @@ def smoke(browser, url, width, height, directory, profile=False):
         modal = page.locator("dialog#stencil-loading-notice[open]")
         modal.get_by_role("button", name="Continue", exact=True).wait_for(timeout=120000)
         page.screenshot(path=directory / f"{label}-acknowledgement.png")
-        assert control(page, "Next: Palette").count() == 0, "Workspace exposed through the modal"
+        # Role locators query DOM semantics, not Chromium's platform accessibility tree.
+        # A native modal leaves underlying Compose nodes in the DOM but makes them inert.
+        assert modal.evaluate("(dialog) => dialog.matches(':modal')"), "Dialog is not modal"
+        next_stage = control(page, "Next: Palette")
+        next_stage.wait_for(state="attached")
+        assert next_stage.evaluate("""element => {
+            element.focus();
+            return document.activeElement !== element;
+        }"""), "Workspace control accepted focus through the modal"
+        for key in ("Tab", "Shift+Tab"):
+            page.keyboard.press(key)
+            assert modal.evaluate("""dialog =>
+                document.activeElement === document.body ||
+                dialog.contains(document.activeElement)
+            """), "Keyboard focus escaped the modal"
+        assert next_stage.evaluate("""element => {
+            const r = element.getBoundingClientRect();
+            const x = Math.max(0, Math.min(innerWidth - 1, r.x + r.width / 2));
+            const y = Math.max(0, Math.min(innerHeight - 1, r.y + r.height / 2));
+            const hit = document.elementFromPoint(x, y);
+            return document.querySelector('dialog:modal').contains(hit);
+        }"""), "Pointer hit testing escaped the modal"
+        # Inspect Chromium's actual accessibility tree, not Playwright's DOM role query.
+        cdp = context.new_cdp_session(page)
+        try:
+            nodes = cdp.send("Accessibility.getFullAXTree")["nodes"]
+            assert not any(not node.get("ignored", False)
+                           and node.get("role", {}).get("value") == "button"
+                           and node.get("name", {}).get("value") == "Next: Palette"
+                           for node in nodes), "Workspace exposed to assistive technology"
+        finally:
+            cdp.detach()
+        page.keyboard.press("Escape")
+        assert modal.evaluate("(dialog) => dialog.matches(':modal')"), "Escape dismissed acknowledgement"
         modal.get_by_role("button", name="Continue", exact=True).click()
         modal.wait_for(state="detached")
         control(page, "Continue").wait_for(state="hidden")
