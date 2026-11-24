@@ -28,4 +28,13 @@ assert.ok(
 assert.match(page, /can\.brand == "MTN \(Montana Colors\)" && can\.line == "94"/);
 assert.match(page, /Mtn94Packshot\(can\.rgb, 44\.dp, 120\.dp, canImage\)/);
 assert.match(page, /CanSide\(can\.rgb, 44\.dp, 120\.dp, canImage\)/);
+assert.match(page, /\}\.filter \{ it\.rgb != null \}/,
+  "Only resolved colours belong in the rack results");
+assert.match(page, /open\.cans\.mapNotNull \{ can ->/,
+  "The open carousel must refresh and exclude unresolved entries");
+assert.match(page, /chosen\.map \{ it\.layer\.primary \}\.filter \{ it\.rgb != null \}/,
+  "The chosen-can carousel must also exclude unresolved entries");
+assert.match(page, /\.height\(320\.dp\)\.background\(Color\.White\)/,
+  "One white layer backs the entire rack, not one white circle per can");
+
 console.log("Original MTN 94 PNG, layering order and catalogue routing verified.");
