@@ -542,7 +542,7 @@ class PrintMountTest {
         for (needle in listOf("GET THE BOARD", "Poster board 22 x 28 in", "railroad board", "Thin poster board tears", "6 boards", "2 in", "50.8 mm",
             "FIND YOUR PAGES", "one grid of pages", "LAY THE PAGES", "page A1's paper edges on the board's top and left edges", "THE 3 MM STRIP", "Continue each cut line",
             "CUT AT THE DOTTED LINE", "cut the paper along the dotted line", "keep the offcut", "first piece of the next board",
-            "up to three other boards", "The dotted line is the only place paper is cut", "waste", "GLUE", "butt it square", "CUT", "paper and the board together",
+            "up to three other boards", "The dotted line is the only place paper is cut", "waste", "GLUE", "butt it square", "CUT", "Cut paper and board along dark outlines",
             "Two boards edge to edge: cut on the dotted line", "A1 is the top-left corner page")) {
             assertTrue(needle in text, "instructions mention '$needle'")
         }
