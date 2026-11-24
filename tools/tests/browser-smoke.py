@@ -48,6 +48,9 @@ def smoke(browser, url, width, height, directory, profile=False):
         assert response and response.ok, f"Failed to load {url}"
         page.locator("#loading").wait_for(state="detached", timeout=90000)
         page.locator("canvas").first.wait_for(state="visible")
+        # Compose's semantic divs are overlays; the real canvas receives pointer events.
+        # Forced locator clicks still send physical browser pointer input at those bounds.
+        # Do not invoke DOM click handlers or bypass the actual chooser/download assertions.
         # Enable the browser accessibility tree before looking up Compose semantics.
         page.keyboard.press("Tab")
         control(page, "Open image").wait_for(state="visible")
@@ -59,20 +62,20 @@ def smoke(browser, url, width, height, directory, profile=False):
         buffer = io.BytesIO()
         fixture.save(buffer, format="PNG")
         with page.expect_file_chooser() as chooser:
-            control(page, "Open image").click()
+            control(page, "Open image").click(force=True)
         chooser.value.set_files({"name": "smoke.png", "mimeType": "image/png",
                                  "buffer": buffer.getvalue()})
         # Completion acknowledgement is mandatory; do not skip it by sleeping.
         control(page, "Continue").wait_for(state="visible", timeout=120000)
         page.screenshot(path=directory / f"{label}-acknowledgement.png")
-        control(page, "Continue").click()
+        control(page, "Continue").click(force=True)
         control(page, "Next: Palette").wait_for(state="visible")
         page.screenshot(path=directory / f"{label}-subject.png")
 
         for stage in ("Palette", "Light", "Adjust", "Edges", "Inspect", "Images"):
-            control(page, f"Next: {stage}").click()
+            control(page, f"Next: {stage}").click(force=True)
         with page.expect_download(timeout=30000) as download:
-            control(page, "Download composite PNG").click()
+            control(page, "Download composite PNG").click(force=True)
         output = directory / f"{label}-composite.png"
         download.value.save_as(output)
         with Image.open(output) as decoded:
