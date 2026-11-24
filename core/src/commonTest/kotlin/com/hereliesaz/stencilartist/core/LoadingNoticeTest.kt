@@ -30,15 +30,34 @@ class LoadingNoticeTest {
     }
 
     @Test
-    fun replacementWorkDoesNotRotateAnAlreadyVisibleTip() {
+    fun everyRestartAdvancesEvenWhileOverlayIsVisible() {
         val loading = LoadingNotice().begin(8)
-        assertEquals(loading, loading.begin(8))
-        assertEquals(loading, loading.finish().begin(8))
-        assertEquals(loading.finish(), loading.finish().finish())
+        val restarted = loading.begin(8)
+        assertEquals(1, restarted.tipIndex)
+        assertTrue(restarted.visible && restarted.processing)
+        assertEquals(restarted, restarted.dismiss())
+        val completed = restarted.finish()
+        assertEquals(1, completed.tipIndex)
+        assertEquals(completed, completed.finish())
+        val next = completed.begin(8)
+        assertEquals(2, next.tipIndex)
+        assertTrue(next.visible && next.processing)
+        assertEquals(next, next.dismiss())
     }
 
     @Test
-    fun eachNewAppearanceAdvancesAndWraps() {
+    fun repeatedRestartsWrapWithoutDismissingOverlay() {
+        var notice = LoadingNotice()
+        for (expected in listOf(0, 1, 2, 0, 1)) {
+            notice = notice.begin(3)
+            assertEquals(expected, notice.tipIndex)
+            assertTrue(notice.visible && notice.processing)
+        }
+        assertFalse(notice.finish().dismiss().visible)
+    }
+
+    @Test
+    fun eachNewProcessAdvancesAndWraps() {
         var notice = LoadingNotice()
         for (expected in listOf(0, 1, 2, 0, 1)) {
             notice = notice.begin(3)

@@ -61,7 +61,7 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   references, not licensed source artwork or automatically imported colour measurements.
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
 - The guided studio begins with Image, then Subject (automatic isolation and manual remove/restore brush), then Palette (layer count, colour or tonal mapping, optional specific RGB/cans), Light and Adjust, followed by Edges, Inspect, Images, Print and Cutter. Choosing paints upfront constrains separation; deciding later lets the artist assign paint to the existing sheets in Inspect without changing cuts.
-- Loading shows a single tip per appearance with determinate processing progress. After processing, Continue or any tap dismisses the same tip; taps cannot dismiss active work.
+- Loading shows one different tip per process start or restart with determinate progress. The workspace is modal until the current process succeeds or fails; Continue or any tap then dismisses the same tip.
 - A persistent source/result comparison (or single-image view) supports synchronized pinch-zoom and panning on both panes, plus explicit zoom and reset buttons. The result may show the processed image, finished stencil, or any sheet alone. Visual and touch behavior still require device verification.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
   transparent PNG; or every sheet plus the composite in one ZIP. Also exports a versioned
