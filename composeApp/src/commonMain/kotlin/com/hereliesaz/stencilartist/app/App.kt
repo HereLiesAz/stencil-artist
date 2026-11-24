@@ -789,23 +789,16 @@ private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifi
     }
 
     val canExport = state.separation != null && !state.busy && exporting == null
-    Column(
-        modifier.background(MaterialTheme.colorScheme.surface).verticalScroll(stepScroll).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
+    Column(modifier.background(MaterialTheme.colorScheme.surface)) {
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(stepScroll).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
         LinearProgressIndicator(progress = { (step + 1).toFloat() / STUDIO_STEPS.size },
             modifier = Modifier.fillMaxWidth())
         Text(STUDIO_STEPS[step].first, style = MaterialTheme.typography.headlineMedium)
         Text(STUDIO_STEPS[step].second, style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { openStep(state, step - 1) }, enabled = step > 0,
-                modifier = Modifier.weight(1f)) { Text("← Back") }
-            Button(onClick = { openStep(state, step + 1) }, enabled = step < STUDIO_STEPS.lastIndex && state.source != null,
-                modifier = Modifier.weight(1f)) {
-                Text(if (step < STUDIO_STEPS.lastIndex) "Next: ${STUDIO_STEPS[(step + 1).coerceAtMost(STUDIO_STEPS.lastIndex)].first}" else "All steps")
-            }
-        }
 
         if (step == 0) {
         OutlinedButton(onClick = pick, modifier = Modifier.fillMaxWidth()) {
@@ -1408,12 +1401,24 @@ private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifi
                 if (wanted != null) startExport(label) { stencil -> printPdfFile(stencil, wanted, sheet) }
             },
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { openStep(state, step - 1) }, enabled = step > 0,
-                modifier = Modifier.weight(1f)) { Text("Previous") }
-            Button(onClick = { openStep(state, step + 1) }, enabled = step < STUDIO_STEPS.lastIndex && state.source != null,
-                modifier = Modifier.weight(1f)) {
-                Text(if (step < STUDIO_STEPS.lastIndex) "Next: ${STUDIO_STEPS[(step + 1).coerceAtMost(STUDIO_STEPS.lastIndex)].first}" else "Finished")
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(
+                onClick = { openStep(state, step - 1) },
+                enabled = step > 0,
+                modifier = Modifier.semantics { contentDescription = "Back" },
+            ) { Text("←") }
+            if (step < STUDIO_STEPS.lastIndex) {
+                val next = STUDIO_STEPS[step + 1].first
+                Button(
+                    onClick = { openStep(state, step + 1) },
+                    enabled = state.source != null,
+                    modifier = Modifier.semantics { contentDescription = "Next: $next" },
+                ) { Text("$next →") }
             }
         }
     }
