@@ -4,6 +4,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -48,18 +50,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hereliesaz.stencilartist.core.Base
@@ -96,6 +101,18 @@ private fun oneDecimal(value: Float): String {
 /** Below this width the controls go under the preview instead of beside it. */
 private val WIDE_LAYOUT = 720.dp
 
+/** One decision per stage; all stages use the same in-memory processing and export state. */
+private val STUDIO_STEPS = listOf(
+    "Source" to "Choose your image and decide what belongs in the stencil. Removing the background changes the subject's silhouette, not its colours.",
+    "Light" to "Lighting changes the source before any sheet is cut. This is estimated surface shading, not a true 3D extrusion or cast-shadow renderer.",
+    "Layers" to "Each sheet is one pass of paint. Fewer sheets are easier to align; more sheets preserve additional tones or colours.",
+    "Edges" to "Choose how paint openings are constructed. Keep fine detail intact, then adjust edge cleanup only where necessary.",
+    "Inspect" to "Compare the source with your result, then inspect each cut sheet. Tiny unsupported islands may need special handling.",
+    "Images" to "Save a finished image, an individual sheet, or an aligned layer pack for another app.",
+    "Print" to "Set the physical width, then print tiled pages at actual size. Their alignment marks preserve the cut across page joins.",
+    "Cutter" to "Set the physical width and your cutter or mat. Check the machine settings before sending any toolpath to hardware.",
+)
+
 /** The whole app: one screen, shared by Android and the web. */
 @Composable
 fun App() {
@@ -112,7 +129,7 @@ fun App() {
                 if (maxWidth >= WIDE_LAYOUT) {
                     Row(Modifier.fillMaxSize()) {
                         Preview(state, pick, Modifier.weight(1f).fillMaxHeight())
-                        Controls(state, pick, Modifier.width(340.dp).fillMaxHeight())
+                        Controls(state, pick, Modifier.width(370.dp).fillMaxHeight())
                     }
                 } else {
                     Column(Modifier.fillMaxSize()) {
@@ -125,30 +142,137 @@ fun App() {
     }
 }
 
-/** The stencil, on a checkerboard so a white sheet can be told from no sheet at all. */
+/**
+ * A permanent comparison workspace. Source and generated result share the same zoom and pan,
+ * so a detail is never found on one side and lost on the other.
+ */
 @Composable
 private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
-    Box(modifier.checkerboard(), contentAlignment = Alignment.Center) {
-        val preview = state.preview
-        if (preview == null) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Stencil Artist", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Light)
-                Text("Any image. Any number of sheets.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Button(onClick = pick) { Text("Open image") }
+    var split by remember { mutableStateOf(true) }
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var pan by remember { mutableStateOf(Offset.Zero) }
+    val sourceBitmap = remember(state.source) {
+        state.source?.let { argbToImageBitmap(it.pixels, it.width, it.height) }
+    }
+    LaunchedEffect(state.source) {
+        zoom = 1f
+        pan = Offset.Zero
+    }
+    val applyTransform: (Float, Offset, IntSize) -> Unit = { factor, delta, bounds ->
+        val next = (zoom * factor).coerceIn(1f, 8f)
+        val maxX = bounds.width * (next - 1f) / 2f
+        val maxY = bounds.height * (next - 1f) / 2f
+        zoom = next
+        pan = if (next == 1f) Offset.Zero else Offset(
+            (pan.x + delta.x).coerceIn(-maxX, maxX),
+            (pan.y + delta.y).coerceIn(-maxY, maxY),
+        )
+    }
+
+    Box(modifier.background(MaterialTheme.colorScheme.background)) {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("WORKSPACE", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.weight(1f))
+                if (state.source != null) {
+                    Choice("Compare", selected = split) { split = true }
+                    Choice("Single", selected = !split) { split = false }
+                }
             }
-        } else {
-            Image(
-                bitmap = preview,
-                contentDescription = if (state.viewProcessedImage) "Processed base image before stencil separation"
-                else when (val sheet = state.shownSheet) {
-                    null -> "Stencil preview, all sheets"
-                    else -> "Stencil preview, sheet ${sheet + 1}"
-                },
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().padding(12.dp),
-            )
+            val result = state.preview
+            if (result == null) {
+                Box(Modifier.weight(1f).fillMaxWidth().checkerboard(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Stencil Artist", style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Light)
+                        Text("From image to paint-ready layers",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = pick) { Text("Open image") }
+                    }
+                }
+            } else {
+                val resultLabel = if (state.viewProcessedImage) "PREPARED IMAGE"
+                    else state.shownSheet?.let { "SHEET ${it + 1}" } ?: "FINISHED STENCIL"
+                if (split && sourceBitmap != null) {
+                    Row(Modifier.weight(1f).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        PreviewPane("SOURCE", sourceBitmap, zoom, pan, applyTransform,
+                            Modifier.weight(1f).fillMaxHeight())
+                        PreviewPane(resultLabel, result, zoom, pan, applyTransform,
+                            Modifier.weight(1f).fillMaxHeight())
+                    }
+                } else {
+                    PreviewPane(resultLabel, result, zoom, pan, applyTransform,
+                        Modifier.weight(1f).fillMaxWidth())
+                }
+            }
+            if (result != null) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Pinch or drag to inspect", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f))
+                    OutlinedButton(onClick = { zoom = (zoom / 1.5f).coerceAtLeast(1f); if (zoom == 1f) pan = Offset.Zero },
+                        enabled = zoom > 1f,
+                        modifier = Modifier.semantics { contentDescription = "Zoom out" }) { Text("−") }
+                    OutlinedButton(onClick = { zoom = 1f; pan = Offset.Zero },
+                        modifier = Modifier.semantics { contentDescription = "Reset image zoom and position" }) {
+                        Text("${(zoom * 100).roundToInt()}%")
+                    }
+                    OutlinedButton(onClick = { zoom = (zoom * 1.5f).coerceAtMost(8f) },
+                        enabled = zoom < 8f,
+                        modifier = Modifier.semantics { contentDescription = "Zoom in" }) { Text("+") }
+                }
+            }
         }
         if (state.busy) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth())
+    }
+}
+
+/** The viewer owns no image processing: transform gestures alter only its clipped presentation. */
+@Composable
+private fun PreviewPane(
+    title: String,
+    bitmap: androidx.compose.ui.graphics.ImageBitmap,
+    zoom: Float,
+    pan: Offset,
+    onTransform: (Float, Offset, IntSize) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var bounds by remember { mutableStateOf(IntSize.Zero) }
+    val gestures = rememberTransformableState { factor, movement, _ ->
+        onTransform(factor, movement, bounds)
+    }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, modifier = Modifier.padding(horizontal = 8.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box(
+            Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                .checkerboard().onSizeChanged { bounds = it }.transformable(gestures),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = title,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().graphicsLayer {
+                    scaleX = zoom
+                    scaleY = zoom
+                    translationX = pan.x
+                    translationY = pan.y
+                },
+            )
+        }
     }
 }
 
@@ -186,6 +310,15 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         invalidCutterDrafts = if (valid) invalidCutterDrafts - field else invalidCutterDrafts + field
     }
     val print = remember { PrintSettings() }
+    var step by remember { mutableIntStateOf(0) }
+    var advancedLight by remember { mutableStateOf(false) }
+    var advancedEdges by remember { mutableStateOf(false) }
+    val stepScroll = rememberScrollState()
+    LaunchedEffect(step) { stepScroll.scrollTo(0) }
+    val openStep: (Int) -> Unit = { next ->
+        step = next.coerceIn(STUDIO_STEPS.indices)
+        if (step == 1) state.showProcessed(true) else state.show(state.shownSheet)
+    }
 
     // The Android picker completes asynchronously. Keep every export control locked until the
     // result callback, not merely until the file bytes have been passed to the picker.
@@ -234,15 +367,32 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
 
     val canExport = state.separation != null && !state.busy && exporting == null
     Column(
-        modifier.background(MaterialTheme.colorScheme.surface).verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier.background(MaterialTheme.colorScheme.surface).verticalScroll(stepScroll).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        Text("MAKE A STENCIL", style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LinearProgressIndicator(progress = { (step + 1).toFloat() / STUDIO_STEPS.size },
+            modifier = Modifier.fillMaxWidth())
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(STUDIO_STEPS.size) { index ->
+                Choice("${index + 1} ${STUDIO_STEPS[index].first}", selected = step == index) {
+                    openStep(index)
+                }
+            }
+        }
+        Text(STUDIO_STEPS[step].first, style = MaterialTheme.typography.headlineMedium)
+        Text(STUDIO_STEPS[step].second, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        if (step == 0) {
         OutlinedButton(onClick = pick, modifier = Modifier.fillMaxWidth()) {
             Text(if (state.source == null) "Open image" else "Open another image")
         }
+        }
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium) }
 
-        Section("Show") {
+        if (step == 4) Section("Show") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Choice("Stencil", selected = !state.viewProcessedImage, modifier = Modifier.weight(1f)) {
                     state.show(state.shownSheet)
@@ -254,7 +404,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             SheetStrip(state.separation?.sheets.orEmpty(), state.shownSheet, state::show)
         }
 
-        Section("Background") {
+        if (step == 0) Section("Background") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Choice("Remove", selected = state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(true) }
                 Choice("Keep", selected = !state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(false) }
@@ -269,7 +419,9 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        Section("Depth + lighting") {
+        if (step == 1) Section("Depth + lighting") {
+            Text("Use this only when a change in light would make the eventual paint layers clearer. The current tool shades the photograph from estimated depth; it cannot cast shadows or infer hidden surfaces.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val light = state.lighting
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Choice("On", selected = light.enabled, modifier = Modifier.weight(1f)) {
@@ -280,6 +432,12 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 }
             }
             if (light.enabled) {
+                OutlinedButton(onClick = { advancedLight = !advancedLight },
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(if (advancedLight) "Hide lighting adjustments" else "Adjust direction and strength")
+                }
+            }
+            if (light.enabled && advancedLight) {
                 LabelledSlider("Light azimuth", light.azimuth.roundToInt().toString() + "°",
                     light.azimuth, -180f..180f) { state.updateLighting(light.copy(azimuth = it)) }
                 LabelledSlider("Light elevation", light.elevation.roundToInt().toString() + "°",
@@ -293,7 +451,10 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
+        if (step == 2) {
         Section("Separate by") {
+            Text("Tone makes a brightness-based stack. Colour matches the source's hues or the real cans you choose.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Choice("Tone", selected = state.mode == SeparationMode.TONE, modifier = Modifier.weight(1f)) {
                     state.selectMode(SeparationMode.TONE)
@@ -338,11 +499,15 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
+        }
+        if (step == 3) {
+        Text("Brush strokes shape broad openings with directional marks. Classic preserves the original cut geometry.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         // Smoothing is a median filter and must be odd: the slider counts in steps of two.
-        LabelledSlider("Smoothing", "${state.smoothing} px", (state.smoothing - 1) / 2f, 0f..15f) {
+        if (advancedEdges) LabelledSlider("Smoothing", "${state.smoothing} px", (state.smoothing - 1) / 2f, 0f..15f) {
             state.setSmoothing(it.roundToInt() * 2 + 1)
         }
-        LabelledSlider("Edge closing", "${state.closing} px", state.closing.toFloat(), 1f..25f) {
+        if (advancedEdges) LabelledSlider("Edge closing", "${state.closing} px", state.closing.toFloat(), 1f..25f) {
             state.setClosing(it.roundToInt())
         }
         Section("Stroke construction") {
@@ -360,15 +525,19 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (state.mode == SeparationMode.TONE) {
+        OutlinedButton(onClick = { advancedEdges = !advancedEdges }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (advancedEdges) "Hide edge adjustments" else "Fine-tune smoothing, closing and tonal bias")
+        }
+        if (state.mode == SeparationMode.TONE && advancedEdges) {
             LabelledSlider("Tonal bias", tone.bias.let { if (it > 0) "+$it" else "$it" }, tone.bias.toFloat(), -100f..100f) {
                 state.update(tone.copy(bias = it.roundToInt()))
             }
         }
 
-        if (state.snapped) PaintListSection(state)
+        }
+        if (step == 4 && state.snapped) PaintListSection(state)
 
-        Section("Raster PNG") {
+        if (step == 5) Section("Raster PNG") {
             state.separation?.let { stencil ->
                 Text(
                     "Transparent PNGs · ${stencil.width} × ${stencil.height} pixels",
@@ -410,7 +579,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             )
         }
 
-        Section("Physical size") {
+        if (step == 6 || step == 7) Section("Physical size") {
             LabelledSlider("Width", printWidthMm.roundToInt().toString() + " mm",
                 printWidthMm, 50f..1000f) { printWidthMm = it }
             state.separation?.let { stencil ->
@@ -424,7 +593,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
-        Section("Cutter files") {
+        if (step == 7) Section("Cutter files") {
             // These rows wrap rather than scroll: a mouse cannot drag a row sideways, and a choice
             // that is off the edge of the panel is a choice nobody finds.
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -607,7 +776,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             ) { Text("Download all sheets ${format.label}") }
         }
 
-        PrintSection(
+        if (step == 6) PrintSection(
             state = state,
             settings = print,
             widthMm = printWidthMm.toDouble(),
@@ -620,6 +789,14 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 if (wanted != null) startExport(label) { stencil -> printPdfFile(stencil, wanted, sheet) }
             },
         )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { openStep(step - 1) }, enabled = step > 0,
+                modifier = Modifier.weight(1f)) { Text("Previous") }
+            Button(onClick = { openStep(step + 1) }, enabled = step < STUDIO_STEPS.lastIndex,
+                modifier = Modifier.weight(1f)) {
+                Text(if (step < STUDIO_STEPS.lastIndex) "Next: ${STUDIO_STEPS[(step + 1).coerceAtMost(STUDIO_STEPS.lastIndex)].first}" else "Finished")
+            }
+        }
     }
 }
 
