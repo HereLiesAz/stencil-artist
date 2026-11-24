@@ -9,7 +9,7 @@ Status: **all planned phases implemented.** What has not been verified on real h
 
 - [x] Split the one-screen settings column into eight named, focused stages with context explaining each decision; preserve the underlying processing and export code.
 - [x] Add an original/result comparison with shared, fitted-image-bounded zoom and pan, plus single-view and explicit zoom controls.
-- [x] Rotate creation/cutting/painting advice during stencil generation; favor cutaway for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
+- [x] Rotate creation/cutting/painting advice during stencil generation; permit cutaway or retained stock for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
 - [x] Put advanced lighting and edge-adjustment sliders behind deliberate disclosure; leave depth-lighting behavior unchanged pending design review.
 - [ ] Visually inspect both wide web and narrow Android layouts, including keyboard and touch input, and verify pinch-pan, clipped zoom and side-by-side accuracy on devices.
 - [ ] Agree on the depth-extrusion/relighting model, shadow behavior, light controls and editing workflow before changing the renderer. See `docs/DEPTH_RELIGHT_DISCUSSION.md` for the current implementation and proposed choices.
