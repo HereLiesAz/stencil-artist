@@ -677,6 +677,7 @@ class PrintPdfTest {
         val expected = "may sit inside openings or on retained material, clear of cut edges"
         val words = Regex("""\(([^)]*)\) Tj""").findAll(pdf.contents.first())
             .joinToString(" ") { it.groupValues[1] }
+        println("CUT_INSTRUCTIONS_TEXT=$words")
         assertTrue(words.contains(expected), "Flat-sheet cutting instructions must allow both regions")
         assertFalse(words.contains("sit only on material that stays"))
     }
