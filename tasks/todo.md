@@ -16,10 +16,10 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 
 ## True 3D relief and lighting (approved 2026-11-24)
 
-- [ ] Connect the shared closed relief mesh to a production scene renderer. Foundation added: depth-displaced front, silhouette walls/back cap, UVs, mask holes and disconnected solids, common tests (including all 512 3×3 masks). Not checked off: no app caller yet.
-- [ ] Generate bounded geometry from the masked image and normalized model depth without erasing thin source features or silently changing source/export resolution.
-- [ ] Render an orbitable 3D scene preview and a separately locked source-aligned orthographic view; start with directional light plus ambient, actual visibility and self-shadowing. Verify silhouette/alpha and non-square framing.
-- [ ] Make the rendered RGBA image the prepared-image input to the existing tone/colour separator; retain original-lighting and no-depth fallback, cancellation/generation guards, and exact preview/export correspondence.
+- [x] Connect the shared closed relief mesh to the MVP scene renderer; app caller: `StencilState.remake` → `ReliefScene.prepare` → `renderSource`. Common geometry and scene tests cover closure, shadows and orbit independence.
+- [x] Generate bounded geometry from masked depth, preserving every visible source pixel and working-image resolution in the frontal render. Coarse geometry still needs quality evaluation.
+- [x] Render an orbitable 3D scene preview and a separately locked source-aligned orthographic view with directional light, ambient fill, geometric shadows and source-alpha preservation. JVM regression tests pass; device verification below remains open.
+- [x] Route the rendered RGBA image into the existing tone/colour separator with original-lighting fallback and generation guards. Full Android/Wasm integration verification remains open.
 - [ ] Add multiple positioned directional, point and spot lights, handles, key/fill/rim presets, colour/intensity/softness and shadow-only/combined views, optional background receiver.
 - [ ] Add thickness, relief strength, smoothing, flatten/clamp, depth inversion/remapping and artist depth corrections; separate material/photographic-shadow choices from geometry.
 - [ ] Add separation-boundary and island/cut-risk diagnostics from the same committed render.
@@ -43,7 +43,7 @@ stencil-artist/
   core/         KMP library, commonMain only, no platform deps
                 tone/     StencilTones (N sheets), k-means thresholds, dark/light call
                 raster/   median blur, morphological close, flood fill   (replaces OpenCV)
-                light/    current: depth -> normals -> relit luminance; approved: mesh -> scene -> render
+                light/    depth + mask -> relief mesh -> scene render -> separation
                 vector/   contour trace, simplify, islands
                 export/   PNG planes, PDF writer + tiler, SVG, DXF, HPGL, G-code
   composeApp/   Compose Multiplatform UI and state: commonMain + androidMain + wasmJsMain

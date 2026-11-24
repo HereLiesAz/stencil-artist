@@ -108,7 +108,7 @@ private val WIDE_LAYOUT = 720.dp
 /** One decision per stage; all stages use the same in-memory processing and export state. */
 private val STUDIO_STEPS = listOf(
     "Source" to "Choose your image and decide what belongs in the stencil. Removing the background changes the subject's silhouette, not its colours.",
-    "Light" to "Lighting changes the source before any sheet is cut. This is estimated surface shading, not a true 3D extrusion or cast-shadow renderer.",
+    "Light" to "Extrude the subject from estimated depth, illuminate the solid and use its frontal render before cutting any sheets.",
     "Layers" to "Each sheet is one pass of paint. Fewer sheets are easier to align; more sheets preserve additional tones or colours.",
     "Edges" to "Choose how paint openings are constructed. Keep fine detail intact, then adjust edge cleanup only where necessary.",
     "Inspect" to "Compare the source with your result, then inspect each cut sheet. Tiny unsupported islands may need special handling.",
@@ -510,7 +510,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
 
         if (step == 1) Section("Depth + lighting") {
-            Text("Use this only when a change in light would make the eventual paint layers clearer. The current tool shades the photograph from estimated depth; it cannot cast shadows or infer hidden surfaces.",
+            Text("The estimated depth shapes a closed relief solid. Its scene light casts geometric shadows. The front render makes the stencil; orbiting only inspects the solid. Hidden surfaces are inferred.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val light = state.lighting
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -518,7 +518,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     !light.enabled, Modifier.weight(1f)) {
                     state.updateLighting(light.copy(enabled = false))
                 }
-                DecisionCard("Relight surface", "Change apparent light using estimated depth.",
+                DecisionCard("3D scene", "Extrude the subject and light its geometry.",
                     light.enabled, Modifier.weight(1f)) {
                     state.updateLighting(light.copy(enabled = true))
                 }
@@ -527,6 +527,26 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 OutlinedButton(onClick = { advancedLight = !advancedLight },
                     modifier = Modifier.fillMaxWidth()) {
                     Text(if (advancedLight) "Hide lighting adjustments" else "Adjust direction and strength")
+                }
+            }
+            if (light.enabled) {
+                var yaw by remember(state.source) { mutableFloatStateOf(35f) }
+                var pitch by remember(state.source) { mutableFloatStateOf(20f) }
+                val scene = state.reliefScene
+                if (scene != null && !state.busy) {
+                    val orbit by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, scene, light, yaw, pitch) {
+                        value = null
+                        delay(80)
+                        val rendered = withContext(Dispatchers.Default) { scene.renderOrbit(light, yaw, pitch) }
+                        value = argbToImageBitmap(rendered.pixels, rendered.width, rendered.height)
+                    }
+                    Box(Modifier.fillMaxWidth().height(200.dp).checkerboard(), contentAlignment = Alignment.Center) {
+                        orbit?.let { Image(it, contentDescription = "Orbit view of the extruded 3D subject",
+                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+                    }
+                    LabelledSlider("Orbit yaw", yaw.roundToInt().toString() + "°", yaw, -180f..180f) { yaw = it }
+                    LabelledSlider("Orbit pitch", pitch.roundToInt().toString() + "°", pitch, -80f..80f) { pitch = it }
+                    Text("Orbit does not change stencil framing.", style = MaterialTheme.typography.bodySmall)
                 }
             }
             if (light.enabled && advancedLight) {
@@ -540,6 +560,16 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     light.ambient, 0f..2f) { state.updateLighting(light.copy(ambient = it)) }
                 LabelledSlider("Depth strength", formatLightValue(light.depthStrength),
                     light.depthStrength, 0f..10f) { state.updateLighting(light.copy(depthStrength = it)) }
+                LabelledSlider("Extrusion thickness", formatLightValue(light.extrusionThickness),
+                    light.extrusionThickness, .01f..0.5f) { state.updateLighting(light.copy(extrusionThickness = it)) }
+                OutlinedButton(onClick = { state.updateLighting(light.copy(reverseDepth = !light.reverseDepth)) },
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(if (light.reverseDepth) "Depth reversed" else "Reverse depth")
+                }
+                OutlinedButton(onClick = { state.updateLighting(light.copy(castShadows = !light.castShadows)) },
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(if (light.castShadows) "Geometric shadows on" else "Geometric shadows off")
+                }
             }
         }
 

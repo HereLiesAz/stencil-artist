@@ -7,7 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import com.hereliesaz.stencilartist.core.ColorParams
 import com.hereliesaz.stencilartist.core.ColorSeparator
-import com.hereliesaz.stencilartist.core.DepthLighting
+import com.hereliesaz.stencilartist.core.ReliefScene
 import com.hereliesaz.stencilartist.core.LightingParams
 import com.hereliesaz.stencilartist.core.IslandPlanner
 import com.hereliesaz.stencilartist.core.SoftGradientZones
@@ -424,6 +424,10 @@ class StencilState(
     var lighting: LightingParams by mutableStateOf(LightingParams())
         private set
 
+    /** The current relief scene, available only for the current generation's orbit preview. */
+    var reliefScene: ReliefScene? by mutableStateOf(null)
+        private set
+
     var viewProcessedImage: Boolean by mutableStateOf(false)
         private set
 
@@ -581,6 +585,10 @@ class StencilState(
 
     fun updateLighting(next: LightingParams) {
         if (next == lighting) return
+        if (next.enabled && !lighting.enabled && depthMap == null) {
+            depthAttempted = false
+            depthError = null
+        }
         lighting = next
         remake(settle = true)
     }
@@ -615,6 +623,7 @@ class StencilState(
         val assist = depthAssistedBackground
         val request = ++generation
         run?.cancel()
+        reliefScene = null
         separation = null
         paintLayers = emptyList()
         busy = true
@@ -663,13 +672,25 @@ class StencilState(
                 val isolated = cutOut?.takeIf { remove } ?: image
                 val lit = if (wantedLighting.enabled && depthMap != null) {
                     val map = checkNotNull(depthMap)
-                    withContext(Dispatchers.Default) {
-                        DepthLighting.relight(isolated, map, wantedLighting)
+                    try {
+                        val rendered = withContext(Dispatchers.Default) {
+                            val scene = ReliefScene.prepare(isolated, map, wantedLighting)
+                            scene to scene.renderSource(wantedLighting)
+                        }
+                        if (generation != request) return@launch
+                        reliefScene = rendered.first
+                        rendered.second
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        notes += "3D scene rendering unavailable; using original lighting."
+                        isolated
                     }
                 } else isolated
+                if (generation != request) return@launch
                 markStage(0.60f)
-                // This is the processing order: source -> depth-assisted mask -> relit base image
-                // -> separation (by tone or by colour). No relighting occurs after any stencil layer is created.
+                // The fixed frontal scene render is the prepared image for every separator,
+                // paint-plan, island and export path. Orbit views never enter this pipeline.
                 var asked = if (wantedMode == SeparationMode.TONE) wantedTone.sheets else wantedColor.sheets
                 var layers: List<SnappedLayer> = emptyList()
                 var failure = "Couldn't make a stencil from this image."

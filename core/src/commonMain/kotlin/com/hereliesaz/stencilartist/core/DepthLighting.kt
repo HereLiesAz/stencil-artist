@@ -15,10 +15,14 @@ data class LightingParams(
     val intensity: Float = 0.7f,
     val ambient: Float = 0.55f,
     val depthStrength: Float = 3f,
+    val extrusionThickness: Float = .05f,
+    val reverseDepth: Boolean = false,
+    val castShadows: Boolean = true,
 ) {
     init {
         require(azimuth in -180f..180f && elevation in 0f..90f)
         require(intensity in 0f..2f && ambient in 0f..2f && depthStrength in 0f..10f)
+        require(extrusionThickness in .0001f..1f)
     }
 }
 
