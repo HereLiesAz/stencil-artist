@@ -675,8 +675,7 @@ class PrintPdfTest {
     fun cuttingInstructionsDescribeBothSafePlacementRegions() {
         val pdf = parse(PrintPdf.make(stencil(20, 20) { x, _ -> x in 5..14 }, options(120.0)))
         val expected = "Cutting notes may sit in openings or retained stock, clear of cut edges"
-        val words = Regex("""\(([^)]*)\) Tj""").findAll(pdf.contents.first())
-            .joinToString(" ") { it.groupValues[1] }
+        val words = interpret(pdf.contents.first()).words.joinToString(" ") { it.text }
         assertTrue(words.contains(expected), "Flat-sheet cutting instructions must allow both regions")
         assertFalse(words.contains("sit only on material that stays"))
     }
