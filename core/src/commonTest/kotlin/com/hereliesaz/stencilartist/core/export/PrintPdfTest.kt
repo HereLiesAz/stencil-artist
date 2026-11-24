@@ -672,6 +672,14 @@ class PrintPdfTest {
     }
 
     @Test
+    fun cuttingInstructionsDescribeBothSafePlacementRegions() {
+        val pdf = parse(PrintPdf.make(stencil(20, 20) { x, _ -> x in 5..14 }, options(120.0)))
+        val expected = "may sit inside openings or on retained material, clear of cut edges"
+        assertTrue(pdf.contents.first().contains(expected), "Flat-sheet cutting instructions must allow both regions")
+        assertFalse(pdf.contents.first().contains("sit only on material that stays"))
+    }
+
+    @Test
     fun multipleSheetsAreLabelledInOrderWithoutAssumingThreeOrGreyLayers() {
         val s = Separation(10, 10, List(4) { Sheet(0xFF113399.toInt()) }, IntArray(100) { (it % 10) / 3 })
         val pdf = parse(PrintPdf.make(s, options(100.0)))
