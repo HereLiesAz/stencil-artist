@@ -49,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
@@ -83,6 +84,7 @@ import com.hereliesaz.stencilartist.core.export.TileSpec
 import com.hereliesaz.stencilartist.core.export.Tiling
 import com.hereliesaz.stencilartist.core.Sheet
 import com.hereliesaz.stencilartist.core.Separation
+import com.hereliesaz.stencilartist.core.StrokeStyler
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -137,18 +139,56 @@ fun App() {
         val store = rememberKeyValueStore()
         val state = remember { StencilState(scope, SubjectIsolator(models), DepthEstimator(models), catalogueLoader, store) }
         val pick = rememberImagePicker(onPicked = state::open, onError = state::fail)
+        var loadingTip by remember { mutableIntStateOf(-1) }
+        LaunchedEffect(state.busy) {
+            if (state.busy) {
+                loadingTip = (loadingTip + 1) % LOADING_TIPS.size
+                while (true) {
+                    delay(4200)
+                    loadingTip = (loadingTip + 1) % LOADING_TIPS.size
+                }
+            }
+        }
 
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
-                if (maxWidth >= WIDE_LAYOUT) {
-                    Row(Modifier.fillMaxSize()) {
-                        Preview(state, pick, Modifier.weight(1f).fillMaxHeight())
-                        Controls(state, pick, Modifier.width(370.dp).fillMaxHeight())
+            Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                BoxWithConstraints(
+                    Modifier.fillMaxSize().then(if (state.busy) Modifier.blur(8.dp) else Modifier),
+                ) {
+                    if (maxWidth >= WIDE_LAYOUT) {
+                        Row(Modifier.fillMaxSize()) {
+                            Preview(state, pick, Modifier.weight(1f).fillMaxHeight())
+                            Controls(state, pick, Modifier.width(370.dp).fillMaxHeight())
+                        }
+                    } else {
+                        Column(Modifier.fillMaxSize()) {
+                            Preview(state, pick, Modifier.weight(1f).fillMaxWidth())
+                            Controls(state, pick, Modifier.weight(1f).fillMaxWidth())
+                        }
                     }
-                } else {
-                    Column(Modifier.fillMaxSize()) {
-                        Preview(state, pick, Modifier.weight(1f).fillMaxWidth())
-                        Controls(state, pick, Modifier.weight(1f).fillMaxWidth())
+                }
+                if (state.busy) {
+                    // A complete modal scrim: blur and dim BOTH the preview and the
+                    // settings. Do not let a tap reach outdated controls mid-generation.
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.67f)).clickable { })
+                    val advice = LOADING_TIPS[loadingTip.coerceAtLeast(0)]
+                    Column(
+                        Modifier.align(Alignment.Center).fillMaxWidth().padding(24.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+                            .padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text("PREPARING STENCIL · ${advice.first}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(advice.second, style = MaterialTheme.typography.bodyMedium)
+                        // This measures completed pipeline stages, not estimated time.
+                        LinearProgressIndicator(
+                            progress = { state.processingProgress },
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                        )
                     }
                 }
             }
@@ -166,16 +206,6 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     var paneBounds by remember { mutableStateOf(IntSize.Zero) }
-    var loadingTip by remember { mutableIntStateOf(-1) }
-    LaunchedEffect(state.busy) {
-        if (state.busy) {
-            loadingTip = (loadingTip + 1) % LOADING_TIPS.size
-            while (true) {
-                delay(4200)
-                loadingTip = (loadingTip + 1) % LOADING_TIPS.size
-            }
-        }
-    }
     val sourceBitmap = remember(state.source) {
         state.source?.let { argbToImageBitmap(it.pixels, it.width, it.height) }
     }
@@ -274,24 +304,6 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
                         enabled = zoom < 8f,
                         modifier = Modifier.semantics { contentDescription = "Zoom in" }) { Text("+") }
                 }
-            }
-        }
-        if (state.busy) {
-            LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth())
-            val advice = LOADING_TIPS[loadingTip.coerceAtLeast(0)]
-            Column(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Text("PREPARING STENCIL · ${advice.first}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(advice.second, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -609,11 +621,19 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     state.useStrokeBased(true)
                 }
             }
-            Text(
-                "Fine, flow-aligned negative strokes shape large regions. The original cuts remain available in Classic mode.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (state.strokeBased) {
+                Text(
+                    "Adjust the width of the paint marks. Any area narrower than the brush keeps its original solid fill, rather than forcing in a stroke.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                LabelledSlider(
+                    "Brush size",
+                    "${state.strokeWidthPixels} px",
+                    state.strokeWidthPixels.toFloat(),
+                    StrokeStyler.MIN_BRUSH_WIDTH_PIXELS.toFloat()..StrokeStyler.MAX_BRUSH_WIDTH_PIXELS.toFloat(),
+                ) { state.chooseStrokeWidth(it.roundToInt()) }
+            }
         }
         OutlinedButton(onClick = { advancedEdges = !advancedEdges }, modifier = Modifier.fillMaxWidth()) {
             Text(if (advancedEdges) "Hide edge adjustments" else "Fine-tune smoothing, closing and tonal bias")

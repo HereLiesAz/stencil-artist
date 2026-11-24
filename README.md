@@ -53,7 +53,7 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   [Spray Planet's MTN 94 selection](https://www.sprayplanet.com/collections/mtn-94)) are approximate
   references, not licensed source artwork or automatically imported colour measurements.
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
-- A guided eight-stage studio separates source cleanup, lighting, layer planning, edge construction, inspection, image exports, printing and cutter output. Each stage explains the consequence of its controls instead of showing the entire configuration at once. An animated loading state rotates concise stencil-making, cutting and painting tips; matching cutting hazards and gradient-handling advice are also printed by affected details.
+- A guided eight-stage studio separates source cleanup, lighting, layer planning, edge construction, inspection, image exports, printing and cutter output. Each stage explains the consequence of its controls instead of showing the entire configuration at once. A full-screen, blurred-and-dimmed processing overlay rotates concise stencil-making, cutting and painting tips and displays a determinate progress bar beneath them, based on completed processing stages rather than estimated elapsed time; matching cutting hazards and gradient-handling advice are also printed by affected details.
 - A persistent source/result comparison (or single-image view) supports synchronized pinch-zoom and panning on both panes, plus explicit zoom and reset buttons. The result may show the processed image, finished stencil, or any sheet alone. Visual and touch behavior still require device verification.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
   transparent PNG; or every sheet plus the composite in one ZIP. Also exports a versioned
@@ -87,8 +87,9 @@ can also be added when the processed source strongly supports their colour and t
 soft source-image gradients on cut edges and labels the appropriate edge for controlled
 stencil lifting in the print PDF, with scrap-test guidance. **Stroke construction** offers
 Classic (the original masks) and opt-in Brush strokes, which now reconstruct broad
-later-layer openings from narrow additive paint ribbons following the processed image's
-luminance contours. Small, thin features and the black base stay untouched; stencil
+later-layer openings from adjustable-width additive paint ribbons (1–24 working-image pixels)
+following the processed image's luminance contours. Areas narrower than the chosen brush
+keep their original solid, potentially blotchy, paint openings rather than forcing strokes. Small, thin features and the black base stay untouched; stencil
 islands created by new gaps are filled back in. Explicit semantic reconstruction of
 exposed islands is still outstanding. See [the implementation and limitations](docs/STROKE_ISLANDS.md).
 

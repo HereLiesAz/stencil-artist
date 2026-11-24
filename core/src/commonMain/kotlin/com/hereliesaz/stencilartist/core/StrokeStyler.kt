@@ -24,14 +24,18 @@ import kotlin.math.sqrt
  * Printable bridge widths are still handled separately in physical units.
  */
 object StrokeStyler {
+    const val MIN_BRUSH_WIDTH_PIXELS = 1
+    const val MAX_BRUSH_WIDTH_PIXELS = 24
+    const val DEFAULT_BRUSH_WIDTH_PIXELS = 2
+
     fun stylize(
         source: RgbaImage,
         original: Separation,
-        strokeWidthPixels: Int = 2,
+        strokeWidthPixels: Int = DEFAULT_BRUSH_WIDTH_PIXELS,
         maximumRemovedFraction: Double = 0.20,
     ): Separation {
         require(source.width == original.width && source.height == original.height)
-        require(strokeWidthPixels in 1..6)
+        require(strokeWidthPixels in MIN_BRUSH_WIDTH_PIXELS..MAX_BRUSH_WIDTH_PIXELS)
         require(maximumRemovedFraction in 0.0..0.40)
         val w = original.width
         val h = original.height
@@ -145,9 +149,19 @@ object StrokeStyler {
                     if (y + 1 < h) visit(p + w)
                 }
 
-                // Small regions and thin lines carry important information (eyes, teeth,
-                // lens reflections, letters) and are not a place to introduce hatching.
-                if (tail < 160 || thickest < 4) continue
+                // A brush broader than a separate region's narrowest bounding span
+                // cannot fit there. Leave its complete original, solid paint opening
+                // untouched instead of turning the small shape into coarse texture.
+                // The original small-detail limit also applies at the smallest width.
+                if (tail < 160 || thickest < 4 ||
+                    min(maxX - minX + 1, maxY - minY + 1) < strokeWidthPixels) continue
+                // Below the selected brush width, slender extensions of a broad region
+                // remain solid as well. The nearby broad-core check distinguishes a
+                // real thin limb from the perimeter of an otherwise wide paint area.
+                val localHalfSpan = max(4, (strokeWidthPixels + 1) / 2)
+                val protectedWidth = max(5, strokeWidthPixels - 1)
+                val broadCoreDepth = max(6, (strokeWidthPixels + 2) / 2)
+                val broadReach = max(5, (strokeWidthPixels + 1) / 2)
                 for (i in 0 until tail) rebuilt[queue[i]] = false
                 var painted = 0
                 // Component-wide thickness misses thin extensions attached to a wide
@@ -160,7 +174,7 @@ object StrokeStyler {
                     // Skip deep interior farther than the protected local stroke
                     // width from a retained-material boundary. Near-edge pixels
                     // still need full orientation-independent width checks.
-                    if (distance[p] > 5) continue
+                    if (distance[p] > broadReach) continue
                     val x = p % w
                     val y = p / w
                     // Check four axes, including both diagonals. A thin diagonal
@@ -169,7 +183,7 @@ object StrokeStyler {
                     fun chord(dx: Int, dy: Int): Int {
                         var length = 1
                         for (sign in -1..1 step 2) {
-                            for (k in 1..4) {
+                            for (k in 1..localHalfSpan) {
                                 val xx = x + sign * k * dx
                                 val yy = y + sign * k * dy
                                 if (xx !in 0 until w || yy !in 0 until h ||
@@ -179,21 +193,21 @@ object StrokeStyler {
                         }
                         return length
                     }
-                    if (minOf(chord(1, 0), chord(0, 1), chord(1, 1), chord(1, -1)) <= 5) {
+                    if (minOf(chord(1, 0), chord(0, 1), chord(1, 1), chord(1, -1)) <= protectedWidth) {
                         narrowCandidate[p] = true
                         // A broad blob's boundary is thin along one axis too. If
                         // substantial painted interior lies nearby, this is a
                         // broad edge, not a separate delicate mark. Actual narrow
                         // extensions have no nearby core in any direction.
                         var nearBroadCore = false
-                        for (dy in -5..5) {
+                        for (dy in -broadReach..broadReach) {
                             if (nearBroadCore) break
-                            for (dx in -5..5) {
-                                if (abs(dx) + abs(dy) > 5) continue
+                            for (dx in -broadReach..broadReach) {
+                                if (abs(dx) + abs(dy) > broadReach) continue
                                 val xx = x + dx
                                 val yy = y + dy
                                 if (xx in 0 until w && yy in 0 until h &&
-                                    distance[yy * w + xx] >= 6) {
+                                    distance[yy * w + xx] >= broadCoreDepth) {
                                     nearBroadCore = true
                                     break
                                 }
@@ -351,7 +365,9 @@ object StrokeStyler {
                 // internal ribbon gaps would detach as stencil islands.
                 var unpainted = 0
                 for (i in 0 until tail) if (!rebuilt[queue[i]]) unpainted++
-                val gapSpacing = max(12, strokeWidthPixels * 7)
+                // Very wide brushes still need at least one chance to make a
+                // supported negative gap in ordinary image-sized paint regions.
+                val gapSpacing = max(12, min(48, strokeWidthPixels * 7))
                 var seedY = minY + gapSpacing / 2
                 while (seedY <= maxY - gapSpacing / 2 && unpainted < allowedMissing) {
                     var seedX = -1

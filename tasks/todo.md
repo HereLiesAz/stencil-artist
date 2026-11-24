@@ -9,7 +9,7 @@ Status: **all planned phases implemented.** What has not been verified on real h
 
 - [x] Split the one-screen settings column into eight named, focused stages with context explaining each decision; preserve the underlying processing and export code.
 - [x] Add an original/result comparison with shared, fitted-image-bounded zoom and pan, plus single-view and explicit zoom controls.
-- [x] Rotate creation/cutting/painting advice during stencil generation; permit cutaway or retained stock for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
+- [x] Show rotating creation/cutting/painting advice over a blurred, dimmed full-screen loading overlay, with a determinate horizontal progress indicator below the tip reflecting finished pipeline stages; permit cutaway or retained stock for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
 - [x] Put advanced lighting and edge-adjustment sliders behind deliberate disclosure; leave depth-lighting behavior unchanged pending design review.
 - [ ] Visually inspect both wide web and narrow Android layouts, including keyboard and touch input, and verify pinch-pan, clipped zoom and side-by-side accuracy on devices.
 - [ ] Agree on the depth-extrusion/relighting model, shadow behavior, light controls and editing workflow before changing the renderer. See `docs/DEPTH_RELIGHT_DISCUSSION.md` for the current implementation and proposed choices.
@@ -259,6 +259,9 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
    or ambiguous details remain unresolved, not silently deleted. Full
    directional stroke-trajectory synthesis, physical-width checking and
    real-world validation remain.
+   Brush size is adjustable (1–24 working-image pixels) in the Edges stage.
+   Separate areas narrower than the chosen brush keep their original solid
+   shapes. This is a pixel setting, not a calibrated physical spray width.
    The opt-in Brush strokes mode now reconstructs wide later-layer regions as
    narrow additive, flow-guided paint ribbons (with bounded deviation and a
    retained-stock island check), leaving thin details and Classic available.

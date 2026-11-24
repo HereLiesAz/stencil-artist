@@ -62,8 +62,12 @@ pixel-width connection does not prove a millimetre-width connection.
 - The optional **Brush strokes** mode now uses `StrokeStyler` to **construct
   additive paint ribbons** inside broad grey/white or other later-layer openings.
   It does not merely make decorative notches in existing blobs. The smallest
-  configured brush width is used for the centre paths, with tapered starts and
-  turns guided by smoothed source luminance contours. When the photograph is flat,
+  selected brush width (1–24 pixels, default 2) is used for the centre paths,
+  with tapered starts and turns guided by smoothed source luminance contours.
+  The Edges step exposes Brush size while Brush marks is selected; changing it
+  regenerates the stencil. Entire connected paint regions whose narrowest bounding
+  dimension is smaller than the brush are kept as their original solid, possibly
+  blotchy openings; narrow attached extensions are protected by local width checks. When the photograph is flat,
   ribbons follow the shape's distance-contour field. Broad connected paint
   components are remade from these small strokes; thin and small components,
   including distinctive eye and lens marks, remain unchanged. Attached thin
