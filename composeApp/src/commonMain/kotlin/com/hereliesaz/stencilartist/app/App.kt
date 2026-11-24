@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.sp
 import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.LightingParams
 import com.hereliesaz.stencilartist.core.ImageAdjustments
+import com.hereliesaz.stencilartist.core.ToneCurve
 import com.hereliesaz.stencilartist.core.SceneLight
 import com.hereliesaz.stencilartist.core.SceneLightKind
 import com.hereliesaz.stencilartist.core.ColorOrder
@@ -1499,7 +1500,7 @@ internal fun Stepper(value: Int, range: IntRange, label: String, onChange: (Int)
 private fun ImageAdjustmentEditor(settings: ImageAdjustments, onChange: (ImageAdjustments) -> Unit) {
     var group by remember { mutableIntStateOf(0) }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((index, name) in listOf("Tone", "Colour", "Detail").withIndex()) {
+        for ((index, name) in listOf("Tone", "Colour", "Detail", "Curve").withIndex()) {
             Choice(name, selected = group == index) { group = index }
         }
         OutlinedButton(onClick = { onChange(ImageAdjustments()) }, enabled = settings != ImageAdjustments()) {
@@ -1529,6 +1530,7 @@ private fun ImageAdjustmentEditor(settings: ImageAdjustments, onChange: (ImageAd
                 LabelledSlider("Tint", oneDecimal(settings.tint), settings.tint, -1f..1f) { onChange(settings.copy(tint = it)) }
             }
         }
+        3 -> ToneCurveEditor(settings.curve) { onChange(settings.copy(curve = it)) }
         else -> {
             Choice("Despeckle", settings.despeckle) { onChange(settings.copy(despeckle = !settings.despeckle)) }
             LabelledSlider("Edge-preserving smoothing", settings.edgeSmooth.toString(), settings.edgeSmooth.toFloat(), 0f..64f) {
@@ -1549,6 +1551,85 @@ private fun ImageAdjustmentEditor(settings: ImageAdjustments, onChange: (ImageAd
             }
         }
     }
+}
+
+/** Fixed-input value curve. Dragging updates the graph locally; releasing commits one edit.
+ * The selected point's slider is also usable without a pointer gesture. */
+@Composable
+private fun ToneCurveEditor(curve: ToneCurve, onChange: (ToneCurve) -> Unit) {
+    var selected by remember { mutableIntStateOf(2) }
+    var draft by remember(curve) { mutableStateOf(curve) }
+    val commit by rememberUpdatedState(onChange)
+    val scheme = MaterialTheme.colorScheme
+    val names = listOf("Black", "Shadows", "Midtones", "Highlights", "White")
+    val padding = 16.dp
+    Text("Input → output brightness. Drag a point vertically to lift or compress that tonal range.",
+        style = MaterialTheme.typography.bodySmall)
+    Canvas(Modifier.fillMaxWidth().height(220.dp)
+        .background(scheme.surfaceVariant)
+        .semantics { contentDescription = "Master tone curve. Choose a point below for accessible editing." }
+        .pointerInput(curve) {
+            detectTapGestures { position ->
+                val inset = padding.toPx()
+                val width = (size.width - 2 * inset).coerceAtLeast(1f)
+                val input = ((position.x - inset) / width * 255f).coerceIn(0f, 255f)
+                selected = ToneCurve.INPUTS.indices.minBy { abs(ToneCurve.INPUTS[it] - input) }
+            }
+        }
+        .pointerInput(curve) {
+            fun output(y: Float): Int {
+                val inset = padding.toPx()
+                val height = (size.height - 2 * inset).coerceAtLeast(1f)
+                return ((1f - (y - inset) / height) * 255f).roundToInt().coerceIn(0, 255)
+            }
+            detectDragGestures(
+                onDragStart = { position ->
+                    val inset = padding.toPx()
+                    val width = (size.width - 2 * inset).coerceAtLeast(1f)
+                    val input = ((position.x - inset) / width * 255f).coerceIn(0f, 255f)
+                    selected = ToneCurve.INPUTS.indices.minBy { abs(ToneCurve.INPUTS[it] - input) }
+                    draft = curve.withOutput(selected, output(position.y))
+                },
+                onDragEnd = { commit(draft) },
+                onDragCancel = { draft = curve },
+            ) { change, _ ->
+                change.consume()
+                draft = curve.withOutput(selected, output(change.position.y))
+            }
+        }) {
+        val inset = padding.toPx()
+        val width = (size.width - 2 * inset).coerceAtLeast(1f)
+        val height = (size.height - 2 * inset).coerceAtLeast(1f)
+        fun point(x: Int, y: Int) = Offset(inset + width * x / 255f, inset + height * (1f - y / 255f))
+        for (value in ToneCurve.INPUTS) {
+            drawLine(scheme.outline.copy(alpha = .4f), point(value, 0), point(value, 255))
+            drawLine(scheme.outline.copy(alpha = .4f), point(0, value), point(255, value))
+        }
+        drawLine(scheme.outline, point(0, 0), point(255, 255), strokeWidth = 1.dp.toPx())
+        val transfer = draft.lookup()
+        for (i in 1..255) {
+            drawLine(scheme.primary, point(i - 1, transfer[i - 1]), point(i, transfer[i]), strokeWidth = 2.dp.toPx())
+        }
+        val outputs = draft.outputs()
+        for (i in ToneCurve.INPUTS.indices) {
+            val at = point(ToneCurve.INPUTS[i], outputs[i])
+            drawCircle(scheme.onSurface, radius = if (selected == i) 8.dp.toPx() else 6.dp.toPx(), center = at)
+            drawCircle(if (selected == i) scheme.primary else scheme.surface,
+                radius = if (selected == i) 5.dp.toPx() else 4.dp.toPx(), center = at)
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text("Black input", style = MaterialTheme.typography.labelSmall)
+        Text("White input", style = MaterialTheme.typography.labelSmall)
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (i in names.indices) Choice(names[i], selected == i) { selected = i }
+    }
+    LabelledSlider("${names[selected]} output", draft.outputs()[selected].toString(),
+        draft.outputs()[selected].toFloat(), 0f..255f) {
+        onChange(curve.withOutput(selected, it.roundToInt()))
+    }
+    OutlinedButton(onClick = { onChange(ToneCurve()) }, enabled = curve != ToneCurve()) { Text("Reset curve") }
 }
 
 /** Edit the actual emitter list; the null legacy configuration becomes explicit on the first edit. */
