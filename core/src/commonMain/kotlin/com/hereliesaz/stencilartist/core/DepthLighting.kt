@@ -24,6 +24,8 @@ data class LightingParams(
     val useSourceTexture: Boolean = true,
     /** Opaque material RGB (source alpha is retained independently). */
     val surfaceColor: Int = 0xFFFFFF,
+    /** Flat relight only: mix source RGB toward neutral white before applying the new light. */
+    val flatMatteMix: Float = 0f,
 ) {
     init {
         require(azimuth in -180f..180f && elevation in 0f..90f)
@@ -31,6 +33,7 @@ data class LightingParams(
         require(extrusionThickness in .0001f..1f)
         require(lights == null || lights.size <= SceneLight.MAX_LIGHTS)
         require(surfaceColor in 0..0xFFFFFF)
+        require(flatMatteMix in 0f..1f)
     }
 
     /** Resolve the legacy key-light controls or the explicitly edited emitter list. */
@@ -136,39 +139,74 @@ object DepthLighting {
     }
 
     /**
-     * Relight source RGB with normals from the relative-depth height field and Lambert + ambient.
-     * Copy transparency exactly; this image then feeds the existing separator.
+     * Flat depth relighting (no extrusion or cast shadows). Convert normalized relative depth
+     * to image-relative height; central or one-sided differences yield a normal without crossing
+     * transparent background. Robust foreground contrast prevents distant background or a single
+     * depth outlier from flattening the subject, with a floor to avoid amplifying tiny depth noise.
+     * Matte mixing deliberately replaces baked RGB contrast; it is not recovered intrinsic albedo.
+     * Alpha and dimensions are unchanged. The original image is never mutated.
      */
     fun relight(image: RgbaImage, depth: FloatArray, params: LightingParams): RgbaImage {
-        require(depth.size == image.width * image.height) { "Depth doesn't match the image" }
-        if (!params.enabled || params.depthStrength == 0f) return image
+        require(depth.size == image.pixels.size) { "Depth doesn't match the image" }
+        if (!params.enabled || params.depthStrength == 0f || depth.isEmpty()) return image
+        require(depth.all { it.isFinite() && it in 0f..1f }) { "Depth must be normalized and finite" }
+        val w = image.width
+        val h = image.height
+        val histogram = IntArray(256)
+        var count = 0
+        for (i in depth.indices) if (image.pixels[i] ushr 24 != 0) {
+            histogram[(depth[i] * 255f).roundToInt()]++
+            count++
+        }
+        if (count == 0) return image
+        fun percentile(rank: Int): Int {
+            var n = 0
+            for (i in histogram.indices) {
+                n += histogram[i]
+                if (n > rank) return i
+            }
+            return 255
+        }
+        val lo = percentile((count - 1) / 50)
+        val hi = percentile((count - 1) - (count - 1) / 50)
+        val range = ((hi - lo) / 255f).coerceAtLeast(.15f)
+        // At strength 3 a full normalized ramp rises 1.05 image widths, rather than the
+        // old ~0.28. Divide by the actual sample distance even at silhouette boundaries.
+        val scale = .35f * params.depthStrength * max(w, h) / range *
+            (if (params.reverseDepth) -1f else 1f)
         val az = params.azimuth * PI / 180.0
         val el = params.elevation * PI / 180.0
         val lightX = (cos(az) * cos(el)).toFloat()
         val lightY = (sin(az) * cos(el)).toFloat()
         val lightZ = sin(el).toFloat()
-        val w = image.width
-        val h = image.height
-        val output = IntArray(image.pixels.size)
+        val output = IntArray(depth.size)
+        fun visible(i: Int) = image.pixels[i] ushr 24 != 0
+        fun gradient(i: Int, before: Int, after: Int): Float {
+            val left = before >= 0 && visible(before)
+            val right = after >= 0 && visible(after)
+            return when {
+                left && right -> (depth[after] - depth[before]) * .5f
+                left -> depth[i] - depth[before]
+                right -> depth[after] - depth[i]
+                else -> 0f
+            }
+        }
         for (y in 0 until h) for (x in 0 until w) {
             val i = y * w + x
             val original = image.pixels[i]
-            if (original ushr 24 == 0) {
+            if (!visible(i)) {
                 output[i] = original
                 continue
             }
-            val left = depth[y * w + maxOf(0, x - 1)]
-            val right = depth[y * w + minOf(w - 1, x + 1)]
-            val up = depth[maxOf(0, y - 1) * w + x]
-            val down = depth[minOf(h - 1, y + 1) * w + x]
-            val scale = params.depthStrength * 24f * max(w, h) / INPUT_EDGE.toFloat()
-            val dx = (right - left) * scale
-            val dy = (down - up) * scale
-            val inverse = 1f / sqrt(dx * dx + dy * dy + 1f)
-            val diffuse = (-dx * lightX - dy * lightY + lightZ) * inverse
+            val dx = gradient(i, if (x > 0) i - 1 else -1, if (x + 1 < w) i + 1 else -1) * scale
+            val dy = gradient(i, if (y > 0) i - w else -1, if (y + 1 < h) i + w else -1) * scale
+            val diffuse = (-dx * lightX - dy * lightY + lightZ) / sqrt(dx * dx + dy * dy + 1f)
             val illumination = params.ambient + params.intensity * maxOf(0f, diffuse)
-            fun channel(shift: Int): Int =
-                (((original ushr shift) and 255) * illumination).roundToInt().coerceIn(0, 255)
+            fun channel(shift: Int): Int {
+                val rgb = (original ushr shift) and 255
+                val material = rgb + (255 - rgb) * params.flatMatteMix
+                return (material * illumination).roundToInt().coerceIn(0, 255)
+            }
             output[i] = (original and 0xFF000000.toInt()) or
                 (channel(16) shl 16) or (channel(8) shl 8) or channel(0)
         }

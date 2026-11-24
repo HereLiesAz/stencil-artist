@@ -123,7 +123,7 @@ private val WIDE_LAYOUT = 720.dp
 /** One decision per stage; all stages use the same in-memory processing and export state. */
 private val STUDIO_STEPS = listOf(
     "Source" to "Choose your image and decide what belongs in the stencil. Removing the background changes the subject's silhouette, not its colours.",
-    "Light" to "Extrude the subject from estimated depth, illuminate the solid and use its frontal render before cutting any sheets.",
+    "Light" to "Keep the original image, relight its estimated depth without extrusion, or light a solid 3D scene before cutting any sheets.",
     "Layers" to "Each sheet is one pass of paint. Fewer sheets are easier to align; more sheets preserve additional tones or colours.",
     "Edges" to "Choose how paint openings are constructed. Keep fine detail intact, then adjust edge cleanup only where necessary.",
     "Inspect" to "Compare the source with your result, then inspect each cut sheet. Tiny unsupported islands may need special handling.",
@@ -525,17 +525,45 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
 
         if (step == 1) Section("Depth + lighting") {
-            Text("The estimated depth shapes a closed relief solid. Independent scene lights cast geometric shadows. The front render makes the stencil; orbiting only inspects the solid. Hidden surfaces are inferred.",
+            Text("Choose how to light the prepared image. Flat depth relight uses estimated surface normals without extrusion; the 3D scene supports geometric shadows.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val light = state.lighting
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DecisionCard("Keep original", "Use the photograph's existing highlights and shadows.",
-                    !light.enabled, Modifier.weight(1f)) {
-                    state.updateLighting(light.copy(enabled = false))
+            val flat = state.flatLighting
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Choice("Original", !light.enabled && !flat.enabled) {
+                    if (flat.enabled) state.updateFlatLighting(flat.copy(enabled = false))
+                    else state.updateLighting(light.copy(enabled = false))
                 }
-                DecisionCard("3D scene", "Extrude the subject and light its geometry.",
-                    light.enabled, Modifier.weight(1f)) {
+                Choice("Depth relight", flat.enabled) {
+                    state.updateFlatLighting(flat.copy(enabled = true))
+                }
+                Choice("3D scene", light.enabled) {
                     state.updateLighting(light.copy(enabled = true))
+                }
+            }
+            if (flat.enabled) {
+                Text("Matte mix replaces baked-in image colours with a white surface, making new depth lighting visible even in dark areas. This is surface shading, not cast shadows.", style = MaterialTheme.typography.bodySmall)
+                LabelledSlider("Light azimuth", flat.azimuth.roundToInt().toString() + "°", flat.azimuth, -180f..180f) {
+                    state.updateFlatLighting(flat.copy(azimuth = it))
+                }
+                LabelledSlider("Light elevation", flat.elevation.roundToInt().toString() + "°", flat.elevation, 0f..90f) {
+                    state.updateFlatLighting(flat.copy(elevation = it))
+                }
+                LabelledSlider("Intensity", oneDecimal(flat.intensity), flat.intensity, 0f..2f) {
+                    state.updateFlatLighting(flat.copy(intensity = it))
+                }
+                LabelledSlider("Ambient", oneDecimal(flat.ambient), flat.ambient, 0f..1f) {
+                    state.updateFlatLighting(flat.copy(ambient = it))
+                }
+                LabelledSlider("Relief strength", oneDecimal(flat.depthStrength), flat.depthStrength, 0f..10f) {
+                    state.updateFlatLighting(flat.copy(depthStrength = it))
+                }
+                LabelledSlider("Matte mix", (flat.flatMatteMix * 100).roundToInt().toString() + "%", flat.flatMatteMix, 0f..1f) {
+                    state.updateFlatLighting(flat.copy(flatMatteMix = it))
+                }
+                OutlinedButton(onClick = { state.updateFlatLighting(flat.copy(reverseDepth = !flat.reverseDepth)) },
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(if (flat.reverseDepth) "Depth reversed" else "Reverse depth")
                 }
             }
             if (light.enabled) {
