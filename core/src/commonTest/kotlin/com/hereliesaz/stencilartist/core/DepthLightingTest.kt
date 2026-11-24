@@ -126,4 +126,45 @@ class DepthLightingTest {
         assertContentEquals(intArrayOf(0x80808080.toInt(), 0xFF808080.toInt()), result.pixels)
         assertEquals(0x80000000.toInt(), source.pixels[0])
     }
+
+    @Test
+    fun originalLightCompensationIsOptionalAndFlatSurfaceIsNeutral() {
+        val pixels = intArrayOf(0x00123456, 0x80402010.toInt(), 0xFF000000.toInt(), 0xFFF0A050.toInt())
+        val source = RgbaImage(4, 1, pixels.copyOf())
+        val flat = FloatArray(4) { .5f }
+        assertTrue(DepthLighting.compensateOriginal(source, flat, OriginalLightCompensation()) === source)
+        assertContentEquals(pixels, DepthLighting.compensateOriginal(source, flat,
+            OriginalLightCompensation(amount = 1f)).pixels)
+        assertContentEquals(pixels, source.pixels)
+    }
+
+    @Test
+    fun compensationReversesAssumedLightAndBoundsGainWithoutChannelClipping() {
+        val pixels = IntArray(10) { 0x80402010.toInt() }
+        pixels[0] = 0x00123456
+        pixels[7] = 0x80C06030.toInt()
+        pixels[9] = 0x80000000.toInt()
+        val source = RgbaImage(5, 2, pixels.copyOf())
+        val ramp = FloatArray(10) { (it % 5) / 4f }
+        val assumed = OriginalLightCompensation(amount = 1f, azimuth = 0f, elevation = 45f)
+        val lifted = DepthLighting.compensateOriginal(source, ramp, assumed)
+        // On the increasing ramp the normal faces away from this light: ambient-only
+        // illumination needs >2x correction relative to the frontal reference.
+        assertEquals(0x80804020.toInt(), lifted.pixels[2])
+        assertEquals(0x80FF8040.toInt(), lifted.pixels[7])
+        assertEquals(0x80000000.toInt(), lifted.pixels[9])
+        assertEquals(pixels[0], lifted.pixels[0])
+        val half = DepthLighting.compensateOriginal(source, ramp, assumed.copy(amount = .5f))
+        assertEquals(0x80603018.toInt(), half.pixels[2])
+        val opposite = DepthLighting.compensateOriginal(source, ramp, assumed.copy(azimuth = 180f))
+        // Analytic surface normal is approximately (-.795, 0, .606); the opposite
+        // light has diffuse about .991. The frontal reference is .780, so gain ~.785.
+        assertTrue((opposite.pixels[2] ushr 16 and 255) in 49..52)
+        assertTrue((opposite.pixels[2] ushr 8 and 255) in 24..26)
+        assertContentEquals(pixels.map { it ushr 24 }, opposite.pixels.map { it ushr 24 })
+        assertContentEquals(pixels, source.pixels)
+        assertContentEquals(lifted.pixels, DepthLighting.compensateOriginal(source, ramp,
+            assumed.copy(azimuth = 180f, reverseDepth = true)).pixels)
+    }
+
 }

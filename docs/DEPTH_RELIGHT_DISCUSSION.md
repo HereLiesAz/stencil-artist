@@ -138,3 +138,8 @@ The earlier A+C proposal is superseded by the approved closed, depth-displaced f
 4. Shadows within the subject and an optional receiver are planned; whether a receiver shadow becomes a separate printable layer is not yet decided.
 
 Flat depth relight and 3D scene rendering are independent opt-in lighting paths. The separator and export contract do not change.
+
+
+## Original-light compensation
+
+The Light stage now offers an independent, optional assumed photographic directional light in Flat and textured 3D modes. Amount zero is identity. The artist selects original azimuth, elevation, ambient floor, relative depth strength and depth orientation without altering the new lights or edited geometry. The shared mask-aware flat renderer evaluates a neutral-white illumination field from unedited inferred depth, then compensates the adjusted source RGB relative to a front-facing reference. A common RGB multiplier is bounded to 0.5–2 before blending and capped uniformly at the gamut boundary; alpha and hidden RGB are unchanged. Quantization may introduce small channel rounding. Solid material and Original mode bypass compensation; missing depth or failed relief falls back to the original adjusted image. Flat matte mix remains a separate white-material blend. The original source, masking, palette and committed separation contracts remain intact. This is an artist-guided diffuse shading approximation, not a solver for cast shadows, specular highlights or intrinsic albedo. Evaluate real photographs against the uncompensated and solid-coat baselines before claiming material recovery.

@@ -640,7 +640,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             if (light.enabled) {
                 Text("SURFACE MATERIAL", style = MaterialTheme.typography.labelSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DecisionCard("Image skin", "Keep original image colours and baked-in shadows.",
+                    DecisionCard("Image skin", "Keep source colours; optionally compensate assumed original lighting.",
                         light.useSourceTexture, Modifier.weight(1f)) {
                         state.updateLighting(light.copy(useSourceTexture = true))
                     }
@@ -715,6 +715,33 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 OutlinedButton(onClick = { state.updateLighting(light.copy(castShadows = !light.castShadows)) },
                     modifier = Modifier.fillMaxWidth()) {
                     Text(if (light.castShadows) "Geometric shadows on" else "Geometric shadows off")
+                }
+            }
+        }
+
+        if (step == 3 && (state.flatLighting.enabled || (state.lighting.enabled && state.lighting.useSourceTexture))) {
+            Section("Original light compensation") {
+                val original = state.originalLightCompensation
+                Text("Estimate the light already in the photograph, independently of the new lighting. This reduces assumed diffuse shading, not cast shadows or clipped highlights.", style = MaterialTheme.typography.bodySmall)
+                LabelledSlider("Compensation", (original.amount * 100).roundToInt().toString() + "%", original.amount, 0f..1f) {
+                    state.updateOriginalLightCompensation(original.copy(amount = it))
+                }
+                if (original.amount > 0f) {
+                    LabelledSlider("Original azimuth", original.azimuth.roundToInt().toString() + "°", original.azimuth, -180f..180f) {
+                        state.updateOriginalLightCompensation(original.copy(azimuth = it))
+                    }
+                    LabelledSlider("Original elevation", original.elevation.roundToInt().toString() + "°", original.elevation, 0f..90f) {
+                        state.updateOriginalLightCompensation(original.copy(elevation = it))
+                    }
+                    LabelledSlider("Original ambient", oneDecimal(original.ambient), original.ambient, .15f..1f) {
+                        state.updateOriginalLightCompensation(original.copy(ambient = it))
+                    }
+                    LabelledSlider("Original depth strength", oneDecimal(original.depthStrength), original.depthStrength, 0f..10f) {
+                        state.updateOriginalLightCompensation(original.copy(depthStrength = it))
+                    }
+                    OutlinedButton(onClick = { state.updateOriginalLightCompensation(original.copy(reverseDepth = !original.reverseDepth)) }) {
+                        Text(if (original.reverseDepth) "Original depth reversed" else "Reverse original depth")
+                    }
                 }
             }
         }
