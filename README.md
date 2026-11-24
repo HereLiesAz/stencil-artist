@@ -53,7 +53,8 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   [Spray Planet's MTN 94 selection](https://www.sprayplanet.com/collections/mtn-94)) are approximate
   references, not licensed source artwork or automatically imported colour measurements.
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
-- Shows the improved base image, the finished piece, or any one sheet alone.
+- A guided eight-stage studio separates source cleanup, lighting, layer planning, edge construction, inspection, image exports, printing and cutter output. Each stage explains the consequence of its controls instead of showing the entire configuration at once.
+- A persistent source/result comparison (or single-image view) supports synchronized pinch-zoom and panning on both panes, plus explicit zoom and reset buttons. The result may show the processed image, finished stencil, or any sheet alone. Visual and touch behavior still require device verification.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
   transparent PNG; or every sheet plus the composite in one ZIP. Also exports a versioned
   [StencilPack](docs/STENCILPACK_V1.md) with individually named, aligned PNG sheets for
