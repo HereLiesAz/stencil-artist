@@ -184,13 +184,13 @@ class PrintShoppingTest {
     // ---- No list: byte for byte what the exporter wrote before the list existed.
 
     @Test
-    fun withoutAListTheFileIsByteForByteWhatItWasBefore() {
-        // Hashes (FNV-1a 64) and lengths of the output taken from the exporter BEFORE this feature, for four fixed inputs.
+    fun withoutAListMatchesTheVerifiedPdfGoldenAfterCuttingGuidanceUpdate() {
+        // Fixed output lengths and FNV-1a hashes recomputed from CI job 138185095432 after the cutting guidance update.
         val golden = mapOf(
-            "stripes450" to (16880 to "c317e3a9a678e767"),
-            "three-a4-land" to (22531 to "e20d31f873d83c91"),
-            "mounted" to (71863 to "da3e01d908666171"),
-            "one-sheet-of-three" to (7613 to "7771240bbd0dbdd6"),
+            "stripes450" to (16850 to "a489b794404e1c76"),
+            "three-a4-land" to (22466 to "9ea11199fe5f964e"),
+            "mounted" to (71772 to "2e4a8a0f2f061018"),
+            "one-sheet-of-three" to (7583 to "4ea28cf1faccf848"),
         )
         val now = mapOf(
             "stripes450" to PrintPdf.make(stripes(), PrintOptions(450.0, shopping = emptyList())),

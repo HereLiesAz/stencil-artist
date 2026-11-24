@@ -1613,8 +1613,8 @@ object PrintPdf {
                     "row number: A1, B1, A2 ...). Pages with nothing to cut are left out and marked blank. Every page has its sheet and code " +
                     "printed small on uncut material.",
                 lay, tape, strip, repeat,
-                "CUT" to "The dark outline is the cut. Grey notes (ISLAND, FINE DETAIL) sit only on material that stays. Pages marked REFERENCE ONLY " +
-                    "show details too close to a cut for a note; they are not cutting templates.",
+                "CUT" to "Dark outlines mark cuts. Cutting notes may sit in openings or retained stock, clear of cut edges. " +
+                    "REFERENCE ONLY pages show details too tight for a note; do not cut them.",
             )
             val bg = checkNotNull(plan.boardGrid)
             val border = mount.borderMm
@@ -1643,8 +1643,8 @@ object PrintPdf {
                 "GLUE" to "Glue each board's pages down. The stencil starts ${inches(border)} in (${Decimal.format(border, 1)} mm) in from the board's edges; " +
                     "the rest of each page is blank paper over the border. Where a board's first piece is an offcut, butt it square against the board's " +
                     "left or top edge (square corners make that easy to see by eye).",
-                "CUT" to "Cut through the paper and the board together along the dark outline. Grey notes (ISLAND, FINE DETAIL) sit only on " +
-                    "material that stays. Pages marked REFERENCE ONLY show details too close to a cut for a note; they are not cutting templates.",
+                "CUT" to "Cut paper and board along dark outlines. Cutting notes may sit in openings or retained stock, clear of cut edges. " +
+                    "REFERENCE ONLY pages show details too tight for a note; do not cut them.",
                 "PAINT BOARD BY BOARD" to "Paint left to right, top to bottom. Spray board 1 first. Each later board has small cut-out tabs (marked TAB) " +
                     "in its left and top border, cut to the same artwork the neighbouring board cuts there. Hold the board so the paint already on the " +
                     "wall shows exactly through its tabs, tape it, then spray. Paint that lands through a tab falls where that colour belongs anyway, " +
