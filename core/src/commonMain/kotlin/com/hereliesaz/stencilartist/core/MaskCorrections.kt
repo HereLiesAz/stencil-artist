@@ -25,26 +25,10 @@ object MaskCorrections {
         val pixels = automatic.pixels.copyOf()
         val excluded = BooleanArray(pixels.size)
         for (stroke in strokes) {
-            fun segment(a: MaskPoint, b: MaskPoint) {
-                val r = stroke.radius
-                val x0 = floor(minOf(a.x, b.x) - r).toInt().coerceIn(0, w)
-                val x1 = ceil(maxOf(a.x, b.x) + r).toInt().coerceIn(0, w)
-                val y0 = floor(minOf(a.y, b.y) - r).toInt().coerceIn(0, h)
-                val y1 = ceil(maxOf(a.y, b.y) + r).toInt().coerceIn(0, h)
-                val dx = b.x - a.x; val dy = b.y - a.y
-                val length = dx * dx + dy * dy
-                for (y in y0 until y1) for (x in x0 until x1) {
-                    val px = x + .5f - a.x; val py = y + .5f - a.y
-                    val t = if (length == 0f) 0f else ((px * dx + py * dy) / length).coerceIn(0f, 1f)
-                    val ex = px - t * dx; val ey = py - t * dy
-                    if (ex * ex + ey * ey > r * r) continue
-                    val i = y * w + x
-                    excluded[i] = !stroke.restore
-                    pixels[i] = if (stroke.restore) source.pixels[i] else source.pixels[i] and 0xFFFFFF
-                }
+            visitBrushPixels(w, h, stroke.points, stroke.radius) { i, _ ->
+                excluded[i] = !stroke.restore
+                pixels[i] = if (stroke.restore) source.pixels[i] else source.pixels[i] and 0xFFFFFF
             }
-            segment(stroke.points.first(), stroke.points.first())
-            for (i in 1 until stroke.points.size) segment(stroke.points[i - 1], stroke.points[i])
         }
         return MaskCorrection(RgbaImage(w, h, pixels), excluded)
     }
@@ -65,4 +49,27 @@ object MaskCorrections {
             }
         })
     }
+}
+
+/** Visit pixel centres in the swept image-space disc. Multiple segments can visit the same
+ * pixel; callers requiring one application per stroke must accumulate maximum coverage. */
+internal fun visitBrushPixels(width: Int, height: Int, points: List<MaskPoint>, radius: Float,
+    visit: (Int, Float) -> Unit) {
+    fun segment(a: MaskPoint, b: MaskPoint) {
+        val x0 = floor(minOf(a.x, b.x) - radius).toInt().coerceIn(0, width)
+        val x1 = ceil(maxOf(a.x, b.x) + radius).toInt().coerceIn(0, width)
+        val y0 = floor(minOf(a.y, b.y) - radius).toInt().coerceIn(0, height)
+        val y1 = ceil(maxOf(a.y, b.y) + radius).toInt().coerceIn(0, height)
+        val dx = b.x - a.x; val dy = b.y - a.y
+        val length = dx * dx + dy * dy
+        for (y in y0 until y1) for (x in x0 until x1) {
+            val px = x + .5f - a.x; val py = y + .5f - a.y
+            val t = if (length == 0f) 0f else ((px * dx + py * dy) / length).coerceIn(0f, 1f)
+            val ex = px - t * dx; val ey = py - t * dy
+            val squared = ex * ex + ey * ey
+            if (squared <= radius * radius) visit(y * width + x, kotlin.math.sqrt(squared) / radius)
+        }
+    }
+    segment(points.first(), points.first())
+    for (i in 1 until points.size) segment(points[i - 1], points[i])
 }

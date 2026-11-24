@@ -12,6 +12,7 @@ import com.hereliesaz.stencilartist.core.Tones
 import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.ReliefScene
 import com.hereliesaz.stencilartist.core.DepthLighting
+import com.hereliesaz.stencilartist.core.DepthEdits
 import com.hereliesaz.stencilartist.core.LightingParams
 import com.hereliesaz.stencilartist.core.LoadingNotice
 import com.hereliesaz.stencilartist.core.IslandPlanner
@@ -465,7 +466,33 @@ class StencilState(
         remake(settle = true)
     }
 
-    private var depthMap: FloatArray? = null
+    // Inferred depth is read-only to callers; never feed corrected depth into segmentation.
+    private var depthMap: FloatArray? by mutableStateOf(null)
+    val inferredDepth: FloatArray? get() = depthMap
+
+    /** Current corrected subject, before RGB filters, for mask-aware depth editing. */
+    var depthSubject: RgbaImage? by mutableStateOf(null)
+        private set
+
+    /** Non-destructive edits are scoped to one source image. */
+    var depthEdits: DepthEdits by mutableStateOf(DepthEdits())
+        private set
+
+    /** Explicitly request inference, even when both lighting modes are off. */
+    fun requestDepth() {
+        if (busy || source == null || depthMap != null) return
+        depthAttempted = false
+        depthError = null
+        remake(settle = false, requestDepth = true)
+    }
+
+    /** Commit the draft once; never regenerate on brush motion. */
+    fun updateDepthEdits(expectedSource: RgbaImage, next: DepthEdits) {
+        if (source !== expectedSource || busy || depthMap == null || next == depthEdits) return
+        depthEdits = next.copy(strokes = next.strokes.map { it.copy(points = it.points.toList()) })
+        remake(settle = false)
+    }
+
     private var depthAttempted = false
     private var depthError: String? = null
     private var processed: RgbaImage? = null
@@ -536,6 +563,8 @@ class StencilState(
         cutOut = null
         isolationTried = false
         depthMap = null
+        depthSubject = null
+        depthEdits = DepthEdits()
         depthAttempted = false
         depthError = null
         processed = null
@@ -716,7 +745,7 @@ class StencilState(
      * Makes the stencil again. With [settle], waits a moment first, so dragging a slider makes one
      * stencil when the drag pauses and not one per pixel of travel.
      */
-    private fun remake(settle: Boolean) {
+    private fun remake(settle: Boolean, requestDepth: Boolean = false) {
         val image = source ?: return
         val wantedMode = mode
         val wantedTone = toneParams
@@ -724,6 +753,7 @@ class StencilState(
         val wantedLighting = lighting
         val wantedFlatLighting = flatLighting
         val wantedMaskStrokes = maskStrokes
+        val wantedDepthEdits = depthEdits
         val wantedSourceAdjustments = sourceAdjustments
         val wantedPreparedAdjustments = preparedAdjustments
         val wantedEngine = strokeEngine
@@ -736,6 +766,7 @@ class StencilState(
         run?.cancel()
         reliefScene = null
         automaticMask = null
+        depthSubject = null
         separation = null
         paintLayers = emptyList()
         loadingNotice = loadingNotice.begin(LOADING_TIPS.size)
@@ -749,7 +780,7 @@ class StencilState(
                 if (settle) delay(SETTLE_MILLIS)
                 delay(1) // Allow the busy indicator to paint before inference in the browser.
                 val notes = ArrayList<String>()
-                val needsDepth = wantedLighting.enabled || wantedFlatLighting.enabled ||
+                val needsDepth = requestDepth || wantedLighting.enabled || wantedFlatLighting.enabled ||
                     (remove && assist && !image.hasTransparency())
                 if (needsDepth && depthMap == null && !depthAttempted) {
                     try {
@@ -790,13 +821,19 @@ class StencilState(
                 if (generation != request) return@launch
                 automaticMask = automatic
                 val isolated = correction?.image ?: automatic
+                depthSubject = isolated
+                val rawDepth = depthMap
+                val effectiveDepth = if (rawDepth != null && (wantedFlatLighting.enabled || wantedLighting.enabled)) {
+                    withContext(Dispatchers.Default) { wantedDepthEdits.apply(rawDepth, isolated) }
+                } else null
+                if (generation != request) return@launch
                 val adjusted = withContext(Dispatchers.Default) { wantedSourceAdjustments.apply(isolated) }
                 if (generation != request) return@launch
-                val renderedImage = if (wantedFlatLighting.enabled && depthMap != null) {
-                    val map = checkNotNull(depthMap)
+                val renderedImage = if (wantedFlatLighting.enabled && effectiveDepth != null) {
+                    val map = effectiveDepth
                     withContext(Dispatchers.Default) { DepthLighting.relight(adjusted, map, wantedFlatLighting) }
-                } else if (wantedLighting.enabled && depthMap != null) {
-                    val map = checkNotNull(depthMap)
+                } else if (wantedLighting.enabled && effectiveDepth != null) {
+                    val map = effectiveDepth
                     try {
                         val rendered = withContext(Dispatchers.Default) {
                             val scene = ReliefScene.prepare(adjusted, map, wantedLighting)
