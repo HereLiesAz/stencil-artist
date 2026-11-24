@@ -272,6 +272,29 @@ class StrokeStylerTest {
     }
 
     @Test
+    fun oversizedBrushDoesNotHollowAnAttachedNarrowBranch() {
+        val w = 170
+        val h = 120
+        val opening = BooleanArray(w * h) { i ->
+            val x = i % w
+            val y = i / w
+            (x in 15..80 && y in 15..96) ||
+                (x in 81..139 && y in 48..54)
+        }
+        val original = Separation.fromMasks(w, h, listOf(black, white),
+            listOf(BooleanArray(w * h) { true }, opening))
+        val actual = StrokeStyler.stylize(image(w, h), original, strokeWidthPixels = 18).mask(1)
+        for (y in 48..54) for (x in 84..139) {
+            assertTrue(actual[y * w + x],
+                "the 7-pixel branch must stay solid when the brush is 18 pixels wide")
+        }
+        assertTrue((24..75).any { y -> (25..70).any { x -> !actual[y * w + x] } },
+            "a separate broad interior should still be stylized")
+        assertTrue(StencilPrintTips.detect(actual, w, h, 170.0)
+            .none { it.kind == PrintTipKind.ISLAND })
+    }
+
+    @Test
     fun changingBrushSizeChangesTheMarksAndKeepsTheSameOriginalCoverageBounds() {
         val w = 140
         val h = 135
