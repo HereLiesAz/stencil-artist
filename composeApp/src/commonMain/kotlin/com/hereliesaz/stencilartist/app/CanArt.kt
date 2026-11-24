@@ -15,14 +15,18 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import com.hereliesaz.stencilartist.core.paint.CanColours
 import com.hereliesaz.stencilartist.app.generated.resources.Res
 import com.hereliesaz.stencilartist.app.generated.resources.mtn94_original_packshot
+import com.hereliesaz.stencilartist.app.generated.resources.mtn94_original_top_strip
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.imageResource
 
 /*
  * Generic cans are drawn as deterministic vector shapes. The MTN 94 carousel is the exception:
@@ -35,51 +39,42 @@ private fun lighter(rgb: Int, by: Double) = Color(CanColours.lighten(rgb, by))
 private fun darker(rgb: Int, by: Double) = Color(CanColours.darken(rgb, by))
 
 /**
- * An uncapped can seen from directly above: grey metal rim, coloured shoulder donut and a centred
- * silver valve/nozzle. Only the donut is painted; the metal and nozzle stay neutral. [colour] null
- * draws a hatched donut because no RGB value is known. [selected] adds a ring and check; [sampled]
- * adds a small dot for a colour sampled from the maker's image.
+ * Exact unmodified supplied spray-can TOP artwork, composited over one solid RGB circle
+ * for this can. The grid (not this tile) supplies the SINGLE shared white background.
+ *
+ * The supplied 724×2172 PNG holds five vertically stacked 440px-wide metal tops. We
+ * crop only at draw time; no uploaded file pixels are recoloured, masked or resampled
+ * before Compose draws them. The per-can paint circle remains an independent layer.
  */
 @Composable
-internal fun CanTop(colour: Int?, selected: Boolean, sampled: Boolean, size: Dp, modifier: Modifier = Modifier) {
+internal fun CanTop(
+    colour: Int?,
+    selected: Boolean,
+    sampled: Boolean,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    artIndex: Int = 0,
+) {
+    // Unknown colours never receive invented colour swatches or placeholder can art.
+    if (colour == null) return
+    val original = imageResource(Res.drawable.mtn94_original_top_strip)
     Canvas(modifier.size(size)) {
-        val c = Offset(this.size.width / 2, this.size.height / 2)
-        val r = this.size.minDimension / 2 * (if (selected) 0.86f else 0.92f)
-        // Flat, centred metal shoulder: unlike a cap, the colour occupies only the outer donut.
-        drawCircle(Color(0xFF9A9A9A), r, c)
-        drawCircle(Color(0xFF484848), r * 0.94f, c)
-        val ring = r * 0.87f
-        if (colour == null) {
-            drawCircle(Color(0xFF303030), ring, c)
-            val clip = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, ring)) }
-            clipPath(clip) {
-                val step = ring / 3.2f
-                var x = c.x - ring * 2
-                while (x < c.x + ring * 2) {
-                    drawLine(Color(0xFF737373), Offset(x, c.y + ring), Offset(x + ring * 2, c.y - ring), strokeWidth = r * 0.07f)
-                    x += step
-                }
-            }
-        } else {
-            drawCircle(tone(colour), ring, c)
-            drawArc(
-                Color.White.copy(alpha = 0.28f), startAngle = 204f, sweepAngle = 66f,
-                useCenter = false, topLeft = Offset(c.x - ring * 0.88f, c.y - ring * 0.88f),
-                size = Size(ring * 1.76f, ring * 1.76f),
-                style = Stroke(r * 0.055f, cap = StrokeCap.Round),
-            )
-        }
-        drawCircle(Color(0xFFB7B7B7), r * 0.59f, c)
-        drawCircle(Color(0xFFE3E3E3), r * 0.53f, c)
-        drawCircle(Color(0xFF8A8A8A), r * 0.38f, c)
-        drawCircle(Color(0xFFD2D2D2), r * 0.31f, c)
-        // Every circle uses exactly c: there is no off-centre actuator or cap.
-        drawCircle(Color(0xFF343434), r * 0.20f, c)
-        drawCircle(Color(0xFF7D7D7D), r * 0.15f, c)
-        drawCircle(Color(0xFF252525), r * 0.057f, c)
+        val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        val diameter = this.size.minDimension
+        drawCircle(Color(colour), diameter * 0.45f, center)
+        // Five separate views from one unchanged image file. Source coordinates deliberately
+        // preserve the full metal ring and transparent shoulder of each top.
+        val frame = artIndex.mod(5)
+        drawImage(
+            image = original,
+            srcOffset = IntOffset(120, frame * 397),
+            srcSize = IntSize(440, 440),
+            dstSize = IntSize(this.size.width.roundToInt(), this.size.height.roundToInt()),
+            filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+        )
         if (selected) {
-            drawCircle(Color.White, this.size.minDimension / 2 - 1.5f, c, style = Stroke(this.size.minDimension * 0.07f))
-            val badge = this.size.minDimension * 0.17f
+            drawCircle(Color.White, diameter / 2f - 1.5f, center, style = Stroke(diameter * 0.07f))
+            val badge = diameter * 0.17f
             val b = Offset(this.size.width - badge * 1.05f, this.size.height - badge * 1.05f)
             drawCircle(Color.White, badge, b)
             val check = Path().apply {
@@ -90,9 +85,10 @@ internal fun CanTop(colour: Int?, selected: Boolean, sampled: Boolean, size: Dp,
             drawPath(check, Color.Black, style = Stroke(badge * 0.3f, cap = StrokeCap.Round))
         }
         if (sampled) {
-            val d = this.size.minDimension * 0.07f
-            drawCircle(Color(0xFFE6E6E6), d, Offset(this.size.width - d * 2.2f, d * 2.2f))
-            drawCircle(Color(0xFF0E0E0E), d * 0.45f, Offset(this.size.width - d * 2.2f, d * 2.2f))
+            val dot = diameter * 0.07f
+            val at = Offset(this.size.width - dot * 2.2f, dot * 2.2f)
+            drawCircle(Color(0xFFE6E6E6), dot, at)
+            drawCircle(Color(0xFF0E0E0E), dot * 0.45f, at)
         }
     }
 }
