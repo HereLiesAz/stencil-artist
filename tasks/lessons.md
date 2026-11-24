@@ -16,18 +16,11 @@ Rules written after corrections. Read at the start of every session on this repo
 - _(My reading, not Az's words:)_ the up-front plan check-in still stands; it is the mid-plan
   pauses that were the problem.
 
-## 2026-11-23 — Cutting and painting guidance have different homes
+## 2026-11-22/23 — Print guidance must not change cuts
 
-- Cutting advice **may occupy cutaway material**, preferably there when a complete buffered note rectangle fits. Fine cutaways may be too narrow; surviving stock is an acceptable fallback.
-- Painting advice **must occupy surviving, uncut stock**. Never place it in a cutaway, even if that is closer to the affected gradient.
-- Both types need a verified physical clearance rectangle, stay away from outlines and board edges, and fall back to adjacent non-cutting reference pages if necessary. Text over a dark painted cutaway needs contrasting ink.
-- This updates the 2026-11-22 placement restriction below; that rule's prohibition against crossing cuts remains.
-
-## 2026-11-22 — Print guidance must not change cuts
-
-- Contextual PDF tips belong **inside uncut, surviving stencil stock**, never in a side gutter.
+- **Clarified 2026-11-23:** Cutting tips may occupy either removed openings **or** surviving stencil stock, wherever safely legible. Earlier stock-only placement was overly restrictive; its original purpose was to prevent annotations crossing or interfering with cuts, **not** to ban notes in removable areas. Painting tips about soft-gradient overspray still prefer uncut stock.
 - Check the entire note's physical bounding rectangle plus safety clearance against the full
-  sheet's cut mask. If it cannot fit, use an adjacent detail on a non-cutting reference page.
+  sheet's cut mask. A cutting note must fit entirely within one region, not cross its boundary. If it cannot fit, use an adjacent detail on a non-cutting reference page.
 - Never draw a pointer, leader, frame, or marker across a cut. Detect islands on the complete
   sheet, not separately on each tile, because tile borders are not physical cut lines.
 - Keep the tip adjacent to a cropped depiction of its original cut issue on that reference
