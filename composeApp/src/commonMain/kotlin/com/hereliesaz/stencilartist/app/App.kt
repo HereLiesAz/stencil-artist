@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.LightingParams
+import com.hereliesaz.stencilartist.core.ImageAdjustments
 import com.hereliesaz.stencilartist.core.SceneLight
 import com.hereliesaz.stencilartist.core.SceneLightKind
 import com.hereliesaz.stencilartist.core.ColorOrder
@@ -114,7 +115,8 @@ private val CUTTER_FITS = listOf(TileSpec.MAT_12X12, TileSpec.MAT_12X24, TileSpe
 /** [value] with one decimal place; common Kotlin has no String.format. */
 private fun oneDecimal(value: Float): String {
     val tenths = (value * 10).roundToInt()
-    return "${tenths / 10}.${tenths % 10}"
+    val magnitude = kotlin.math.abs(tenths)
+    return (if (tenths < 0) "-" else "") + "${magnitude / 10}.${magnitude % 10}"
 }
 
 /** Below this width the controls go under the preview instead of beside it. */
@@ -524,6 +526,11 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         }
 
+        if (step == 0) Section("Source adjustments") {
+            Text("Adjust the isolated photograph or its 3D skin. Depth and the subject mask are estimated from the original image.", style = MaterialTheme.typography.bodySmall)
+            ImageAdjustmentEditor(state.sourceAdjustments, state::updateSourceAdjustments)
+        }
+
         if (step == 1) Section("Depth + lighting") {
             Text("Choose how to light the prepared image. Flat depth relight uses estimated surface normals without extrusion; the 3D scene supports geometric shadows.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -594,10 +601,14 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 var shadowOnly by remember(state.source) { mutableStateOf(false) }
                 val scene = state.reliefScene
                 if (scene != null && !state.busy) {
-                    val orbit by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, scene, light, yaw, pitch, shadowOnly) {
+                    val orbit by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, scene, light, yaw, pitch, shadowOnly, state.preparedAdjustments) {
                         value = null
                         delay(80)
-                        val rendered = withContext(Dispatchers.Default) { scene.renderOrbit(light, yaw, pitch, shadowOnly) }
+                        val effects = state.preparedAdjustments
+                        val rendered = withContext(Dispatchers.Default) {
+                            val orbitImage = scene.renderOrbit(light, yaw, pitch, shadowOnly)
+                            if (shadowOnly) orbitImage else effects.apply(orbitImage)
+                        }
                         value = argbToImageBitmap(rendered.pixels, rendered.width, rendered.height)
                     }
                     Box(Modifier.fillMaxWidth().height(200.dp).checkerboard(), contentAlignment = Alignment.Center) {
@@ -630,6 +641,11 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     Text(if (light.castShadows) "Geometric shadows on" else "Geometric shadows off")
                 }
             }
+        }
+
+        if (step == 1) Section("Stencil image adjustments") {
+            Text("Shape the final image before separation, with or without depth or extrusion. These filters do not change the number of sheets or transparency.", style = MaterialTheme.typography.bodySmall)
+            ImageAdjustmentEditor(state.preparedAdjustments, state::updatePreparedAdjustments)
         }
 
         if (step == 2) {
@@ -1407,6 +1423,64 @@ internal fun Stepper(value: Int, range: IntRange, label: String, onChange: (Int)
     }
 }
 
+/** Shared editor for source and post-lighting adjustments. Each stack owns its own reset.
+ * Advanced controls are grouped rather than occupying the entire studio at once. */
+@Composable
+private fun ImageAdjustmentEditor(settings: ImageAdjustments, onChange: (ImageAdjustments) -> Unit) {
+    var group by remember { mutableIntStateOf(0) }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((index, name) in listOf("Tone", "Colour", "Detail").withIndex()) {
+            Choice(name, selected = group == index) { group = index }
+        }
+        OutlinedButton(onClick = { onChange(ImageAdjustments()) }, enabled = settings != ImageAdjustments()) {
+            Text("Reset")
+        }
+    }
+    when (group) {
+        0 -> {
+            Choice("Auto levels", selected = settings.autoLevels) { onChange(settings.copy(autoLevels = !settings.autoLevels)) }
+            LabelledSlider("Exposure", oneDecimal(settings.exposure), settings.exposure, -2f..2f) { onChange(settings.copy(exposure = it)) }
+            LabelledSlider("Brightness", oneDecimal(settings.brightness), settings.brightness, -1f..1f) { onChange(settings.copy(brightness = it)) }
+            LabelledSlider("Contrast", oneDecimal(settings.contrast), settings.contrast, -1f..1f) { onChange(settings.copy(contrast = it)) }
+            LabelledSlider("Gamma", oneDecimal(settings.gamma), settings.gamma, .25f..4f) { onChange(settings.copy(gamma = it)) }
+            LabelledSlider("Black point", (settings.black * 100).roundToInt().toString() + "%", settings.black, 0f.. .49f) { onChange(settings.copy(black = it)) }
+            LabelledSlider("White point", (settings.white * 100).roundToInt().toString() + "%", settings.white, .51f..1f) { onChange(settings.copy(white = it)) }
+            LabelledSlider("Shadows", oneDecimal(settings.shadows), settings.shadows, -1f..1f) { onChange(settings.copy(shadows = it)) }
+            LabelledSlider("Highlights", oneDecimal(settings.highlights), settings.highlights, -1f..1f) { onChange(settings.copy(highlights = it)) }
+        }
+        1 -> {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Choice("Grayscale", settings.grayscale) { onChange(settings.copy(grayscale = !settings.grayscale)) }
+                Choice("Invert", settings.invert) { onChange(settings.copy(invert = !settings.invert)) }
+            }
+            if (!settings.grayscale) {
+                LabelledSlider("Saturation", oneDecimal(settings.saturation), settings.saturation, 0f..2f) { onChange(settings.copy(saturation = it)) }
+                LabelledSlider("Warmth", oneDecimal(settings.warmth), settings.warmth, -1f..1f) { onChange(settings.copy(warmth = it)) }
+                LabelledSlider("Tint", oneDecimal(settings.tint), settings.tint, -1f..1f) { onChange(settings.copy(tint = it)) }
+            }
+        }
+        else -> {
+            Choice("Despeckle", settings.despeckle) { onChange(settings.copy(despeckle = !settings.despeckle)) }
+            LabelledSlider("Edge-preserving smoothing", settings.edgeSmooth.toString(), settings.edgeSmooth.toFloat(), 0f..64f) {
+                onChange(settings.copy(edgeSmooth = it.roundToInt()))
+            }
+            LabelledSlider("Blur radius", settings.blur.toString() + " px", settings.blur.toFloat(), 0f..8f) {
+                onChange(settings.copy(blur = it.roundToInt()))
+            }
+            LabelledSlider("Sharpen", oneDecimal(settings.sharpen), settings.sharpen, 0f..2f) { onChange(settings.copy(sharpen = it)) }
+            LabelledSlider("Local contrast", oneDecimal(settings.clarity), settings.clarity, -1f..2f) { onChange(settings.copy(clarity = it)) }
+            Choice("Posterize value", settings.posterize > 0) {
+                onChange(settings.copy(posterize = if (settings.posterize == 0) 4 else 0))
+            }
+            if (settings.posterize > 0) {
+                LabelledSlider("Value bands", settings.posterize.toString(), settings.posterize.toFloat(), 2f..16f) {
+                    onChange(settings.copy(posterize = it.roundToInt()))
+                }
+            }
+        }
+    }
+}
+
 /** Edit the actual emitter list; the null legacy configuration becomes explicit on the first edit. */
 @Composable
 private fun SceneLightsEditor(lighting: LightingParams, onChange: (LightingParams) -> Unit) {
@@ -1598,5 +1672,4 @@ private fun Modifier.checkerboard(): Modifier = drawBehind {
 }
 
 /** Fixed one decimal place without locale or platform formatting dependencies. */
-private fun formatLightValue(value: Float): String =
-    (value * 10f).roundToInt().let { (it / 10).toString() + "." + kotlin.math.abs(it % 10) }
+private fun formatLightValue(value: Float): String = oneDecimal(value)

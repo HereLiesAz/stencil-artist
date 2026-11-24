@@ -14,6 +14,7 @@ import com.hereliesaz.stencilartist.core.IslandPlanner
 import com.hereliesaz.stencilartist.core.SoftGradientZones
 import com.hereliesaz.stencilartist.core.StrokeStyler
 import com.hereliesaz.stencilartist.core.RgbaImage
+import com.hereliesaz.stencilartist.core.ImageAdjustments
 import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.TonalParams
 import com.hereliesaz.stencilartist.core.TonalSeparator
@@ -437,6 +438,27 @@ class StencilState(
     var viewProcessedImage: Boolean by mutableStateOf(false)
         private set
 
+    /** Source adjustments alter the isolated image or its scene skin, not model inference. */
+    var sourceAdjustments: ImageAdjustments by mutableStateOf(ImageAdjustments())
+        private set
+
+    /** Prepared adjustments run after all lighting modes, before every separator. */
+    var preparedAdjustments: ImageAdjustments by mutableStateOf(ImageAdjustments())
+        private set
+
+    /** Update one non-destructive stack without changing the other. */
+    fun updateSourceAdjustments(next: ImageAdjustments) {
+        if (next == sourceAdjustments) return
+        sourceAdjustments = next
+        remake(settle = true)
+    }
+
+    fun updatePreparedAdjustments(next: ImageAdjustments) {
+        if (next == preparedAdjustments) return
+        preparedAdjustments = next
+        remake(settle = true)
+    }
+
     private var depthMap: FloatArray? = null
     private var depthAttempted = false
     private var depthError: String? = null
@@ -635,6 +657,8 @@ class StencilState(
         val wantedColor = colorParams
         val wantedLighting = lighting
         val wantedFlatLighting = flatLighting
+        val wantedSourceAdjustments = sourceAdjustments
+        val wantedPreparedAdjustments = preparedAdjustments
         val wantedEngine = strokeEngine
         val wantedStrokes = strokeBased
         val wantedStrokeWidth = strokeWidthPixels
@@ -690,14 +714,16 @@ class StencilState(
                 }
                 markStage(0.40f)
                 val isolated = cutOut?.takeIf { remove } ?: image
-                val lit = if (wantedFlatLighting.enabled && depthMap != null) {
+                val adjusted = withContext(Dispatchers.Default) { wantedSourceAdjustments.apply(isolated) }
+                if (generation != request) return@launch
+                val renderedImage = if (wantedFlatLighting.enabled && depthMap != null) {
                     val map = checkNotNull(depthMap)
-                    withContext(Dispatchers.Default) { DepthLighting.relight(isolated, map, wantedFlatLighting) }
+                    withContext(Dispatchers.Default) { DepthLighting.relight(adjusted, map, wantedFlatLighting) }
                 } else if (wantedLighting.enabled && depthMap != null) {
                     val map = checkNotNull(depthMap)
                     try {
                         val rendered = withContext(Dispatchers.Default) {
-                            val scene = ReliefScene.prepare(isolated, map, wantedLighting)
+                            val scene = ReliefScene.prepare(adjusted, map, wantedLighting)
                             scene to scene.renderSource(wantedLighting)
                         }
                         if (generation != request) return@launch
@@ -707,13 +733,15 @@ class StencilState(
                         throw cancelled
                     } catch (error: Exception) {
                         notes += "3D scene rendering unavailable; using original lighting."
-                        isolated
+                        adjusted
                     }
-                } else isolated
+                } else adjusted
+                if (generation != request) return@launch
+                val lit = withContext(Dispatchers.Default) { wantedPreparedAdjustments.apply(renderedImage) }
                 if (generation != request) return@launch
                 markStage(0.60f)
-                // The flat relight or fixed frontal scene render is the prepared image for every separator,
-                // paint-plan, island and export path. Orbit views never enter this pipeline.
+                // The filtered prepared image feeds every separator, paint plan, island and export.
+                // Neither the original image nor an orbit/diagnostic view enters this pipeline.
                 var asked = if (wantedMode == SeparationMode.TONE) wantedTone.sheets else wantedColor.sheets
                 var layers: List<SnappedLayer> = emptyList()
                 var failure = "Couldn't make a stencil from this image."

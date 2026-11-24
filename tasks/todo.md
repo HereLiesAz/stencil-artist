@@ -17,7 +17,8 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 ## Flat depth relighting and image preparation (2026-11-24)
 
 - [x] Restore flat depth relighting as a separate Light mode. Fix image-relative gradient scaling, foreground-only robust range and alpha-aware differences; add independent matte mix, direction, intensity, ambient, strength and depth reversal. App caller: `StencilState.remake` → `DepthLighting.relight`. Device quality checks remain open.
-- [ ] Add shared stencil-oriented image adjustments and filters before all separation paths, preserving alpha and the original source.
+- [x] Add shared stencil-oriented source/skin and prepared-image adjustments, preserving alpha and the original source. `ImageAdjustmentEditor` → `StencilState.updateSourceAdjustments` / `updatePreparedAdjustments` → `ImageAdjustments.apply` → every separator. Seven isolated JVM fixtures passed; integrated builds and real-photo evaluation remain open.
+- [ ] Evaluate additional stencil-aware diagnostics (tiny regions, fragile stock, separation boundaries), curve editing and physical output quality on real photographs.
 - [ ] Verify actual photographs, depth quality and tonal-layer usefulness on Android and Wasm.
 
 ## True 3D relief and lighting (approved 2026-11-24)
