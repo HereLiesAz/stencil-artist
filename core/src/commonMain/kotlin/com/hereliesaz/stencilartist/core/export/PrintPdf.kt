@@ -961,22 +961,28 @@ object PrintPdf {
                     if (note.lines.withIndex().any { (i, l) -> PdfText.width(l, if (i == 0) 7.4 else 7.0, i == 0) + 4.0 > TIP_W * K }) continue
                     var best: Rect? = null
                     var bestDist = Double.POSITIVE_INFINITY
+                    var onWaste = false
                     val options = if (note.kind == PrintTipKind.SOFT_GRADIENT) listOf(stock) else listOf(waste, stock)
-                    for (available in options) {
+                    for ((side, available) in options.withIndex()) {
                         for (r in available) {
                             if (used.any { it.overlaps(r) }) continue
                             val dx = r.x + r.w / 2 - note.rx
                             val dy = r.y + r.h / 2 - note.ry
                             val d = dx * dx + dy * dy
-                            if (d < bestDist) { bestDist = d; best = r }
+                            if (d < bestDist) {
+                                bestDist = d
+                                best = r
+                                onWaste = note.kind != PrintTipKind.SOFT_GRADIENT && side == 0
+                            }
                         }
                         if (best != null) break // A cutaway is preferable even when stock is closer.
                     }
                     val r = best ?: continue
                     used += r
                     placed += note.key
-                    // Muted words and nothing else: no boxes, leaders or arrows, so nothing can cross a cut.
-                    sb.append("q 0.42 g\n")
+                    // On dark painted cutaways use white type; otherwise muted black. No boxes,
+                    // leaders or arrows, so nothing crosses the cut edge.
+                    sb.append(if (onWaste && luminance(color) < 0.5) "q 1 g\n" else "q 0.42 g\n")
                     for ((i, line) in note.lines.withIndex()) {
                         text(sb, if (i == 0) 7.4 else 7.0, px(tile, r.x) + 2.0, py(tile, r.y) - 11.0 - i * 11.0, line, bold = i == 0)
                     }
