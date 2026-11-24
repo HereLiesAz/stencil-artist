@@ -82,11 +82,23 @@ class StencilState(
     var strokeBased: Boolean by mutableStateOf(false)
         private set
 
+    /** The selected pixel width of ribbon marks. Retained when switching back to Classic. */
+    var strokeWidthPixels: Int by mutableStateOf(StrokeStyler.DEFAULT_BRUSH_WIDTH_PIXELS)
+        private set
+
     /** Change the shape language without changing the chosen paints or lighting. */
     fun useStrokeBased(enabled: Boolean) {
         if (strokeBased == enabled) return
         strokeBased = enabled
         remake(settle = false)
+    }
+
+    /** Brush-size edits only regenerate masks when brush construction is enabled. */
+    fun setStrokeWidthPixels(width: Int) {
+        val next = width.coerceIn(StrokeStyler.MIN_BRUSH_WIDTH_PIXELS..StrokeStyler.MAX_BRUSH_WIDTH_PIXELS)
+        if (strokeWidthPixels == next) return
+        strokeWidthPixels = next
+        if (strokeBased) remake(settle = true)
     }
 
     // --- Paint: making the layers real cans -------------------------------------------------------
@@ -573,6 +585,7 @@ class StencilState(
         val wantedColor = colorParams
         val wantedLighting = lighting
         val wantedStrokes = strokeBased
+        val wantedStrokeWidth = strokeWidthPixels
         val wantedPaint = if (wantedMode == SeparationMode.COLOUR) paintMode else PaintMode.FREE
         val remove = removeBackground
         val assist = depthAssistedBackground
@@ -679,7 +692,9 @@ class StencilState(
                     // Gradient-lift notes are derived from the processed SOURCE, not from flat masks.
                     val finished = result
                     val planned = withContext(Dispatchers.Default) {
-                        val composed = if (wantedStrokes) StrokeStyler.stylize(lit, finished) else finished
+                        val composed = if (wantedStrokes) {
+                            StrokeStyler.stylize(lit, finished, strokeWidthPixels = wantedStrokeWidth)
+                        } else finished
                         val bridgePlan = IslandPlanner.repair(composed, lit, minimumBridgePixels = 2)
                         val softEdges = SoftGradientZones.locate(lit, bridgePlan.separation)
                         bridgePlan to bridgePlan.separation.withLiftZones(softEdges)
