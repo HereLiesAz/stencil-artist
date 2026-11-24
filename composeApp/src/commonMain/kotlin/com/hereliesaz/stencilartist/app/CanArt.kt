@@ -42,7 +42,7 @@ private fun darker(rgb: Int, by: Double) = Color(CanColours.darken(rgb, by))
  * Exact unmodified supplied spray-can TOP artwork, composited over one solid RGB circle
  * for this can. The grid (not this tile) supplies the SINGLE shared white background.
  *
- * The supplied 724×2172 PNG contains five metal tops spaced roughly 420px apart. Each individually aligned 400px-tall source window avoids its neighbours. We
+ * The supplied 724×2172 PNG contains five metal tops. Their per-frame source bounds are located at the transparent seam minima, so adjacent tops do not bleed into one another. We
  * crop only at draw time; no uploaded file pixels are recoloured, masked or resampled
  * before Compose draws them. The per-can paint circle remains an independent layer.
  */
@@ -65,19 +65,27 @@ internal fun CanTop(
         // Five separate views from one unchanged image file. Source coordinates deliberately
         // preserve the full metal ring and transparent shoulder of each top.
         val frame = artIndex.mod(5)
-        // Measured against the five separate spray-can tops in the source PNG;
-        // uniform 397px offsets clipped rims and bled neighbouring art into tiles.
+        // Transparency minima measured across the original PNG separate its tops
+        // at rows 428, 847, 1264, 1678 and 2111. No frame shares a neighbouring
+        // ring. They differ slightly in height, so use each source height as-is.
         val frameTop = when (frame) {
             0 -> 0
-            1 -> 420
-            2 -> 839
-            3 -> 1251
-            else -> 1668
+            1 -> 428
+            2 -> 847
+            3 -> 1264
+            else -> 1678
+        }
+        val frameBottom = when (frame) {
+            0 -> 428
+            1 -> 847
+            2 -> 1264
+            3 -> 1678
+            else -> 2111
         }
         drawImage(
             image = original,
             srcOffset = IntOffset(140, frameTop),
-            srcSize = IntSize(440, 400),
+            srcSize = IntSize(440, frameBottom - frameTop),
             dstSize = IntSize(this.size.width.roundToInt(), this.size.height.roundToInt()),
             filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
         )
