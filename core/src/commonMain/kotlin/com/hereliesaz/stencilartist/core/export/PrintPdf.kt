@@ -171,7 +171,7 @@ class PrintPlan(
  *
  * Upright page labels use lowercase paper and uppercase board coordinates and identify the paint.
  * They are placed on visible retained stock only, never on an opening. A wholly removed visible
- * tile is omitted; if a mixed tile has no safe label rectangle its map remains the reference.
+ * tile is omitted. Every emitted tile must carry its identifier on retained stock.
  */
 object PrintPdf {
     /** The unprintable border of every page, from the paper's edge, in mm. Fixed. */
@@ -993,14 +993,14 @@ object PrintPdf {
             val paintText = "TOP - " + paintLabel(color, paintName)
             val lh = 2 * LABEL_PT / K + 2.0
             val lw = maxOf(PdfText.width(labelText, LABEL_PT), PdfText.width(paintText, LABEL_PT)) / K + 1.0
-            val labelBox = place(tile, lw, lh, 2.0, 1.0, uncut, used)
-                ?: place(tile, lw, lh, 1.0, 1.0, uncut, used)
-            if (labelBox != null) {
-                sb.append("0 g\n")
-                text(sb, LABEL_PT, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K, labelText)
-                text(sb, LABEL_PT, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K + LABEL_PT + K, paintText)
-                used += labelBox
-            }
+            val labelBox = requireNotNull(
+                place(tile, lw, lh, 2.0, 1.0, uncut, used)
+                    ?: place(tile, lw, lh, 0.5, 0.5, uncut, used)
+            ) { "No retained label space on sheet ${sheet + 1}, paper ${tileCode(tile)}." }
+            sb.append("0 g\n")
+            text(sb, LABEL_PT, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K, labelText)
+            text(sb, LABEL_PT, px(tile, labelBox.x) + 0.5 * K, py(tile, labelBox.y + labelBox.h) + 0.5 * K + LABEL_PT + K, paintText)
+            used += labelBox
             if (notes.isNotEmpty()) {
                 val candidates = candidates(tile, TIP_W, TIP_H, 12.0 / K, TIP_CLEARANCE, uncut)
                 for (note in notes) {
