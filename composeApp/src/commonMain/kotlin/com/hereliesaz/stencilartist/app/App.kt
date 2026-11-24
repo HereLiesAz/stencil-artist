@@ -632,7 +632,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     "${state.strokeWidthPixels} px",
                     state.strokeWidthPixels.toFloat(),
                     StrokeStyler.MIN_BRUSH_WIDTH_PIXELS.toFloat()..StrokeStyler.MAX_BRUSH_WIDTH_PIXELS.toFloat(),
-                ) { state.setStrokeWidthPixels(it.roundToInt()) }
+                ) { state.chooseStrokeWidth(it.roundToInt()) }
             }
         }
         OutlinedButton(onClick = { advancedEdges = !advancedEdges }, modifier = Modifier.fillMaxWidth()) {
