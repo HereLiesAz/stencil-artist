@@ -50,6 +50,13 @@ Rules written after corrections. Read at the start of every session on this repo
 - Never claim a model is benchmarked because a build compiled. Measure runtime and visual quality
   on representative devices before checking off performance tasks.
 
+## 2026-11-24 — Real 3D extrusion is the approved lighting architecture
+
+- The depth model shapes the front of a closed relief solid; the subject mask defines its silhouette and inferred walls/back. Render lights and occlusion in a real 3D scene, then pass the rendered image to the existing separator.
+- Keep the source-aligned output camera independent of the interactive orbit view. Do not label image-space height-field shading as 3D scene lighting or infer unseen geometry as fact.
+- Preserve the no-depth path, source alpha/framing, generation guards and the single completed separation consumed by exports. Mesh geometry resolution is not the stencil/export resolution.
+- A tested mesh without an application caller is a foundation, not a completed feature. Do not retire the old renderer until the new path is integrated and verified.
+
 ## 2026-11-22 — Raster output must stay identical to the stencil preview
 
 - Encode per-sheet PNG pixels through `Separation.render(sheet)` and composite through
