@@ -87,6 +87,7 @@ import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -112,6 +113,18 @@ private val STUDIO_STEPS = listOf(
     "Images" to "Save a finished image, an individual sheet, or an aligned layer pack for another app.",
     "Print" to "Set the physical width, then print tiled pages at actual size. Their alignment marks preserve the cut across page joins.",
     "Cutter" to "Set the physical width and your cutter or mat. Check the machine settings before sending any toolpath to hardware.",
+)
+
+/** Short loading advice; corresponding fine-cut, island and gradient notes also print by location. */
+private val LOADING_TIPS = listOf(
+    "CUT" to "Cut fine details last and lift their waste slowly. A clean blade is more useful than heroic optimism.",
+    "PAINT" to "For a soft gradient, lift the uncut stencil edge slightly. Try the overspray on scrap first.",
+    "MAKE" to "Fewer sheets are easier to register; more sheets can preserve delicate changes in value.",
+    "CUT" to "Check enclosed islands before cutting. A bridge or a later paint layer can preserve the detail.",
+    "PAINT" to "Use light, even passes. Too much paint finds its way under even a firmly held stencil.",
+    "MAKE" to "Compare each sheet against the original at high zoom before printing at full size.",
+    "PAINT" to "Align every layer to the same marks, not to the last colour you happened to spray.",
+    "CUT" to "Turn the stencil material around tight corners instead of forcing the blade to twist.",
 )
 
 /** The whole app: one screen, shared by Android and the web. */
@@ -153,6 +166,16 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     var paneBounds by remember { mutableStateOf(IntSize.Zero) }
+    var loadingTip by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(state.busy) {
+        if (state.busy) {
+            loadingTip = (loadingTip + 1) % LOADING_TIPS.size
+            while (true) {
+                delay(4200)
+                loadingTip = (loadingTip + 1) % LOADING_TIPS.size
+            }
+        }
+    }
     val sourceBitmap = remember(state.source) {
         state.source?.let { argbToImageBitmap(it.pixels, it.width, it.height) }
     }
@@ -253,7 +276,24 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
                 }
             }
         }
-        if (state.busy) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth())
+        if (state.busy) {
+            LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth())
+            val advice = LOADING_TIPS[loadingTip.coerceAtLeast(0)]
+            Column(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text("PREPARING STENCIL · ${advice.first}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(advice.second, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 }
 
