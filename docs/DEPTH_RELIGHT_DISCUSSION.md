@@ -1,6 +1,6 @@
 # Depth extrusion and relighting: design discussion
 
-Status: **approved architecture (2026-11-24); implementation in progress.** The user explicitly requires the depth model to produce a 3D extrusion, lights placed in a 3D scene, and the resulting rendered image to generate the stencil. The 3D MVP is now connected to the opt-in Light stage; the original-lighting path remains available.
+Status: **entire implementation plan approved by the artist (2026-11-24); continue through all implementation and verification items without additional phase approval.** The user explicitly requires the depth model to produce a 3D extrusion, lights placed in a 3D scene, and the resulting rendered image to generate the stencil. The 3D MVP is now connected to the opt-in Light stage; the original-lighting path remains available.
 
 ## Accepted architecture
 
@@ -15,6 +15,8 @@ Scene lighting must illuminate the geometry and support actual occlusion, self-s
 Retain the unmodified source and original-lighting option. The rendered image becomes the authoritative prepared image for separation, preview, print and cutter output. On-demand depth-model loading and the no-depth workflow remain available. The initial textured-material render may retain baked-in source lighting; replacement or removal of those shadows is a separate explicit material choice, not a claim of intrinsic albedo recovery.
 
 ### Implementation sequence
+
+The full sequence below is approved. Continue through remaining material estimation, shadow quality, source-aligned preview and diagnostic verification, and real-device/physical stencil evaluation. Track the ordered acceptance gates in [tasks/todo.md](../tasks/todo.md). No claim of intrinsic albedo from a single photograph: begin with bounded artist-guided original-light compensation, independently of new scene lights, then evaluate against known materials and real photographs. The separate printable receiver-shadow layer remains undecided.
 
 1. **Extrusion MVP:** generate a bounded closed indexed mesh from a normalized depth field and foreground mask, with outward triangle winding, UVs and distinct front/wall/back surfaces. Add a real scene renderer, an orbitable geometry preview, one directional light and ambient fill, and a source-aligned render target feeding the existing separator. Integrate only when actual geometry occlusion and alpha/framing tests pass.
 2. **Lighting:** place multiple directional/point/spot lights using scene handles; intensity, colour, distance, cone and softness controls as applicable; self/cast-shadow toggles, key/fill/rim presets, optional receiver and shadow-only/combined views.
