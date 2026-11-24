@@ -259,6 +259,9 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
    or ambiguous details remain unresolved, not silently deleted. Full
    directional stroke-trajectory synthesis, physical-width checking and
    real-world validation remain.
+   Brush size is adjustable (1–24 working-image pixels) in the Edges stage.
+   Separate areas narrower than the chosen brush keep their original solid
+   shapes. This is a pixel setting, not a calibrated physical spray width.
    The opt-in Brush strokes mode now reconstructs wide later-layer regions as
    narrow additive, flow-guided paint ribbons (with bounded deviation and a
    retained-stock island check), leaving thin details and Classic available.
