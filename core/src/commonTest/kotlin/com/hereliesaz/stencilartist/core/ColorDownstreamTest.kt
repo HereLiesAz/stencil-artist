@@ -10,8 +10,10 @@ import com.hereliesaz.stencilartist.core.export.PhysicalSize
 import com.hereliesaz.stencilartist.core.export.PrintOptions
 import com.hereliesaz.stencilartist.core.export.PrintPdf
 import com.hereliesaz.stencilartist.core.export.SvgExporter
+import com.hereliesaz.stencilartist.core.vector.VectorOptions
 import com.hereliesaz.stencilartist.core.vector.Vectorizer
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -112,5 +114,92 @@ class ColorDownstreamTest {
                 assertEquals(stencil.sheets.map { it.color }, Vectorizer.vectorize(stencil).sheets.map { it.color })
             }
         }
+    }
+
+    /** Exercise the core handoff used by StencilState, without pretending to drive its UI or inference. */
+    @Test
+    fun correctedSubjectAndEditedDepthSurviveRepairInspectionAndExport() {
+        val w = 24; val h = 16
+        val dark = 0xFF602010.toInt(); val bright = 0xFF40D0F0.toInt()
+        val palette = listOf(dark, bright)
+        val pixels = IntArray(w * h) { if (it % w < 12) dark else bright }
+        val original = RgbaImage(w, h, pixels.copyOf())
+        val hole = 7 * w + 5
+        val raised = 7 * w + 18
+        val correction = MaskCorrections.apply(original, original, listOf(
+            MaskStroke(listOf(MaskPoint(5.5f, 7.5f)), .5f, false)))
+        assertContentEquals(BooleanArray(w * h) { it == hole }, correction.excluded)
+
+        val inferred = FloatArray(w * h) { .25f }
+        val edited = DepthEdits(strokes = listOf(
+            DepthStroke(listOf(MaskPoint(18.5f, 7.5f)), 2f, DepthBrush.SET,
+                strength = 1f, hardness = 1f, target = .75f),
+            DepthStroke(listOf(MaskPoint(5.5f, 7.5f)), .5f, DepthBrush.SET,
+                strength = 1f, hardness = 1f, target = 1f)
+        )).apply(inferred, correction.image)
+        assertEquals(.75f, edited[raised])
+        assertEquals(.25f, edited[hole])
+        val source = ImageAdjustments(saturation = .9f).apply(correction.image)
+        val lighting = LightingParams(enabled = true, elevation = 60f, intensity = .5f, ambient = .5f)
+        val scene = ReliefScene.prepare(source, edited, lighting)
+        val solid = lighting.copy(useSourceTexture = false, surfaceColor = 0xB0C0D0)
+        val frontal = scene.renderSource(lighting)
+        val orbit = scene.renderOrbit(lighting, 45f, 20f, shadowOnly = true)
+        assertTrue(orbit.pixels.any { it ushr 24 != 0 })
+        assertContentEquals(frontal.pixels, scene.renderSource(lighting).pixels)
+        val rendered = listOf(source, DepthLighting.relight(source, edited, lighting),
+            frontal, scene.renderSource(solid))
+        val exact = VectorOptions(tolerance = 0.0, minArea = 0.0, smoothing = 0)
+
+        for ((mode, image) in rendered.withIndex()) {
+            val prepared = ImageAdjustments(contrast = .15f).apply(image)
+            assertEquals(0, prepared.pixels[hole] ushr 24, "lighting mode $mode")
+            val separated = listOf(
+                ColorSeparator.separate(prepared, ColorParams(sheets = 2, colors = palette,
+                    smoothing = 1, closing = 3))!!.separation,
+                TonalSeparator.separate(prepared, TonalParams(sheets = 2, colors = palette,
+                    base = Base.DARK, smoothing = 1, closing = 3))!!.separation)
+            for (raw in separated) {
+                val repaired = IslandPlanner.repair(raw.excluding(correction.excluded), prepared).separation
+                val committed = repaired.withLiftZones(SoftGradientZones.locate(prepared, repaired))
+                assertEquals(palette.toSet(), committed.sheets.map { it.color }.toSet())
+                assertEquals(0, committed.render()[hole])
+                assertTrue(committed.render()[0] ushr 24 != 0)
+                assertTrue(committed.render()[w * h - 1] ushr 24 != 0)
+                val masks = committed.sheets.indices.map { committed.mask(it) }
+                val drawing = Vectorizer.vectorize(committed, options = exact)
+                for (sheet in committed.sheets.indices) {
+                    val inspection = StencilInspection.inspect(committed, sheet, 240.0, 2.0)
+                    assertEquals(w, inspection.image.width)
+                    assertEquals(h, inspection.image.height)
+                    assertEquals(false, masks[sheet][hole])
+                    assertEquals(0, committed.render(sheet)[hole])
+                    val shapes = drawing.sheets[sheet].shapes
+                    // Independent point-in-polygon evaluation at pixel centres; no vectorizer round-trip helper.
+                    for (y in 0 until h) for (x in 0 until w) {
+                        val inside = shapes.any { shape -> shape.outer.contains(x + .5, y + .5) &&
+                            shape.holes.none { it.contains(x + .5, y + .5) } }
+                        assertEquals(masks[sheet][y * w + x], inside,
+                            "mode=$mode sheet=$sheet pixel=($x,$y)")
+                    }
+                }
+                val recoloured = committed.withSheetColor(0, 0xFF7A3B91.toInt())
+                val recolouredDrawing = Vectorizer.vectorize(recoloured, options = exact)
+                assertContentEquals(committed.index, recoloured.index)
+                assertEquals(committed.liftZones, recoloured.liftZones)
+                for (sheet in committed.sheets.indices) {
+                    assertContentEquals(masks[sheet], committed.mask(sheet))
+                    assertContentEquals(masks[sheet], recoloured.mask(sheet))
+                    assertEquals(drawing.sheets[sheet].shapes, recolouredDrawing.sheets[sheet].shapes)
+                }
+                val svg = SvgExporter.export(recolouredDrawing, PhysicalSize(240.0))
+                assertTrue("fill=\"#7A3B91\"" in svg || "fill=\"#7a3b91\"" in svg)
+                assertEquals(2, Regex("<g id=\"sheet-").findAll(svg).count())
+                val plan = PrintPdf.plan(recoloured, PrintOptions(widthMm = 240.0))
+                assertEquals(2, plan.sheets.size)
+            }
+        }
+        assertContentEquals(pixels, original.pixels)
+        assertContentEquals(FloatArray(w * h) { .25f }, inferred)
     }
 }
