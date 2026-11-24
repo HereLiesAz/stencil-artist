@@ -83,11 +83,15 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.hereliesaz.stencilartist.core.Base
 import com.hereliesaz.stencilartist.core.LightingParams
+import com.hereliesaz.stencilartist.core.DepthLighting
 import com.hereliesaz.stencilartist.core.ImageAdjustments
 import com.hereliesaz.stencilartist.core.RgbaImage
 import com.hereliesaz.stencilartist.core.MaskCorrections
 import com.hereliesaz.stencilartist.core.MaskPoint
 import com.hereliesaz.stencilartist.core.MaskStroke
+import com.hereliesaz.stencilartist.core.DepthBrush
+import com.hereliesaz.stencilartist.core.DepthStroke
+import com.hereliesaz.stencilartist.core.DepthEdits
 import com.hereliesaz.stencilartist.core.ToneCurve
 import com.hereliesaz.stencilartist.core.SceneLight
 import com.hereliesaz.stencilartist.core.SceneLightKind
@@ -427,6 +431,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     val print = remember { PrintSettings() }
     var step by remember { mutableIntStateOf(0) }
     var maskDraft by remember(state.source, state.maskStrokes) { mutableStateOf(state.maskStrokes) }
+    var depthDraft by remember(state.source, state.depthEdits) { mutableStateOf(state.depthEdits) }
     var advancedLight by remember { mutableStateOf(false) }
     var advancedEdges by remember { mutableStateOf(false) }
     val stepScroll = rememberScrollState()
@@ -434,6 +439,8 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
     val openStep: (Int) -> Unit = { next ->
         if (step == 1 && state.removeBackground && maskDraft != state.maskStrokes && next != step) {
             state.fail("Apply or discard your mask edits before leaving Subject.")
+        } else if (step == 3 && depthDraft != state.depthEdits && next != step) {
+            state.fail("Apply or discard your depth edits before leaving Light.")
         } else if (next <= 0 || state.source != null) {
             step = next.coerceIn(STUDIO_STEPS.indices)
             if (step == 1 || step == 3 || step == 4) state.showProcessed(true) else state.show(state.shownSheet)
@@ -709,6 +716,20 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     modifier = Modifier.fillMaxWidth()) {
                     Text(if (light.castShadows) "Geometric shadows on" else "Geometric shadows off")
                 }
+            }
+        }
+
+        if (step == 3) Section("Edit depth geometry") {
+            val original = state.source
+            val subject = state.depthSubject
+            val inferred = state.inferredDepth
+            if (original != null && subject != null && inferred != null) {
+                DepthGeometryEditor(subject, inferred, depthDraft, state.depthEdits, { depthDraft = it }) {
+                    state.updateDepthEdits(original, depthDraft)
+                }
+            } else if (!state.busy && original != null) {
+                Text("Load estimated depth to paint and shape the relief, without changing your subject or palette.")
+                OutlinedButton(onClick = state::requestDepth) { Text("Load depth") }
             }
         }
 
@@ -1433,11 +1454,6 @@ private fun SubjectMaskEditor(
     var restore by remember { mutableStateOf(false) }
     var overlay by remember { mutableStateOf(true) }
     var radius by remember(source) { mutableFloatStateOf((maxOf(source.width, source.height) / 80f).coerceAtLeast(1f)) }
-    var zoom by remember { mutableFloatStateOf(1f) }
-    var panX by remember { mutableFloatStateOf(0f) }
-    var panY by remember { mutableFloatStateOf(0f) }
-    var active by remember { mutableStateOf(emptyList<MaskPoint>()) }
-    val addStroke by rememberUpdatedState<(MaskStroke) -> Unit>({ onEdit(strokes + it) })
     val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, source, automatic, strokes, overlay) {
         val rendered = withContext(Dispatchers.Default) {
             val corrected = MaskCorrections.apply(source, automatic, strokes).image
@@ -1455,7 +1471,29 @@ private fun SubjectMaskEditor(
     }
     LabelledSlider("Brush radius", radius.roundToInt().toString() + " px", radius,
         1f..maxOf(2f, maxOf(source.width, source.height) / 5f)) { radius = it }
-    LabelledSlider("Mask zoom", oneDecimal(zoom) + "×", zoom, 1f..6f) { zoom = it }
+    ImageBrushCanvas(source, bitmap, radius, if (restore) Color(0xAA34C983) else Color(0xAAFF1830),
+        "Subject mask painting area. Paint to remove or restore the original image.") {
+        onEdit(strokes + MaskStroke(it, radius, restore))
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedButton(onClick = { onEdit(strokes.dropLast(1)) }, enabled = strokes.isNotEmpty()) { Text("Undo stroke") }
+        OutlinedButton(onClick = { onEdit(emptyList()) }, enabled = strokes.isNotEmpty()) { Text("Reset to automatic") }
+        OutlinedButton(onClick = { onEdit(committed) }, enabled = strokes != committed) { Text("Discard draft") }
+        Button(onClick = onApply, enabled = strokes != committed) { Text("Apply mask") }
+    }
+}
+
+/** Shared image-space brush surface. Fitted zoom/pan and pointer mapping are identical for
+ * subject masking and depth painting. One completed gesture produces one stroke. */
+@Composable
+private fun ImageBrushCanvas(source: RgbaImage, bitmap: androidx.compose.ui.graphics.ImageBitmap?,
+    radius: Float, indicator: Color, description: String, onStroke: (List<MaskPoint>) -> Unit) {
+    var zoom by remember(source) { mutableFloatStateOf(1f) }
+    var panX by remember(source) { mutableFloatStateOf(0f) }
+    var panY by remember(source) { mutableFloatStateOf(0f) }
+    var active by remember { mutableStateOf(emptyList<MaskPoint>()) }
+    val commit by rememberUpdatedState(onStroke)
+    LabelledSlider("Brush zoom", oneDecimal(zoom) + "×", zoom, 1f..6f) { zoom = it }
     if (zoom > 1f) {
         LabelledSlider("Pan horizontal", oneDecimal(panX), panX, -1f..1f) { panX = it }
         LabelledSlider("Pan vertical", oneDecimal(panY), panY, -1f..1f) { panY = it }
@@ -1475,18 +1513,18 @@ private fun SubjectMaskEditor(
     }
     fun inside(p: MaskPoint) = p.x >= 0 && p.y >= 0 && p.x < source.width && p.y < source.height
     Canvas(Modifier.fillMaxWidth().height(320.dp).clipToBounds().checkerboard()
-        .semantics { contentDescription = "Subject mask painting area. Paint to remove or restore the original image." }
-        .pointerInput(source, restore, radius, zoom, panX, panY) {
+        .semantics { contentDescription = description }
+        .pointerInput(source, radius, zoom, panX, panY, indicator) {
             detectTapGestures { at ->
                 val p = toImage(at, size)
-                if (inside(p)) addStroke(MaskStroke(listOf(p), radius, restore))
+                if (inside(p)) commit(listOf(p))
             }
         }
-        .pointerInput(source, restore, radius, zoom, panX, panY) {
+        .pointerInput(source, radius, zoom, panX, panY, indicator) {
             detectDragGestures(
                 onDragStart = { at -> val p = toImage(at, size); active = if (inside(p)) listOf(p) else emptyList() },
                 onDragEnd = {
-                    if (active.isNotEmpty()) addStroke(MaskStroke(active, radius, restore))
+                    if (active.isNotEmpty()) commit(active)
                     active = emptyList()
                 },
                 onDragCancel = { active = emptyList() },
@@ -1497,7 +1535,7 @@ private fun SubjectMaskEditor(
         }) {
         val (offset, extent) = imageRect(IntSize(size.width.roundToInt(), size.height.roundToInt()))
         bitmap?.let { drawImage(it, dstOffset = offset, dstSize = extent) }
-        val color = if (restore) Color(0xAA34C983) else Color(0xAAFF1830)
+        val color = indicator
         val brushWidth = 2 * radius * extent.width / source.width
         fun screen(p: MaskPoint) = Offset(offset.x + p.x * extent.width / source.width,
             offset.y + p.y * extent.height / source.height)
@@ -1507,13 +1545,73 @@ private fun SubjectMaskEditor(
                 strokeWidth = brushWidth, cap = StrokeCap.Round)
         }
     }
+}
+
+/** Draft-only depth editor; preview computation never changes the current separation. */
+@Composable
+private fun DepthGeometryEditor(subject: RgbaImage, inferred: FloatArray, draft: DepthEdits,
+    committed: DepthEdits, onEdit: (DepthEdits) -> Unit, onApply: () -> Unit) {
+    var mode by remember { mutableStateOf(DepthBrush.RAISE) }
+    var radius by remember(subject.width, subject.height) { mutableFloatStateOf((maxOf(subject.width, subject.height) / 40f).coerceAtLeast(1f)) }
+    var strength by remember { mutableFloatStateOf(.25f) }
+    var hardness by remember { mutableFloatStateOf(.75f) }
+    var target by remember { mutableFloatStateOf(.5f) }
+    var view by remember { mutableIntStateOf(0) }
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, subject, inferred, draft, view) {
+        delay(100)
+        val result = withContext(Dispatchers.Default) {
+            if (view == 2) {
+                val map = draft.apply(inferred, subject)
+                DepthLighting.relight(subject, map, LightingParams(enabled = true, flatMatteMix = 1f,
+                    elevation = 35f, ambient = .2f, intensity = 1f))
+            } else draft.preview(inferred, subject, view == 1)
+        }
+        value = argbToImageBitmap(result.pixels, result.width, result.height)
+    }
+    Text("Paint relative height, not colour. White or warm is closer. The shaded view is a diagnostic; Apply updates both lighting paths.", style = MaterialTheme.typography.bodySmall)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        OutlinedButton(onClick = { onEdit(strokes.dropLast(1)) }, enabled = strokes.isNotEmpty()) { Text("Undo stroke") }
-        OutlinedButton(onClick = { onEdit(emptyList()) }, enabled = strokes.isNotEmpty()) { Text("Reset to automatic") }
-        OutlinedButton(onClick = { onEdit(committed) }, enabled = strokes != committed) { Text("Discard draft") }
-        Button(onClick = onApply, enabled = strokes != committed) { Text("Apply mask") }
+        for ((i, name) in listOf("Depth", "False colour", "Shaded relief").withIndex()) Choice(name, view == i) { view = i }
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (brush in DepthBrush.entries) Choice(brush.name.lowercase().replaceFirstChar { it.uppercase() }, mode == brush) { mode = brush }
+    }
+    LabelledSlider("Brush radius", radius.roundToInt().toString() + " px", radius,
+        1f..maxOf(2f, maxOf(subject.width, subject.height) / 5f)) { radius = it }
+    LabelledSlider("Brush strength", (strength * 100).roundToInt().toString() + "%", strength, 0f..1f) { strength = it }
+    LabelledSlider("Brush hardness", (hardness * 100).roundToInt().toString() + "%", hardness, 0f..1f) { hardness = it }
+    if (mode == DepthBrush.SET) LabelledSlider("Paint height", (target * 100).roundToInt().toString() + "%", target, 0f..1f) { target = it }
+    if (mode == DepthBrush.FLATTEN) Text("Flatten blends the painted area toward its mean height.", style = MaterialTheme.typography.bodySmall)
+    ImageBrushCanvas(subject, bitmap, radius, Color(0xAA14D6CF), "Depth painting area") {
+        onEdit(draft.copy(strokes = draft.strokes + DepthStroke(it, radius, mode, strength, hardness, target)))
+    }
+    Text("GLOBAL GEOMETRY", style = MaterialTheme.typography.labelSmall)
+    LabelledSlider("Smoothing passes", draft.smoothingPasses.toString(), draft.smoothingPasses.toFloat(), 0f..4f) {
+        onEdit(draft.copy(smoothingPasses = it.roundToInt()))
+    }
+    LabelledSlider("Smoothing edge tolerance", (draft.edgeThreshold * 100).roundToInt().toString() + "%", draft.edgeThreshold, .01f..1f) {
+        onEdit(draft.copy(edgeThreshold = it))
+    }
+    LabelledSlider("Flatten amount", (draft.flatten * 100).roundToInt().toString() + "%", draft.flatten, 0f..1f) {
+        onEdit(draft.copy(flatten = it))
+    }
+    LabelledSlider("Flatten height", (draft.flattenTarget * 100).roundToInt().toString() + "%", draft.flattenTarget, 0f..1f) {
+        onEdit(draft.copy(flattenTarget = it))
+    }
+    LabelledSlider("Far clamp", (draft.low * 100).roundToInt().toString() + "%", draft.low, 0f.. .99f) {
+        onEdit(draft.copy(low = it.coerceAtMost(draft.high - .01f)))
+    }
+    LabelledSlider("Near clamp", (draft.high * 100).roundToInt().toString() + "%", draft.high, .01f..1f) {
+        onEdit(draft.copy(high = it.coerceAtLeast(draft.low + .01f)))
+    }
+    LabelledSlider("Depth gamma", oneDecimal(draft.gamma), draft.gamma, .25f..4f) { onEdit(draft.copy(gamma = it)) }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedButton(onClick = { onEdit(draft.copy(strokes = draft.strokes.dropLast(1))) }, enabled = draft.strokes.isNotEmpty()) { Text("Undo stroke") }
+        OutlinedButton(onClick = { onEdit(DepthEdits()) }, enabled = draft != DepthEdits()) { Text("Reset inferred depth") }
+        OutlinedButton(onClick = { onEdit(committed) }, enabled = draft != committed) { Text("Discard draft") }
+        Button(onClick = onApply, enabled = draft != committed) { Text("Apply depth edits") }
     }
 }
+
 
 /** Diagnostic-only view. The result is scoped to the committed sheet and physical settings;
  * keyed composition discards the old bitmap when the stencil or selected sheet changes. */

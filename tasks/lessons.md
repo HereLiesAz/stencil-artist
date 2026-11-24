@@ -75,6 +75,12 @@ Rules written after corrections. Read at the start of every session on this repo
 - Advance the tip on every process start or restart, even if the previous overlay is still visible. Never advance on a timer. The same tip remains through that process's completion.
 - Use a modal dialog to block interaction with the workspace until the current generation succeeds or fails. After completion, replace progress with Continue; the button or a tap anywhere dismisses the overlay. A stale completion must not unlock current work.
 
+## 2026-11-24 — Depth editing shapes geometry, not paint or segmentation
+
+- Keep original inferred depth for automatic masking. Apply artist corrections only after the subject mask is committed; never feed the altered map back into inference or isolation.
+- Share the corrected relative depth between flat relighting and extrusion; preserve original image, alpha, palette and fixed frontal camera. A depth map is not a physical distance measurement.
+- Reuse image-space brush coordinates, keep editing local until Apply, invalidate separation synchronously and guard generation publication.
+
 ## 2026-11-22 — Raster output must stay identical to the stencil preview
 
 - Encode per-sheet PNG pixels through `Separation.render(sheet)` and composite through
