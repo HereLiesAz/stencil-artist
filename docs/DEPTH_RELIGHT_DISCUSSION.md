@@ -1,6 +1,6 @@
 # Depth extrusion and relighting: design discussion
 
-Status: **approved architecture (2026-11-24); implementation in progress.** The user explicitly requires the depth model to produce a 3D extrusion, lights placed in a 3D scene, and the resulting rendered image to generate the stencil. The current shading tool remains available until the new path is integrated and verified.
+Status: **approved architecture (2026-11-24); implementation in progress.** The user explicitly requires the depth model to produce a 3D extrusion, lights placed in a 3D scene, and the resulting rendered image to generate the stencil. The 3D MVP is now connected to the opt-in Light stage; the original-lighting path remains available.
 
 ## Accepted architecture
 
@@ -27,7 +27,15 @@ Retain the unmodified source and original-lighting option. The rendered image be
 
 `ReliefMeshTest` covers analytic box volume, closed oriented edges, aspect ratio, UVs, depth direction, flattening, invalid/empty input, holes and disconnected subjects; it exhausts all 512 binary 3×3 silhouettes. The mesh is not yet called by the app: no 3D preview, scene lighting, renderer or export path has been switched in this increment. The next work is the mesh-to-scene renderer and its source-aligned integration. Android/Wasm build and device performance remain to be verified.
 
-## What the app currently does
+### Second implementation increment: shared scene renderer
+
+`ReliefScene.prepare` conservatively samples the masked source into a mesh grid (longest edge at most 128 cells); visible pixels contribute depth, transparent pixels do not. The resulting indexed solid is rasterized with actual triangle visibility and a 512-square directional-light shadow depth buffer. The source-aligned orthographic render retains original working dimensions and exact source alpha; thin source features are not discarded. Coarse geometry can still approximate silhouette and shadow edges. The orbit preview is a separate 256-square render, including neutral inferred walls and cap. Front-face lighting currently uses flat triangle normals, textured RGB with existing photographic light, ambient fill and hard geometric shadows. No background receiver, point/spot lights, soft shadows, GPU acceleration or recovered albedo yet.
+
+`StencilState.remake` calls the scene renderer before either separator, using the exact returned RGBA image for every downstream path. It clears the scene and separation synchronously on changes and guards scene publication by generation. An unavailable depth model or renderer falls back explicitly to the original lighting. Orbiting changes neither the source camera nor the separation. The Light stage exposes azimuth/elevation, intensity, ambient, relief, thickness, depth reversal and a shadow toggle, plus yaw/pitch inspection.
+
+`ReliefSceneTest` verifies exact alpha/framing, a separate raised solid casting a shadow across a transparent gap onto a lower surface, light reversal, visibility of walls, orbit independence and preservation of sparse non-square source detail. Five focused JVM tests passed locally; Android/Wasm builds and visual device checks remain outstanding. The old `DepthLighting.relight` helper remains for regression coverage, not the active app rendering path.
+
+## Previous implementation (before scene integration)
 
 1. `DepthEstimator.estimate` invokes Depth Anything V2 Small on the original RGB image. `DepthLighting.depth` normalizes the relative inverse depth to [0, 1] *per image* and resamples it to the source dimensions.
 2. Background removal optionally uses the depth map only to refine uncertain U²-Net pixels (`DepthLighting.refineMask`). Confident foreground and background are preserved.
@@ -75,4 +83,4 @@ The earlier A+C proposal is superseded by the approved closed, depth-displaced f
 3. Existing photographic shadows: retained by a simple textured first render; explicit replacement/mixing and albedo estimation remain material-design decisions.
 4. Shadows within the subject and an optional receiver are planned; whether a receiver shadow becomes a separate printable layer is not yet decided.
 
-The existing `DepthLighting.relight` path remains active until the geometry renderer is integrated. The separator and export contract do not change.
+The geometry renderer is now the opt-in lighting path. The separator and export contract do not change.
