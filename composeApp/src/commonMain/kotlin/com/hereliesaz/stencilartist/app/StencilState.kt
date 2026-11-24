@@ -1,6 +1,7 @@
 package com.hereliesaz.stencilartist.app
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
@@ -437,6 +438,13 @@ class StencilState(
     var busy: Boolean by mutableStateOf(false)
         private set
 
+    /**
+     * Fraction of completed processing stages (depth, masking, relighting, separation,
+     * finishing). Determinate milestones, not a guess at elapsed runtime.
+     */
+    var processingProgress: Float by mutableFloatStateOf(0f)
+        private set
+
     /** Something that went wrong, worded for the user; null when nothing has. */
     var message: String? by mutableStateOf(null)
         private set
@@ -594,7 +602,12 @@ class StencilState(
         separation = null
         paintLayers = emptyList()
         busy = true
+        processingProgress = 0f
         run = scope.launch {
+            // A previous cancelled run must never update the new run's progress.
+            fun markStage(value: Float) {
+                if (generation == request) processingProgress = value
+            }
             try {
                 if (settle) delay(SETTLE_MILLIS)
                 delay(1) // Allow the busy indicator to paint before inference in the browser.
@@ -620,6 +633,7 @@ class StencilState(
                 if (needsDepth && depthMap == null) {
                     notes += depthError ?: "Depth unavailable; using standard masking and original lighting."
                 }
+                markStage(0.20f)
                 if (remove && !isolationTried && !image.hasTransparency()) {
                     when (val isolation = isolator.isolate(image, if (assist) depthMap else null)) {
                         is Isolation.Cut -> cutOut = isolation.image
@@ -629,6 +643,7 @@ class StencilState(
                     }
                     isolationTried = true
                 }
+                markStage(0.40f)
                 val isolated = cutOut?.takeIf { remove } ?: image
                 val lit = if (wantedLighting.enabled && depthMap != null) {
                     val map = checkNotNull(depthMap)
@@ -636,6 +651,7 @@ class StencilState(
                         DepthLighting.relight(isolated, map, wantedLighting)
                     }
                 } else isolated
+                markStage(0.60f)
                 // This is the processing order: source -> depth-assisted mask -> relit base image
                 // -> separation (by tone or by colour). No relighting occurs after any stencil layer is created.
                 var asked = if (wantedMode == SeparationMode.TONE) wantedTone.sheets else wantedColor.sheets
@@ -679,6 +695,7 @@ class StencilState(
                         }
                     }
                 }
+                markStage(0.80f)
                 processed = lit
                 if (result == null) {
                     separation = null
@@ -725,6 +742,7 @@ class StencilState(
                     preview = if (viewProcessedImage) argbToImageBitmap(lit.pixels, lit.width, lit.height)
                         else output.toImageBitmap(shownSheet)
                 }
+                markStage(1f)
             } finally {
                 if (generation == request) busy = false
             }
