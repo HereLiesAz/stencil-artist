@@ -1408,14 +1408,6 @@ private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifi
                 if (wanted != null) startExport(label) { stencil -> printPdfFile(stencil, wanted, sheet) }
             },
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { openStep(state, step - 1) }, enabled = step > 0,
-                modifier = Modifier.weight(1f)) { Text("Previous") }
-            Button(onClick = { openStep(state, step + 1) }, enabled = step < STUDIO_STEPS.lastIndex && state.source != null,
-                modifier = Modifier.weight(1f)) {
-                Text(if (step < STUDIO_STEPS.lastIndex) "Next: ${STUDIO_STEPS[(step + 1).coerceAtMost(STUDIO_STEPS.lastIndex)].first}" else "Finished")
-            }
-        }
     }
 }
 
