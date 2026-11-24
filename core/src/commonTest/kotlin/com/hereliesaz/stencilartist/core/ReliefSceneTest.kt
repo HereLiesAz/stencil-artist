@@ -120,4 +120,32 @@ class ReliefSceneTest {
         assertTrue(diagnostic.pixels.any { it == 0xFFFFFFFF.toInt() })
         assertContentEquals(hard.pixels, scene.renderSource(light).pixels)
     }
+    @Test
+    fun solidMaterialReplacesPhotographicRgbButPreservesAlphaAndSource() {
+        val original = intArrayOf(0xFFFF0000.toInt(), 0x800000FF.toInt(), 0x00123456)
+        val source = RgbaImage(3, 1, original.copyOf())
+        val light = frontal.copy(useSourceTexture = false, surfaceColor = 0x4080C0)
+        val scene = ReliefScene.prepare(source, FloatArray(3), light)
+        assertContentEquals(intArrayOf(0xFF4080C0.toInt(), 0x804080C0.toInt(), 0x00123456),
+            scene.renderSource(light).pixels)
+        assertContentEquals(original, scene.renderSource(light.copy(useSourceTexture = true)).pixels)
+        assertContentEquals(original, source.pixels)
+        val dim = scene.renderSource(light.copy(intensity = .5f))
+        assertEquals(0xFF204060.toInt(), dim.pixels[0])
+    }
+
+    @Test
+    fun solidMaterialCoversInferredWallsAndBackAndKeepsDiagnosticIndependent() {
+        val source = RgbaImage(2, 1, intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt()))
+        val light = frontal.copy(useSourceTexture = false, surfaceColor = 0x00CC80,
+            ambient = 1f, intensity = 0f)
+        val scene = ReliefScene.prepare(source, floatArrayOf(.2f, .8f), light)
+        val solid = scene.renderOrbit(light, 135f, 20f)
+        val textured = scene.renderOrbit(light.copy(useSourceTexture = true), 135f, 20f)
+        assertTrue(solid.pixels.any { it == 0xFF00CC80.toInt() })
+        assertTrue(solid.pixels.all { it == 0 || it == 0xFF00CC80.toInt() })
+        assertTrue(textured.pixels.any { it == 0xFF909090.toInt() })
+        assertContentEquals(scene.renderOrbit(light, 45f, 20f, shadowOnly = true).pixels,
+            scene.renderOrbit(light.copy(useSourceTexture = true), 45f, 20f, shadowOnly = true).pixels)
+    }
 }

@@ -539,6 +539,22 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 }
             }
             if (light.enabled) {
+                Text("SURFACE MATERIAL", style = MaterialTheme.typography.labelSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DecisionCard("Image skin", "Keep original image colours and baked-in shadows.",
+                        light.useSourceTexture, Modifier.weight(1f)) {
+                        state.updateLighting(light.copy(useSourceTexture = true))
+                    }
+                    DecisionCard("Solid colour", "Coat the entire relief; use scene lighting for shading.",
+                        !light.useSourceTexture, Modifier.weight(1f)) {
+                        state.updateLighting(light.copy(useSourceTexture = false))
+                    }
+                }
+                if (!light.useSourceTexture) {
+                    SceneRgbEditor("Surface colour", light.surfaceColor) {
+                        state.updateLighting(light.copy(surfaceColor = it))
+                    }
+                }
                 OutlinedButton(onClick = { advancedLight = !advancedLight },
                     modifier = Modifier.fillMaxWidth()) {
                     Text(if (advancedLight) "Hide scene controls" else "Edit lights and geometry")
@@ -1415,17 +1431,7 @@ private fun SceneLightsEditor(lighting: LightingParams, onChange: (LightingParam
             LabelledSlider("Intensity", oneDecimal(light.intensity), light.intensity, 0f..4f) {
                 edit(light.copy(intensity = it))
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.size(24.dp).background(Color(light.color or 0xFF000000.toInt())))
-                Text("Emitter colour", style = MaterialTheme.typography.labelMedium)
-            }
-            for ((label, shift) in listOf("Red" to 16, "Green" to 8, "Blue" to 0)) {
-                val component = (light.color ushr shift) and 255
-                LabelledSlider(label, component.toString(), component.toFloat(), 0f..255f) {
-                    val rgb = (light.color and (255 shl shift).inv()) or (it.roundToInt() shl shift)
-                    edit(light.copy(color = rgb))
-                }
-            }
+            SceneRgbEditor("Emitter colour", light.color) { edit(light.copy(color = it)) }
             if (light.kind == SceneLightKind.SPOT) {
                 LabelledSlider("Spot half-cone", light.cone.roundToInt().toString() + "°", light.cone, 5f..85f) {
                     edit(light.copy(cone = it))
@@ -1439,6 +1445,23 @@ private fun SceneLightsEditor(lighting: LightingParams, onChange: (LightingParam
             }
             LabelledSlider("Shadow filter radius", light.softness.toString(), light.softness.toFloat(), 0f..4f) {
                 edit(light.copy(softness = it.roundToInt()))
+            }
+        }
+    }
+}
+
+/** Shared opaque RGB editor for emitter and surface materials; alpha belongs to the source mask. */
+@Composable
+private fun SceneRgbEditor(title: String, color: Int, onChange: (Int) -> Unit) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(24.dp).background(Color(color or 0xFF000000.toInt())))
+            Text(title, style = MaterialTheme.typography.labelMedium)
+        }
+        for ((label, shift) in listOf("Red" to 16, "Green" to 8, "Blue" to 0)) {
+            val component = (color ushr shift) and 255
+            LabelledSlider("$title $label", component.toString(), component.toFloat(), 0f..255f) {
+                onChange((color and (255 shl shift).inv()) or (it.roundToInt() shl shift))
             }
         }
     }

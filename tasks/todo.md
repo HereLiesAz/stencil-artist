@@ -22,7 +22,8 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 - [x] Route the rendered RGBA image into the existing tone/colour separator with original-lighting fallback and generation guards. Full Android/Wasm integration verification remains open.
 - [x] Add multiple positioned directional, point and spot lights, front/rear placement handle and accessible controls, key/fill/rim preset, RGB colour/intensity, per-light shadow filtering and shadow-only/combined diagnostic views. App caller: `SceneLightsEditor` → `StencilState.updateLighting` → `ReliefScene.renderSource`; orbit diagnostics do not affect separation. JVM tests cover finite light occlusion and filter behavior; device validation remains open.
 - [ ] Add optional background receiver (separate scene object); do not make transparent pixels opaque by default.
-- [ ] Add thickness, relief strength, smoothing, flatten/clamp, depth inversion/remapping and artist depth corrections; separate material/photographic-shadow choices from geometry.
+- [x] Choose source-image skin or a custom opaque solid RGB material independently of geometry and lights. Solid covers front, walls and cap; source transparency is preserved. `SceneRgbEditor` and the Light stage update `LightingParams`, consumed by `ReliefScene.renderSource` and `renderOrbit`.
+- [ ] Add smoothing, flatten/clamp, depth remapping and artist depth corrections beyond existing thickness, relief strength and depth inversion. Intrinsic albedo recovery remains separate from the solid material choice.
 - [ ] Add separation-boundary and island/cut-risk diagnostics from the same committed render.
 - [ ] Verify Android and Wasm scene rendering, visual comparison, cancellation, transparent/empty/flat inputs, shadow reversal/occlusion, deterministic results, performance and hardware usability.
 

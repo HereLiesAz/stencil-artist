@@ -20,12 +20,17 @@ data class LightingParams(
     val castShadows: Boolean = true,
     /** Null preserves the original single directional light; an empty list means ambient only. */
     val lights: List<SceneLight>? = null,
+    /** Skin the front with source RGB; otherwise coat the entire solid with [surfaceColor]. */
+    val useSourceTexture: Boolean = true,
+    /** Opaque material RGB (source alpha is retained independently). */
+    val surfaceColor: Int = 0xFFFFFF,
 ) {
     init {
         require(azimuth in -180f..180f && elevation in 0f..90f)
         require(intensity in 0f..2f && ambient in 0f..2f && depthStrength in 0f..10f)
         require(extrusionThickness in .0001f..1f)
         require(lights == null || lights.size <= SceneLight.MAX_LIGHTS)
+        require(surfaceColor in 0..0xFFFFFF)
     }
 
     /** Resolve the legacy key-light controls or the explicitly edited emitter list. */
