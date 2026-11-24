@@ -92,13 +92,22 @@ internal fun PaintSection(state: StencilState) {
     val subdued = MaterialTheme.colorScheme.onSurfaceVariant
     Section("Paint") {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("Free", selected = state.paintMode == PaintMode.FREE) { state.selectPaintMode(PaintMode.FREE) }
+            Choice("Decide colours later", selected = state.paintMode == PaintMode.FREE && state.customPalette == null) {
+                state.selectPaintMode(PaintMode.FREE)
+                state.useCustomPalette(false)
+            }
+            Choice("Choose colours now", selected = state.paintMode == PaintMode.FREE && state.customPalette != null) {
+                state.selectPaintMode(PaintMode.FREE)
+                state.useCustomPalette(true)
+            }
             Choice("Pick for me", selected = state.paintMode == PaintMode.PICK_FOR_ME) { state.selectPaintMode(PaintMode.PICK_FOR_ME) }
             Choice("My cans", selected = state.paintMode == PaintMode.MY_CANS) { state.selectPaintMode(PaintMode.MY_CANS) }
         }
         if (state.paintMode == PaintMode.FREE) {
-            Text("Image colours, or your own palette.", style = MaterialTheme.typography.bodySmall, color = subdued)
-            FreePaletteEditor(state)
+            if (state.customPalette == null) {
+                Text("Generate layers from the image first; assign their paint colours in Inspect without changing any cuts.",
+                    style = MaterialTheme.typography.bodySmall, color = subdued)
+            } else FreePaletteEditor(state)
             return@Section
         }
         LaunchedEffect(state.paintMode) { state.ensureCatalogue() }
@@ -124,27 +133,34 @@ internal fun PaintSection(state: StencilState) {
 
 /**
  * Edits requested palette slots in either separator, without modifying can-based paint selection.
- * Available before opening an image and while no completed separation exists.
+ * In setup this is an input palette. With [existing], edit only the completed cut sheets.
  *
  * Only one layer is edited at a time. The local hex/RGB draft is applied on demand rather than on
- * every slider tick: a colour change regenerates and may reorder the sheets, so an in-flight drag
- * must not keep changing a different sheet. All exporters then consume that completed separation.
+ * every slider tick: an early colour change regenerates and may reorder the sheets; a late edit
+ * changes only the captured separation. All exporters consume the completed separation.
  * An additional catalogue browser lets the user select a real can's recorded colour, with the
  * same can-top grid and full-can carousel as My cans. Entries without resolved RGB are hidden.
  * Custom hex/RGB editing remains available. A palette can be restored to the image-derived colours
  * without changing the requested sheet count.
  */
 @Composable
-internal fun FreePaletteEditor(state: StencilState) {
-    val sheets = state.editablePalette.map(::Sheet)
+internal fun FreePaletteEditor(state: StencilState, existing: Boolean = false) {
+    val snapshot = if (existing) state.separation ?: return else null
+    val sheets = snapshot?.sheets ?: state.editablePalette.map(::Sheet)
+    fun applyColor(index: Int, color: Int): Boolean {
+        if (snapshot != null) return state.recolorSheet(snapshot, index, color)
+        state.setSheetColor(index, color)
+        return true
+    }
     val scheme = MaterialTheme.colorScheme
-    var editing by remember(state.mode) { mutableStateOf<Int?>(null) }
+    var editing by remember(state.mode, snapshot) { mutableStateOf<Int?>(null) }
 
-    Text(if (state.customPalette != null) "Custom palette locked. Edit any slot; rendering cannot change the chosen colours."
+    Text(if (existing) "Assign paint to existing sheets. Cuts and paint order remain unchanged. Rebuilding layers discards these assignments."
+        else if (state.customPalette != null) "Custom palette locked. Edit any slot; rendering cannot change the chosen colours."
         else if (state.source == null) "Choose your own colours now, or leave the palette automatic until an image is opened."
         else "Automatic palette. Edit a swatch or lock the displayed colours to keep them through lighting changes.",
         style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-    if (state.mode == SeparationMode.COLOUR) {
+    if (!existing && state.mode == SeparationMode.COLOUR) {
         Text("Swatches are palette slots; the selected paint order determines final sheet numbers.",
             style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
     }
@@ -172,7 +188,7 @@ internal fun FreePaletteEditor(state: StencilState) {
     }
 
     val custom = state.customPalette != null
-    OutlinedButton(onClick = {
+    if (!existing) OutlinedButton(onClick = {
         editing = null
         state.useCustomPalette(!custom)
     }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
@@ -184,7 +200,7 @@ internal fun FreePaletteEditor(state: StencilState) {
         val current = sheets[index].color
         var hexText by remember(index, current) { mutableStateOf(PaletteColor.hex(current)) }
         val candidate = PaletteColor.parseHex(hexText)
-        val duplicate = candidate != null && sheets.indices.any {
+        val duplicate = !existing && candidate != null && sheets.indices.any {
             it != index && (sheets[it].color and 0xFFFFFF) == (candidate and 0xFFFFFF)
         }
         val draft = candidate ?: current
@@ -193,7 +209,7 @@ internal fun FreePaletteEditor(state: StencilState) {
                 .border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("PALETTE SLOT ${index + 1}", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            Text(if (existing) "SHEET ${index + 1}" else "PALETTE SLOT ${index + 1}", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             Text("SPRAY CAN COLOURS", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             if (state.catalogue != null) {
                 CanBrowser(
@@ -205,14 +221,14 @@ internal fun FreePaletteEditor(state: StencilState) {
                         val rgb = can.rgb
                         when {
                             rgb == null -> false
-                            sheets.indices.any { it != index && (sheets[it].color and 0xFFFFFF) == (rgb and 0xFFFFFF) } -> {
+                            !existing && sheets.indices.any { it != index && (sheets[it].color and 0xFFFFFF) == (rgb and 0xFFFFFF) } -> {
                                 state.fail("Another sheet already has that colour.")
                                 false
                             }
                             else -> {
-                                state.setSheetColor(index, rgb)
-                                editing = null
-                                true
+                                val applied = applyColor(index, rgb)
+                                if (applied) editing = null
+                                applied
                             }
                         }
                     },
@@ -266,10 +282,9 @@ internal fun FreePaletteEditor(state: StencilState) {
                 OutlinedButton(onClick = { editing = null }, modifier = Modifier.weight(1f)) { Text("Cancel") }
                 OutlinedButton(
                     onClick = {
-                        candidate?.let { state.setSheetColor(index, it) }
-                        editing = null
+                        if (candidate != null && applyColor(index, candidate)) editing = null
                     },
-                    enabled = candidate != null && !duplicate && (candidate != current || !custom) && !state.busy,
+                    enabled = candidate != null && !duplicate && (candidate != current || (!existing && !custom)) && !state.busy,
                     modifier = Modifier.weight(1f),
                 ) { Text("Apply colour") }
             }

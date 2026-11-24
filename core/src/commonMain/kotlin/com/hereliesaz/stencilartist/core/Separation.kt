@@ -77,6 +77,23 @@ class Separation(
         return IntArray(index.size) { if (covers(sheet, it, coverage)) color else 0 }
     }
 
+    /** Recolour an existing sheet, preserving all cuts, paint order, ranks and gradient guidance.
+     * A duplicate paint is valid here: the cut geometry has already been made. */
+    fun withSheetColor(sheet: Int, color: Int): Separation {
+        require(sheet in sheets.indices)
+        return Separation(width, height, sheets.mapIndexed { i, old -> if (i == sheet) Sheet(color) else old },
+            index.copyOf(), independentMasks?.map { it.copyOf() }, liftZones.toList())
+    }
+
+    /** Explicit user-erased background must not be filled by the automatic silhouette closure. */
+    fun excluding(excluded: BooleanArray): Separation {
+        require(excluded.size == index.size)
+        if (excluded.none { it }) return this
+        val ranks = IntArray(index.size) { if (excluded[it]) NONE else index[it] }
+        val masks = independentMasks?.map { cut -> BooleanArray(cut.size) { cut[it] && !excluded[it] } }
+        return Separation(width, height, sheets, ranks, masks, liftZones)
+    }
+
     /** Attach gradient guidance without changing a single opening or its finished colour. */
     fun withLiftZones(zones: List<LiftZone>): Separation = Separation(
         width, height, sheets.toList(), index.copyOf(), independentMasks?.map { it.copyOf() }, zones.toList(),
