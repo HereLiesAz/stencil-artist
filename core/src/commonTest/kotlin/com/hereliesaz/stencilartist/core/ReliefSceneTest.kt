@@ -148,4 +148,36 @@ class ReliefSceneTest {
         assertContentEquals(scene.renderOrbit(light, 45f, 20f, shadowOnly = true).pixels,
             scene.renderOrbit(light.copy(useSourceTexture = true), 45f, 20f, shadowOnly = true).pixels)
     }
+
+    @Test
+    fun receiverIsOptInAndCompositesPartialAlpha() {
+        val source = RgbaImage(3, 1, intArrayOf(0, 0x80FF0000.toInt(), 0))
+        val light = LightingParams(enabled = true, ambient = 1f, intensity = 0f, receiverColor = 0x0000FF)
+        val scene = ReliefScene.prepare(source, FloatArray(3), light)
+        assertContentEquals(source.pixels, scene.renderSource(light).pixels)
+        val result = scene.renderSource(light.copy(receiverEnabled = true))
+        assertContentEquals(intArrayOf(0xFF0000FF.toInt(), 0xFF80007F.toInt(), 0xFF0000FF.toInt()), result.pixels)
+        assertContentEquals(source.pixels, scene.renderSource(light).pixels)
+    }
+
+    @Test
+    fun raisedSolidCastsShadowOntoOptionalBackdrop() {
+        val w = 32; val h = 16
+        val source = RgbaImage(w, h, IntArray(w * h) { i ->
+            if (i % w in 20..23 && i / w in 4..11) 0xFFFFFFFF.toInt() else 0
+        })
+        val light = LightingParams(enabled = true, azimuth = 0f, elevation = 45f, depthStrength = 3f,
+            ambient = .1f, intensity = 1f, receiverEnabled = true)
+        val scene = ReliefScene.prepare(source, FloatArray(w * h) { 1f }, light)
+        val shadow = scene.renderSource(light)
+        val clear = scene.renderSource(light.copy(castShadows = false))
+        val reverse = scene.renderSource(light.copy(azimuth = 180f))
+        // At 45 degrees, a raised object blocks light coming from the right on the left of its footprint.
+        val receiverPixel = 8 * w + 16
+        assertEquals(26, shadow.pixels[receiverPixel] and 255)
+        assertEquals(206, clear.pixels[receiverPixel] and 255)
+        assertEquals(clear.pixels[receiverPixel], reverse.pixels[receiverPixel])
+        assertContentEquals(shadow.pixels, scene.renderSource(light).pixels)
+        assertTrue(scene.renderOrbit(light, 35f, 20f).pixels.any { it ushr 24 != 0 })
+    }
 }

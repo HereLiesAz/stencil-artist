@@ -26,6 +26,11 @@ data class LightingParams(
     val surfaceColor: Int = 0xFFFFFF,
     /** Flat relight only: mix source RGB toward neutral white before applying the new light. */
     val flatMatteMix: Float = 0f,
+    /** Opt-in, image-sized receive-only backdrop behind the extruded solid. */
+    val receiverEnabled: Boolean = false,
+    val receiverColor: Int = 0xFFFFFF,
+    /** Gap behind the back cap, in relative scene units. */
+    val receiverGap: Float = .05f,
 ) {
     init {
         require(azimuth in -180f..180f && elevation in 0f..90f)
@@ -34,6 +39,7 @@ data class LightingParams(
         require(lights == null || lights.size <= SceneLight.MAX_LIGHTS)
         require(surfaceColor in 0..0xFFFFFF)
         require(flatMatteMix in 0f..1f)
+        require(receiverColor in 0..0xFFFFFF && receiverGap in .01f.. .2f)
     }
 
     /** Resolve the legacy key-light controls or the explicitly edited emitter list. */

@@ -610,6 +610,18 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                         state.updateLighting(light.copy(surfaceColor = it))
                     }
                 }
+                Choice("Receive shadows on backdrop", light.receiverEnabled) {
+                    state.updateLighting(light.copy(receiverEnabled = !light.receiverEnabled))
+                }
+                if (light.receiverEnabled) {
+                    Text("The backdrop fills the frame and becomes part of the stencil. Turn it off to retain transparency.",
+                        style = MaterialTheme.typography.bodySmall)
+                    SceneRgbEditor("Backdrop colour", light.receiverColor) {
+                        state.updateLighting(light.copy(receiverColor = it))
+                    }
+                    LabelledSlider("Backdrop gap", (light.receiverGap * 100).roundToInt().toString() + "% of image edge",
+                        light.receiverGap, .01f.. .2f) { state.updateLighting(light.copy(receiverGap = it)) }
+                }
                 OutlinedButton(onClick = { advancedLight = !advancedLight },
                     modifier = Modifier.fillMaxWidth()) {
                     Text(if (advancedLight) "Hide scene controls" else "Edit lights and geometry")
