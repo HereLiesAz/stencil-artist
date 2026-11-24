@@ -18,7 +18,8 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 
 - [x] Restore flat depth relighting as a separate Light mode. Fix image-relative gradient scaling, foreground-only robust range and alpha-aware differences; add independent matte mix, direction, intensity, ambient, strength and depth reversal. App caller: `StencilState.remake` → `DepthLighting.relight`. Device quality checks remain open.
 - [x] Add shared stencil-oriented source/skin and prepared-image adjustments, preserving alpha and the original source. `ImageAdjustmentEditor` → `StencilState.updateSourceAdjustments` / `updatePreparedAdjustments` → `ImageAdjustments.apply` → every separator. Seven isolated JVM fixtures passed; integrated builds and real-photo evaluation remain open.
-- [ ] Evaluate additional stencil-aware diagnostics (tiny regions, fragile stock, separation boundaries), curve editing and physical output quality on real photographs.
+- [x] Add a per-sheet diagnostic view: actual cut boundaries, unsupported islands, physically fine openings and narrow-stock screening. Uses `Separation.mask` and the existing full-sheet print-tip detector; caller: `CutInspectionView` in Inspect. Read-only; one sheet at a time.
+- [ ] Add curve editing and evaluate diagnostic usefulness and physical output quality on real photographs.
 - [ ] Verify actual photographs, depth quality and tonal-layer usefulness on Android and Wasm.
 
 ## True 3D relief and lighting (approved 2026-11-24)
@@ -31,7 +32,7 @@ Status: **original planned phases implemented; approved 3D extrusion/scene-light
 - [ ] Add optional background receiver (separate scene object); do not make transparent pixels opaque by default.
 - [x] Choose source-image skin or a custom opaque solid RGB material independently of geometry and lights. Solid covers front, walls and cap; source transparency is preserved. `SceneRgbEditor` and the Light stage update `LightingParams`, consumed by `ReliefScene.renderSource` and `renderOrbit`.
 - [ ] Add smoothing, flatten/clamp, depth remapping and artist depth corrections beyond existing thickness, relief strength and depth inversion. Intrinsic albedo recovery remains separate from the solid material choice.
-- [ ] Add separation-boundary and island/cut-risk diagnostics from the same committed render.
+- [x] Add actual cut-boundary and island/cut-risk diagnostics from the committed separation (see Inspect above).
 - [ ] Verify Android and Wasm scene rendering, visual comparison, cancellation, transparent/empty/flat inputs, shadow reversal/occlusion, deterministic results, performance and hardware usability.
 
 ## Decisions (answered)

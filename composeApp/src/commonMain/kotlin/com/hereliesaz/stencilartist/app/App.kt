@@ -41,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -94,6 +95,8 @@ import com.hereliesaz.stencilartist.core.export.TileSpec
 import com.hereliesaz.stencilartist.core.export.Tiling
 import com.hereliesaz.stencilartist.core.Sheet
 import com.hereliesaz.stencilartist.core.Separation
+import com.hereliesaz.stencilartist.core.CutInspection
+import com.hereliesaz.stencilartist.core.StencilInspection
 import com.hereliesaz.stencilartist.core.StrokeStyler
 import kotlin.math.PI
 import kotlin.math.acos
@@ -503,6 +506,22 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 }
             }
             SheetStrip(state.separation?.sheets.orEmpty(), state.shownSheet, state::show)
+        }
+
+        if (step == 4) Section("Cut inspection") {
+            var inspect by remember { mutableStateOf(false) }
+            Choice("Show cut risks", inspect) { inspect = !inspect }
+            if (inspect) {
+                LabelledSlider("Final width", printWidthMm.roundToInt().toString() + " mm", printWidthMm, 50f..1000f) { printWidthMm = it }
+                LabelledSlider("Minimum safe stock bridge", oneDecimal(safeBridgeWidthMm) + " mm", safeBridgeWidthMm, .5f..5f) { safeBridgeWidthMm = it }
+                val stencil = state.separation
+                val sheet = state.shownSheet
+                if (stencil == null || state.busy) Text("Waiting for the current stencil.")
+                else if (sheet == null) Text("Select an individual sheet above to inspect its actual openings.")
+                else key(stencil, sheet, printWidthMm, safeBridgeWidthMm) {
+                    CutInspectionView(stencil, sheet, printWidthMm.toDouble(), safeBridgeWidthMm.toDouble())
+                }
+            }
         }
 
         if (step == 0) Section("Background") {
@@ -1343,6 +1362,57 @@ internal fun Section(title: String, content: @Composable () -> Unit) {
         Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         content()
     }
+}
+
+/** Diagnostic-only view. The result is scoped to the committed sheet and physical settings;
+ * keyed composition discards the old bitmap when the stencil or selected sheet changes. */
+@Composable
+private fun CutInspectionView(stencil: Separation, sheet: Int, widthMm: Double, minimumStockMm: Double) {
+    val report by produceState<Result<CutInspection>?>(null, stencil, sheet, widthMm, minimumStockMm) {
+        delay(150)
+        value = try {
+            Result.success(withContext(Dispatchers.Default) {
+                StencilInspection.inspect(stencil, sheet, widthMm, minimumStockMm)
+            })
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+    val result = report
+    if (result == null) {
+        Text("Inspecting sheet ${sheet + 1}…")
+        return
+    }
+    val inspection = result.getOrNull()
+    if (inspection == null) {
+        Text("Unable to inspect this sheet. ${result.exceptionOrNull()?.message.orEmpty()}",
+            color = MaterialTheme.colorScheme.error)
+        return
+    }
+    val image = inspection.image
+    val bitmap = remember(inspection) { argbToImageBitmap(image.pixels, image.width, image.height) }
+    Text("Sheet ${sheet + 1} · diagnostic only", style = MaterialTheme.typography.titleSmall)
+    Image(bitmap, contentDescription = "Actual cut sheet with cut boundaries and risk markers",
+        modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 360.dp),
+        contentScale = ContentScale.Fit)
+    val legend = listOf(
+        StencilInspection.STOCK to "Retained stock",
+        StencilInspection.CUT to "Paint opening",
+        StencilInspection.EDGE to "Cut boundary",
+        StencilInspection.ISLAND to "${inspection.islands} unsupported islands",
+        StencilInspection.FINE to "${inspection.fineCuts} fine openings (under 1.5 mm)",
+        StencilInspection.NARROW to "${inspection.narrowStockPixels} narrow-stock pixels",
+    )
+    for ((color, description) in legend) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(16.dp).background(Color(color)).border(1.dp, MaterialTheme.colorScheme.outline))
+            Text(description, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+    Text("Narrow stock is an axis-aligned width estimate, not a bridge count or strength guarantee. Markers and colours are not printed or exported.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** "All", then one swatch per sheet in paint order. It scrolls, so the number of sheets is not its problem. */
