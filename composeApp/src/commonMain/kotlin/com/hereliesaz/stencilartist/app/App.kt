@@ -158,14 +158,18 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
         zoom = 1f
         pan = Offset.Zero
     }
-    val applyTransform: (Float, Offset, IntSize) -> Unit = { factor, delta, bounds ->
+    val applyTransform: (Offset, Float, Offset, IntSize) -> Unit = { centroid, factor, delta, bounds ->
         val next = (zoom * factor).coerceIn(1f, 8f)
+        val ratio = next / zoom
+        // Hold the pixel under the user's fingers in place as the image grows or shrinks.
+        val focus = centroid - Offset(bounds.width / 2f, bounds.height / 2f)
+        val nextPan = pan * ratio + focus * (1f - ratio) + delta
         val maxX = bounds.width * (next - 1f) / 2f
         val maxY = bounds.height * (next - 1f) / 2f
         zoom = next
         pan = if (next == 1f) Offset.Zero else Offset(
-            (pan.x + delta.x).coerceIn(-maxX, maxX),
-            (pan.y + delta.y).coerceIn(-maxY, maxY),
+            nextPan.x.coerceIn(-maxX, maxX),
+            nextPan.y.coerceIn(-maxY, maxY),
         )
     }
 
@@ -218,7 +222,7 @@ private fun Preview(state: StencilState, pick: () -> Unit, modifier: Modifier) {
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Pinch or drag to inspect", style = MaterialTheme.typography.bodySmall,
+                    Text("Pinch to zoom · drag to pan", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f))
                     OutlinedButton(onClick = { zoom = (zoom / 1.5f).coerceAtLeast(1f); if (zoom == 1f) pan = Offset.Zero },
@@ -245,12 +249,12 @@ private fun PreviewPane(
     bitmap: androidx.compose.ui.graphics.ImageBitmap,
     zoom: Float,
     pan: Offset,
-    onTransform: (Float, Offset, IntSize) -> Unit,
+    onTransform: (Offset, Float, Offset, IntSize) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var bounds by remember { mutableStateOf(IntSize.Zero) }
-    val gestures = rememberTransformableState { factor, movement, _ ->
-        onTransform(factor, movement, bounds)
+    val gestures = rememberTransformableState { centroid, factor, movement, _ ->
+        onTransform(centroid, factor, movement, bounds)
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(title, modifier = Modifier.padding(horizontal = 8.dp),
@@ -384,6 +388,14 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         Text(STUDIO_STEPS[step].first, style = MaterialTheme.typography.headlineMedium)
         Text(STUDIO_STEPS[step].second, style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { openStep(step - 1) }, enabled = step > 0,
+                modifier = Modifier.weight(1f)) { Text("← Back") }
+            Button(onClick = { openStep(step + 1) }, enabled = step < STUDIO_STEPS.lastIndex,
+                modifier = Modifier.weight(1f)) {
+                Text(if (step < STUDIO_STEPS.lastIndex) "Next: ${STUDIO_STEPS[(step + 1).coerceAtMost(STUDIO_STEPS.lastIndex)].first}" else "All steps")
+            }
+        }
 
         if (step == 0) {
         OutlinedButton(onClick = pick, modifier = Modifier.fillMaxWidth()) {
@@ -405,6 +417,8 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
 
         if (step == 0) Section("Background") {
+            Text("Removing the background usually means fewer cuts. Depth assistance can help uncertain edges; the app keeps confident foreground/background decisions.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Choice("Remove", selected = state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(true) }
                 Choice("Keep", selected = !state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(false) }
