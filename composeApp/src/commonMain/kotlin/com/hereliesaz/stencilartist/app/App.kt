@@ -137,7 +137,7 @@ fun App() {
         val models = rememberModelLoader()
         val catalogueLoader = rememberCatalogueLoader()
         val store = rememberKeyValueStore()
-        val state = remember { StencilState(scope, SubjectIsolator(models), DepthEstimator(models), catalogueLoader, store) }
+        val state = remember { StencilState(scope, SubjectIsolator(models), DepthEstimator(models), catalogueLoader, store, models) }
         val pick = rememberImagePicker(onPicked = state::open, onError = state::fail)
         var loadingTip by remember { mutableIntStateOf(-1) }
         LaunchedEffect(state.busy) {
@@ -622,7 +622,22 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     state.useStrokeBased(true)
                 }
             }
-            if (state.strokeBased) {
+            if (state.strokeBased && state.supportsNeuralStrokes) {
+                val importModel = rememberNeuralModelImporter({ state.selectStrokeEngine(state.strokeEngine) }, state::fail)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (engine in StrokeEngine.entries) {
+                        Choice(engine.label, selected = state.strokeEngine == engine) { state.selectStrokeEngine(engine) }
+                    }
+                }
+                val parts = when (state.strokeEngine) {
+                    StrokeEngine.TRANSFORMER -> listOf(NeuralModelPart.PAINT_TRANSFORMER)
+                    StrokeEngine.COMPOSITIONAL -> listOf(NeuralModelPart.COMPOSITIONAL_REGION, NeuralModelPart.COMPOSITIONAL_PAINTER)
+                    StrokeEngine.PROCEDURAL -> emptyList()
+                }
+                if (parts.isNotEmpty()) Text("Single-pass stencil strokes from the pretrained model.", style = MaterialTheme.typography.bodySmall)
+                for (part in parts) OutlinedButton(onClick = { importModel(part) }) { Text("Import ${part.fileName}") }
+            }
+            if (state.strokeBased && state.strokeEngine == StrokeEngine.PROCEDURAL) {
                 Text(
                     "Adjust the width of the paint marks. Any area narrower than the brush keeps its original solid fill, rather than forcing in a stroke.",
                     style = MaterialTheme.typography.bodySmall,

@@ -6,6 +6,13 @@ import ai.onnxruntime.OrtSession
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import com.hereliesaz.stencilartist.core.DepthLighting
 import kotlinx.coroutines.CancellationException
@@ -13,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -21,6 +29,82 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+
+/**
+ * Import a user-selected ONNX model after checking its size and actual input/output signatures.
+ * Checkpoint bytes never leave this device; a failed import cannot replace a working model.
+ */
+@Composable
+actual fun rememberNeuralModelImporter(
+    onImported: (NeuralModelPart) -> Unit,
+    onError: (String) -> Unit,
+): (NeuralModelPart) -> Unit {
+    val context = LocalContext.current.applicationContext
+    val scope = rememberCoroutineScope()
+    val imported = rememberUpdatedState(onImported)
+    val failed = rememberUpdatedState(onError)
+    var pending by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<NeuralModelPart?>(null) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val part = pending
+        pending = null
+        if (uri == null || part == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val error = withContext(Dispatchers.IO) {
+                runCatching {
+                    val folder = File(context.filesDir, "neural-models").apply { mkdirs() }
+                    val temporary = File.createTempFile("neural-import-", ".onnx", folder)
+                    try {
+                        val hash = MessageDigest.getInstance("SHA-256")
+                        var bytes = 0L
+                        context.contentResolver.openInputStream(uri).let { stream ->
+                            requireNotNull(stream) { "Could not read the selected ONNX file." }
+                            stream.use { input ->
+                                temporary.outputStream().buffered().use { output ->
+                                    val buffer = ByteArray(65536)
+                                    while (true) {
+                                        val n = input.read(buffer)
+                                        if (n < 0) break
+                                        bytes += n
+                                        require(bytes <= 150_000_000L) { "ONNX file exceeds 150 MB." }
+                                        hash.update(buffer, 0, n)
+                                        output.write(buffer, 0, n)
+                                    }
+                                }
+                            }
+                        }
+                        require(hash.digest().joinToString("") { "%02x".format(it) } == part.sha256) {
+                            "Select the validated ${part.fileName} from the conversion output."
+                        }
+                        OrtEnvironment.getEnvironment().createSession(temporary.absolutePath).use { session ->
+                            val expectedInputs = when (part) {
+                                NeuralModelPart.PAINT_TRANSFORMER -> setOf("image", "canvas")
+                                NeuralModelPart.COMPOSITIONAL_REGION,
+                                NeuralModelPart.COMPOSITIONAL_PAINTER -> setOf("canvas", "target")
+                            }
+                            val expectedOutputs = when (part) {
+                                NeuralModelPart.PAINT_TRANSFORMER -> setOf("params", "decisions")
+                                NeuralModelPart.COMPOSITIONAL_REGION -> setOf("region")
+                                NeuralModelPart.COMPOSITIONAL_PAINTER -> setOf("strokes")
+                            }
+                            require(session.inputNames == expectedInputs &&
+                                session.outputNames == expectedOutputs) {
+                                "This ONNX file does not match the ${part.name} port names. " +
+                                    "Follow the model conversion instructions."
+                            }
+                        }
+                        val target = File(folder, part.fileName)
+                        // POSIX rename atomically replaces a file in the same directory.
+                        android.system.Os.rename(temporary.absolutePath, target.absolutePath)
+                    } finally {
+                        temporary.delete()
+                    }
+                }.exceptionOrNull()?.message
+            }
+            if (error == null) imported.value(part) else failed.value(error)
+        }
+    }
+    return { part -> pending = part; launcher.launch("*/*") }
+}
 
 @Composable
 actual fun rememberModelLoader(): ModelLoader {
@@ -33,9 +117,18 @@ actual fun rememberModelLoader(): ModelLoader {
  * only on first use, SHA-256 verified, and cached in private persistent app storage.
  */
 private class AssetModelLoader(private val context: Context) : ModelLoader {
+    override val supportsNeuralStrokes = true
     override suspend fun load(fileName: String): Inference = withContext(Dispatchers.IO) {
         val environment = OrtEnvironment.getEnvironment()
-        val sourcePath = if (fileName == DepthLighting.MODEL_FILE) depthModelFile().absolutePath else null
+        val sourcePath = when {
+            fileName == DepthLighting.MODEL_FILE -> depthModelFile().absolutePath
+            NeuralModelPart.entries.any { it.fileName == fileName } -> {
+                val model = File(File(context.filesDir, "neural-models"), fileName)
+                require(model.isFile) { "Import ${fileName} from the Stroke construction panel first." }
+                model.absolutePath
+            }
+            else -> null
+        }
         currentCoroutineContext().ensureActive()
         val session = if (sourcePath != null) {
             environment.createSession(sourcePath)
@@ -148,7 +241,8 @@ private class AssetModelLoader(private val context: Context) : ModelLoader {
     }
 }
 
-private class OrtInference(private val environment: OrtEnvironment, private val session: OrtSession) : Inference {
+private class OrtInference(private val environment: OrtEnvironment, private val session: OrtSession) : NeuralInference {
+    override fun close() = session.close()
     override suspend fun run(input: FloatArray, shape: IntArray): FloatArray = withContext(Dispatchers.Default) {
         val name = session.inputNames.first()
         OnnxTensor.createTensor(environment, FloatBuffer.wrap(input), LongArray(shape.size) { shape[it].toLong() }).use { tensor ->
@@ -158,4 +252,28 @@ private class OrtInference(private val environment: OrtEnvironment, private val 
             }
         }
     }
+    override suspend fun runNamed(inputs: Map<String, ModelTensor>): Map<String, FloatArray> =
+        withContext(Dispatchers.Default) {
+            require(inputs.keys == session.inputNames) { "Unexpected ONNX input ports." }
+            val tensors = inputs.mapValues { (_, input) ->
+                OnnxTensor.createTensor(
+                    environment, FloatBuffer.wrap(input.values),
+                    LongArray(input.shape.size) { input.shape[it].toLong() },
+                )
+            }
+            try {
+                session.run(tensors).use { results ->
+                    session.outputNames.associateWith { name ->
+                        val value = results.get(name).orElseThrow {
+                            IllegalStateException("Missing ONNX output: $name")
+                        } as OnnxTensor
+                        val buffer = value.floatBuffer
+                        FloatArray(buffer.remaining()).also { buffer.get(it) }
+                    }
+                }
+            } finally {
+                tensors.values.forEach { it.close() }
+            }
+        }
+
 }
