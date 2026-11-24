@@ -95,7 +95,7 @@ class StencilState(
     }
 
     /** Brush-size edits only regenerate masks when brush construction is enabled. */
-    fun setStrokeWidthPixels(width: Int) {
+    fun chooseStrokeWidth(width: Int) {
         val next = width.coerceIn(StrokeStyler.MIN_BRUSH_WIDTH_PIXELS..StrokeStyler.MAX_BRUSH_WIDTH_PIXELS)
         if (strokeWidthPixels == next) return
         strokeWidthPixels = next
