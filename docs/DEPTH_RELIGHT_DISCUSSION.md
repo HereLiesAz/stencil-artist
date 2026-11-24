@@ -35,6 +35,14 @@ Retain the unmodified source and original-lighting option. The rendered image be
 
 `ReliefSceneTest` verifies exact alpha/framing, a separate raised solid casting a shadow across a transparent gap onto a lower surface, light reversal, visibility of walls, orbit independence and preservation of sparse non-square source detail. Five focused JVM tests passed locally; Android/Wasm builds and visual device checks remain outstanding. The old `DepthLighting.relight` helper remains for regression coverage, not the active app rendering path.
 
+### Third implementation increment: independently placed lights
+
+`SceneLight` describes an independent directional, point or spot emitter. The editor supports up to four lights, adding/removing/selecting them, a key/fill/rim preset, draggable front-projection placement handles, accessible azimuth/elevation controls (front or rear hemisphere), finite position distance, RGB, intensity, spotlight half-cone/XYZ aim and individual shadow toggles. A null emitter list retains the original directional configuration; an empty list gives ambient alone. Positions are on a bounded sphere outside the relief, in relative scene units, rather than freely inside the mesh.
+
+Directional lights use orthographic shadow projections. Finite emitters use perspective shadow projections with reciprocal camera depth interpolated over the actual mesh; their diffuse intensity falls off with squared distance. Spot emission tapers within the cone. Light contributions add by RGB channel with neutral ambient fill. A nine-tap percentage-closer shadow filter produces partial occlusion at edges (radius 0–4 texels); this is approximate shadow softness, not physical area-light transport. The combined and grayscale occlusion orbit views are diagnostics, never separator input. Only the fixed frontal combined render drives the stencil. Source alpha is unchanged, including transparent gaps. Optional receiver geometry, inside-mesh light placement, physically sized soft emitters, recovered albedo and device performance remain outstanding.
+
+Nine focused JVM scene test methods cover the earlier source/geometry guarantees, independent coloured contributions, inverse-square point falloff, spot aiming, finite position point/spot geometric shadows and per-light toggles, filtered partial visibility and orbit diagnostic independence. Synthetic multi-light renders were visually inspected; coarse mesh and shadow-map artifacts remain. Android/Wasm build and real-device visual verification are still required.
+
 ## Previous implementation (before scene integration)
 
 1. `DepthEstimator.estimate` invokes Depth Anything V2 Small on the original RGB image. `DepthLighting.depth` normalizes the relative inverse depth to [0, 1] *per image* and resamples it to the source dimensions.

@@ -18,12 +18,18 @@ data class LightingParams(
     val extrusionThickness: Float = .05f,
     val reverseDepth: Boolean = false,
     val castShadows: Boolean = true,
+    /** Null preserves the original single directional light; an empty list means ambient only. */
+    val lights: List<SceneLight>? = null,
 ) {
     init {
         require(azimuth in -180f..180f && elevation in 0f..90f)
         require(intensity in 0f..2f && ambient in 0f..2f && depthStrength in 0f..10f)
         require(extrusionThickness in .0001f..1f)
+        require(lights == null || lights.size <= SceneLight.MAX_LIGHTS)
     }
+
+    /** Resolve the legacy key-light controls or the explicitly edited emitter list. */
+    fun sceneLights(): List<SceneLight> = lights ?: listOf(SceneLight(azimuth = azimuth, elevation = elevation, intensity = intensity))
 }
 
 /**

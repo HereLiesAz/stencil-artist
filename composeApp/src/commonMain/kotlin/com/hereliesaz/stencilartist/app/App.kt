@@ -1,9 +1,12 @@
 package com.hereliesaz.stencilartist.app
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +50,7 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -58,6 +62,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
@@ -70,6 +76,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hereliesaz.stencilartist.core.Base
+import com.hereliesaz.stencilartist.core.LightingParams
+import com.hereliesaz.stencilartist.core.SceneLight
+import com.hereliesaz.stencilartist.core.SceneLightKind
 import com.hereliesaz.stencilartist.core.ColorOrder
 import com.hereliesaz.stencilartist.core.export.Board
 import com.hereliesaz.stencilartist.core.export.BoardGrid
@@ -85,6 +94,12 @@ import com.hereliesaz.stencilartist.core.export.Tiling
 import com.hereliesaz.stencilartist.core.Sheet
 import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.StrokeStyler
+import kotlin.math.PI
+import kotlin.math.acos
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -510,7 +525,7 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
 
         if (step == 1) Section("Depth + lighting") {
-            Text("The estimated depth shapes a closed relief solid. Its scene light casts geometric shadows. The front render makes the stencil; orbiting only inspects the solid. Hidden surfaces are inferred.",
+            Text("The estimated depth shapes a closed relief solid. Independent scene lights cast geometric shadows. The front render makes the stencil; orbiting only inspects the solid. Hidden surfaces are inferred.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val light = state.lighting
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -526,18 +541,19 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             if (light.enabled) {
                 OutlinedButton(onClick = { advancedLight = !advancedLight },
                     modifier = Modifier.fillMaxWidth()) {
-                    Text(if (advancedLight) "Hide lighting adjustments" else "Adjust direction and strength")
+                    Text(if (advancedLight) "Hide scene controls" else "Edit lights and geometry")
                 }
             }
             if (light.enabled) {
                 var yaw by remember(state.source) { mutableFloatStateOf(35f) }
                 var pitch by remember(state.source) { mutableFloatStateOf(20f) }
+                var shadowOnly by remember(state.source) { mutableStateOf(false) }
                 val scene = state.reliefScene
                 if (scene != null && !state.busy) {
-                    val orbit by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, scene, light, yaw, pitch) {
+                    val orbit by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, scene, light, yaw, pitch, shadowOnly) {
                         value = null
                         delay(80)
-                        val rendered = withContext(Dispatchers.Default) { scene.renderOrbit(light, yaw, pitch) }
+                        val rendered = withContext(Dispatchers.Default) { scene.renderOrbit(light, yaw, pitch, shadowOnly) }
                         value = argbToImageBitmap(rendered.pixels, rendered.width, rendered.height)
                     }
                     Box(Modifier.fillMaxWidth().height(200.dp).checkerboard(), contentAlignment = Alignment.Center) {
@@ -546,16 +562,15 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                     }
                     LabelledSlider("Orbit yaw", yaw.roundToInt().toString() + "°", yaw, -180f..180f) { yaw = it }
                     LabelledSlider("Orbit pitch", pitch.roundToInt().toString() + "°", pitch, -80f..80f) { pitch = it }
-                    Text("Orbit does not change stencil framing.", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Choice("Combined", !shadowOnly) { shadowOnly = false }
+                        Choice("Occlusion", shadowOnly) { shadowOnly = true }
+                    }
+                    Text("Orbit and occlusion views are diagnostic only; the stencil uses the frontal combined render.", style = MaterialTheme.typography.bodySmall)
                 }
             }
             if (light.enabled && advancedLight) {
-                LabelledSlider("Light azimuth", light.azimuth.roundToInt().toString() + "°",
-                    light.azimuth, -180f..180f) { state.updateLighting(light.copy(azimuth = it)) }
-                LabelledSlider("Light elevation", light.elevation.roundToInt().toString() + "°",
-                    light.elevation, 0f..90f) { state.updateLighting(light.copy(elevation = it)) }
-                LabelledSlider("Light intensity", formatLightValue(light.intensity),
-                    light.intensity, 0f..2f) { state.updateLighting(light.copy(intensity = it)) }
+                SceneLightsEditor(light, state::updateLighting)
                 LabelledSlider("Ambient light", formatLightValue(light.ambient),
                     light.ambient, 0f..2f) { state.updateLighting(light.copy(ambient = it)) }
                 LabelledSlider("Depth strength", formatLightValue(light.depthStrength),
@@ -1345,6 +1360,140 @@ internal fun Stepper(value: Int, range: IntRange, label: String, onChange: (Int)
             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         OutlinedButton(onClick = { onChange(value + 1) }, enabled = value < range.last,
             modifier = Modifier.semantics { contentDescription = "More $label" }) { Text("+") }
+    }
+}
+
+/** Edit the actual emitter list; the null legacy configuration becomes explicit on the first edit. */
+@Composable
+private fun SceneLightsEditor(lighting: LightingParams, onChange: (LightingParams) -> Unit) {
+    val lights = lighting.sceneLights()
+    var selected by remember { mutableIntStateOf(0) }
+    val index = selected.coerceIn(0, maxOf(0, lights.lastIndex))
+    fun change(next: List<SceneLight>) = onChange(lighting.copy(lights = next))
+    fun edit(next: SceneLight) = change(lights.mapIndexed { i, old -> if (i == index) next else old })
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("SCENE LIGHTS", style = MaterialTheme.typography.labelSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedButton(onClick = { selected = 0; change(SceneLight.studio()) }) { Text("Key / fill / rim") }
+            OutlinedButton(onClick = {
+                selected = lights.size
+                change(lights + SceneLight(kind = SceneLightKind.POINT, intensity = 1f))
+            }, enabled = lights.size < SceneLight.MAX_LIGHTS) { Text("Add light") }
+            OutlinedButton(onClick = {
+                selected = (index - 1).coerceAtLeast(0)
+                change(lights.filterIndexed { i, _ -> i != index })
+            }, enabled = lights.isNotEmpty()) { Text("Remove light") }
+        }
+        if (lights.isEmpty()) {
+            Text("Ambient only. Add a light to illuminate the solid.", style = MaterialTheme.typography.bodySmall)
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(lights.size) { i ->
+                    Choice("${i + 1} ${lights[i].kind.name.lowercase()}", i == index) { selected = i }
+                }
+            }
+            val light = lights[index]
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (kind in SceneLightKind.entries) {
+                    Choice(kind.name.lowercase().replaceFirstChar { it.uppercase() }, light.kind == kind) {
+                        edit(light.copy(kind = kind))
+                    }
+                }
+            }
+            LightPlacement(light, ::edit)
+            LabelledSlider("Azimuth", light.azimuth.roundToInt().toString() + "°", light.azimuth, -180f..180f) {
+                edit(light.copy(azimuth = it))
+            }
+            LabelledSlider("Elevation (front / rear)", light.elevation.roundToInt().toString() + "°", light.elevation, -90f..90f) {
+                edit(light.copy(elevation = it))
+            }
+            if (light.kind != SceneLightKind.DIRECTIONAL) {
+                LabelledSlider("Distance (scene units)", oneDecimal(light.distance), light.distance, 1.5f..4f) {
+                    edit(light.copy(distance = it))
+                }
+            }
+            LabelledSlider("Intensity", oneDecimal(light.intensity), light.intensity, 0f..4f) {
+                edit(light.copy(intensity = it))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.size(24.dp).background(Color(light.color or 0xFF000000.toInt())))
+                Text("Emitter colour", style = MaterialTheme.typography.labelMedium)
+            }
+            for ((label, shift) in listOf("Red" to 16, "Green" to 8, "Blue" to 0)) {
+                val component = (light.color ushr shift) and 255
+                LabelledSlider(label, component.toString(), component.toFloat(), 0f..255f) {
+                    val rgb = (light.color and (255 shl shift).inv()) or (it.roundToInt() shl shift)
+                    edit(light.copy(color = rgb))
+                }
+            }
+            if (light.kind == SceneLightKind.SPOT) {
+                LabelledSlider("Spot half-cone", light.cone.roundToInt().toString() + "°", light.cone, 5f..85f) {
+                    edit(light.copy(cone = it))
+                }
+                LabelledSlider("Aim X", oneDecimal(light.targetX), light.targetX, -.5f.. .5f) { edit(light.copy(targetX = it)) }
+                LabelledSlider("Aim Y", oneDecimal(light.targetY), light.targetY, -.5f.. .5f) { edit(light.copy(targetY = it)) }
+                LabelledSlider("Aim Z", oneDecimal(light.targetZ), light.targetZ, -.5f..1f) { edit(light.copy(targetZ = it)) }
+            }
+            OutlinedButton(onClick = { edit(light.copy(castsShadows = !light.castsShadows)) }) {
+                Text(if (light.castsShadows) "This light casts shadows" else "This light does not cast shadows")
+            }
+            LabelledSlider("Shadow filter radius", light.softness.toString(), light.softness.toFloat(), 0f..4f) {
+                edit(light.copy(softness = it.roundToInt()))
+            }
+        }
+    }
+}
+
+/**
+ * Front projection of the emitter's spherical placement around the scene origin. Drag locally
+ * and commit on release (not on every pointer event). Elevation slider switches hemispheres;
+ * positional distance and spot aim are independent accessible controls.
+ */
+@Composable
+private fun LightPlacement(light: SceneLight, onCommit: (SceneLight) -> Unit) {
+    var draft by remember(light) { mutableStateOf(light) }
+    val commit by rememberUpdatedState(onCommit)
+    val scheme = MaterialTheme.colorScheme
+    fun placement(position: Offset, bounds: IntSize): SceneLight {
+        val radius = minOf(bounds.width, bounds.height) * .42f
+        if (radius <= 0f) return light
+        val x = (position.x - bounds.width / 2f) / radius
+        val y = (position.y - bounds.height / 2f) / radius
+        val r = sqrt(x * x + y * y).coerceIn(0f, 1f)
+        val az = if (r < .001f) light.azimuth else (atan2(y, x) * (180f / PI.toFloat())).coerceIn(-180f, 180f)
+        val el = (acos(r) * (180f / PI.toFloat())).coerceIn(0f, 90f)
+        return light.copy(azimuth = az, elevation = if (light.elevation < 0f) -el else el)
+    }
+    Text(if (draft.elevation < 0f) "REAR LIGHT PLACEMENT" else "FRONT LIGHT PLACEMENT",
+        style = MaterialTheme.typography.labelSmall)
+    Canvas(Modifier.fillMaxWidth().height(144.dp)
+        .background(scheme.surfaceVariant)
+        .semantics { contentDescription = "Drag to place light. Azimuth and elevation sliders provide equivalent controls." }
+        .pointerInput(light) {
+            detectTapGestures { position -> commit(placement(position, size)) }
+        }
+        .pointerInput(light) {
+            detectDragGestures(
+                onDragStart = { position -> draft = placement(position, size) },
+                onDragEnd = { commit(draft) },
+                onDragCancel = { draft = light },
+            ) { change, _ ->
+                change.consume()
+                draft = placement(change.position, size)
+            }
+        }) {
+        val radius = minOf(size.width, size.height) * .42f
+        val origin = center
+        val az = draft.azimuth * (PI / 180).toFloat()
+        val radial = cos(draft.elevation * (PI / 180).toFloat()).coerceAtLeast(0f) * radius
+        val handle = origin + Offset(cos(az) * radial, sin(az) * radial)
+        drawCircle(scheme.outline, radius, origin, style = Stroke(1.dp.toPx()))
+        drawCircle(scheme.outline, radius / 2f, origin, style = Stroke(1.dp.toPx()))
+        drawLine(scheme.outline, origin - Offset(radius, 0f), origin + Offset(radius, 0f))
+        drawLine(scheme.outline, origin - Offset(0f, radius), origin + Offset(0f, radius))
+        drawLine(scheme.primary, origin, handle, strokeWidth = 2.dp.toPx())
+        drawCircle(scheme.onSurface, 12.dp.toPx(), handle)
+        drawCircle(Color(draft.color or 0xFF000000.toInt()), 9.dp.toPx(), handle)
     }
 }
 
