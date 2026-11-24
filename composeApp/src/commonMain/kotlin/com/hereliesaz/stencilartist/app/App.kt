@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -420,15 +421,19 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             Text("Removing the background usually means fewer cuts. Depth assistance can help uncertain edges; the app keeps confident foreground/background decisions.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Choice("Remove", selected = state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(true) }
-                Choice("Keep", selected = !state.removeBackground, modifier = Modifier.weight(1f)) { state.removeBackground(false) }
+                DecisionCard("Cut out subject", "Keep the subject; remove surrounding scenery.",
+                    state.removeBackground, Modifier.weight(1f)) { state.removeBackground(true) }
+                DecisionCard("Keep the frame", "Stencil the entire image, including its background.",
+                    !state.removeBackground, Modifier.weight(1f)) { state.removeBackground(false) }
             }
             if (state.removeBackground) {
+                Text("AT THE OUTLINE", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Choice("Depth-assisted edges", selected = state.depthAssistedBackground,
-                        modifier = Modifier.weight(1f)) { state.depthAssistedBackground(true) }
-                    Choice("Saliency only", selected = !state.depthAssistedBackground,
-                        modifier = Modifier.weight(1f)) { state.depthAssistedBackground(false) }
+                    DecisionCard("Depth-assisted", "Refine uncertain edges using estimated distance.",
+                        state.depthAssistedBackground, Modifier.weight(1f)) { state.depthAssistedBackground(true) }
+                    DecisionCard("Mask only", "Use only the foreground mask; no depth refinement.",
+                        !state.depthAssistedBackground, Modifier.weight(1f)) { state.depthAssistedBackground(false) }
                 }
             }
         }
@@ -438,11 +443,13 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val light = state.lighting
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Choice("On", selected = light.enabled, modifier = Modifier.weight(1f)) {
-                    state.updateLighting(light.copy(enabled = true))
-                }
-                Choice("Off", selected = !light.enabled, modifier = Modifier.weight(1f)) {
+                DecisionCard("Keep original", "Use the photograph's existing highlights and shadows.",
+                    !light.enabled, Modifier.weight(1f)) {
                     state.updateLighting(light.copy(enabled = false))
+                }
+                DecisionCard("Relight surface", "Change apparent light using estimated depth.",
+                    light.enabled, Modifier.weight(1f)) {
+                    state.updateLighting(light.copy(enabled = true))
                 }
             }
             if (light.enabled) {
@@ -470,10 +477,12 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             Text("Tone makes a brightness-based stack. Colour matches the source's hues or the real cans you choose.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Choice("Tone", selected = state.mode == SeparationMode.TONE, modifier = Modifier.weight(1f)) {
+                DecisionCard("By tone", "Build a dark-to-light or light-to-dark set of values.",
+                    state.mode == SeparationMode.TONE, Modifier.weight(1f)) {
                     state.selectMode(SeparationMode.TONE)
                 }
-                Choice("Colour", selected = state.mode == SeparationMode.COLOUR, modifier = Modifier.weight(1f)) {
+                DecisionCard("By colour", "Preserve hues, or match real cans of paint.",
+                    state.mode == SeparationMode.COLOUR, Modifier.weight(1f)) {
                     state.selectMode(SeparationMode.COLOUR)
                 }
             }
@@ -492,6 +501,8 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
 
         if (state.mode == SeparationMode.TONE) {
             Section("Base") {
+                Text("The base is the first coat. Auto chooses its direction from the image; force dark or light when your wall or paint plan calls for it.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((base, name) in listOf(Base.AUTO to "Auto", Base.DARK to "Dark", Base.LIGHT to "Light")) {
                         Choice(name, selected = tone.base == base, modifier = Modifier.weight(1f)) {
@@ -502,6 +513,8 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
             }
         } else {
             Section("Order") {
+                Text("Paint order changes which colours can cover earlier cuts. Auto chooses; the other options put the sequence in your hands.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((order, name) in listOf(
                         ColorOrder.AUTO to "Auto", ColorOrder.LIGHT_TO_DARK to "Light to dark",
@@ -518,6 +531,8 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         Text("Brush strokes shape broad openings with directional marks. Classic preserves the original cut geometry.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         // Smoothing is a median filter and must be odd: the slider counts in steps of two.
+        if (advancedEdges) Text("Smoothing reduces speckled edges; closing seals tiny gaps. Bias moves tonal thresholds. Inspect small details after each change.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (advancedEdges) LabelledSlider("Smoothing", "${state.smoothing} px", (state.smoothing - 1) / 2f, 0f..15f) {
             state.setSmoothing(it.roundToInt() * 2 + 1)
         }
@@ -526,10 +541,12 @@ private fun Controls(state: StencilState, pick: () -> Unit, modifier: Modifier) 
         }
         Section("Stroke construction") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Choice("Classic", selected = !state.strokeBased, modifier = Modifier.weight(1f)) {
+                DecisionCard("Classic cuts", "Retain the original contiguous mask openings.",
+                    !state.strokeBased, Modifier.weight(1f)) {
                     state.useStrokeBased(false)
                 }
-                Choice("Brush strokes", selected = state.strokeBased, modifier = Modifier.weight(1f)) {
+                DecisionCard("Brush marks", "Use fine directional openings in large regions.",
+                    state.strokeBased, Modifier.weight(1f)) {
                     state.useStrokeBased(true)
                 }
             }
@@ -1067,6 +1084,36 @@ private fun fixedDecimals(value: Double, decimals: Int): String {
     val whole = scaled / scale.roundToInt()
     val fraction = (scaled % scale.roundToInt()).toString().padStart(decimals, '0')
     return (if (value < 0 && scaled != 0) "-" else "") + whole + if (decimals > 0) ".$fraction" else ""
+}
+
+/**
+ * A primary creative decision is a named outcome with its trade-off, not an unexplained
+ * on/off switch. Keep secondary numeric controls in their focused stage.
+ */
+@Composable
+private fun DecisionCard(
+    title: String,
+    explanation: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier
+            .heightIn(min = 108.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) scheme.primary.copy(alpha = 0.12f) else scheme.surfaceVariant)
+            .border(if (selected) 2.dp else 1.dp,
+                if (selected) scheme.primary else scheme.outline, RoundedCornerShape(10.dp))
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurface)
+        Text(explanation, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+    }
 }
 
 @Composable
