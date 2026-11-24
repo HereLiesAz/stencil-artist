@@ -509,7 +509,7 @@ class PrintPdfTest {
     private fun pdfText(s: Separation, width: Double) = parse(PrintPdf.make(s, options(width))).let { it to it.contents }
 
     @Test
-    fun cuttingAdvicePrefersCutawayWhenThereIsSafeRoom() {
+    fun cuttingAdviceCanUseCutawayWhenThereIsSafeRoom() {
         val width = 240
         val sizeMm = 200.0
         // Broad waste surrounds a small trapped stock island; unlike the old all-stock
@@ -594,27 +594,53 @@ class PrintPdfTest {
     }
 
     @Test
-    fun aCuttingProblemWithNoRoomGetsItsOwnAdjacentReferenceDetail() {
+    fun aCuttingTipCanBePrintedOnRemovedMaterialWhenStockIsTooSmall() {
+        // Most of the image is an opening; the only surviving island cannot fit a note.
         val s = stencil(30, 30) { x, y -> x !in 12..17 || y !in 12..17 }
         val pdf = parse(PrintPdf.make(s, options(100.0)))
-        assertEquals(4, pdf.pages.size, "instructions, map, tile, one reference page")
-        val all = pdf.s
-        assertTrue("(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE) Tj" in all)
-        assertTrue("(ISLAND) Tj" in all)
-        assertTrue("(SHEET 1 - LOCAL DETAIL) Tj" in all)
+        assertEquals(3, pdf.pages.size, "instructions, map, tile: the removed region fits the note")
         val tile = pdf.contents.single { pageKind(it) == "tile" }
-        assertFalse("(ISLAND) Tj" in tile, "the template page stays unannotated")
-        assertTrue(pdf.contents.single { pageKind(it) == "reference" }.contains("(ISLAND) Tj"))
+        assertTrue("(ISLAND) Tj" in tile)
+        assertFalse("(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE) Tj" in pdf.s)
+        // Ink over an opaque dark opening must contrast with the printed dark paint.
+        assertTrue("q 1 g\n" in tile)
     }
 
     @Test
-    fun pervasiveIslandsAllGetNearbyReferenceDetailsRatherThanBeingDropped() {
+    fun aCuttingProblemWithNeitherSafeRegionGetsItsOwnAdjacentReferenceDetail() {
+        // Alternating vertical openings and stock are all narrower than the annotation.
+        // Enclosing a pocket of stock produces an island without providing room for text.
+        val s = stencil(60, 60) { x, y ->
+            x % 12 < 5 || (x in 24..36 && (y == 24 || y == 36)) ||
+                (y in 24..36 && (x == 24 || x == 36))
+        }
+        val pdf = parse(PrintPdf.make(s, options(120.0)))
+        assertTrue("(REFERENCE ONLY - DO NOT CUT FROM THIS PAGE) Tj" in pdf.s)
+        assertTrue(pdf.contents.any { pageKind(it) == "reference" && "(ISLAND) Tj" in it })
+        assertTrue(pdf.contents.any { pageKind(it) == "reference" && "(SHEET 1 - LOCAL DETAIL) Tj" in it })
+    }
+
+    @Test
+    fun bufferedTipPositionsCannotCrossFromStockIntoOpenings() {
+        val mask = BooleanArray(100 * 100) { i -> (i % 100) >= 50 }
+        val space = PrintPdf.UncutSpace(mask, 100, 100, 1.0)
+        assertEquals(false, space.region(10.0, 10.0, 8.0, 8.0, 1.0))
+        assertEquals(true, space.region(70.0, 10.0, 8.0, 8.0, 1.0))
+        assertEquals(null, space.region(44.0, 10.0, 8.0, 8.0, 0.0))
+        assertEquals(null, space.region(0.0, 10.0, 8.0, 8.0, 1.0))
+        assertFalse(space.clear(70.0, 10.0, 8.0, 8.0, 1.0),
+            "Page labels retain their stock-only policy")
+    }
+
+    @Test
+    fun pervasiveIslandsArePrintedOnTilesOrNearbyReferenceDetailsWithoutBeingDropped() {
         val s = stencil(40, 40) { x, y -> !(x in setOf(4, 11, 18, 25, 32) && y in setOf(4, 11, 18, 25, 32)) }
         val pdf = parse(PrintPdf.make(s, options(150.0)))
-        assertEquals(1 + 1 + 1 + 7, pdf.pages.size, "instructions, map, tile, seven reference pages of four")
         assertEquals(25, Regex("""\(ISLAND\) Tj""").findAll(pdf.s).count())
-        assertEquals(7, pdf.contents.count { pageKind(it) == "reference" })
-        assertFalse("(ISLAND) Tj" in pdf.contents.single { pageKind(it) == "tile" })
+        assertTrue("(ISLAND) Tj" in pdf.contents.single { pageKind(it) == "tile" },
+            "The large removed region can hold cutting tips")
+        assertTrue(pdf.contents.any { pageKind(it) == "reference" },
+            "Tips that do not fit on their tile retain adjacent reference details")
     }
 
     @Test
