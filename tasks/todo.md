@@ -188,8 +188,9 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       SharedPreferences, `localStorage` in try/catch), recomputes layers off the main thread under the existing
       debounce, and has the scanner hooks `addCanByBarcode(gtin)` and `learnBarcode(gtin, can)` (no scanner UI).
       UI (`PaintPanel.kt`, `CanArt.kt`): layer stepper (up to the distinct colours the allowed cans have), brand then line
-      chips, inline collapsible picker: search, brand chips and a grid of vector can tops (60 plus Show more; hatched
-      disc for colourless cans, sampled dot, check when selected); tapping one opens a carousel (HorizontalPager, whole
+      chips, inline collapsible picker: search, brand chips and a bounded lazy grid of the original spray-can top PNG
+      over an individual per-can colour circle and one white rack background; colourless cans are omitted.
+      Tapping a top opens a carousel (HorizontalPager, whole
       can drawn side-on with maker, colour name, code, barcode, match quality in Pick for me; neighbours peek; arrows,
       keyboard arrows, touch and mouse drag); Selected strip of small tops with remove, shared-colour
       note, Paint list with match quality and Keep/Drop for unused layers, one-line data caveat. Sheet strip wraps
@@ -315,16 +316,18 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 - Island bridging is partly implemented (only fully concealed negative strokes, with visible islands explicitly left unresolved). Free Colour sheets have a can-top palette browser using
   the same full-can peeking carousel as My cans, with fallback hex/RGB editing through
-  `ColorParams.colors` and `StencilState.setSheetColor`. The can grid includes entries with no
-  colour value (hatched rings until the user supplies a colour). An MTN can or any other can
-  without RGB can be assigned, edited or cleared with a locally saved #RRGGBB approximation in
-  the full-can carousel. That value updates the can grid, barcode/key lookup, can selections,
-  Pick for me matching, and shopping lists without editing the bundled catalogue. The PDF
-  marks user-entered values as approximate. MTN maker RGB values are still unavailable.
-  The MTN 94 full-can carousel uses the original user-provided transparent packshot, unchanged,
-  with colour drawn independently behind its translucent shoulder and white behind both. A Node
-  SHA-256 regression verifies the original file, and both web and Android builds include the
-  shared resource. A live site/reference is not a redistribution license for its imagery or swatch
+  `ColorParams.colors` and `StencilState.setSheetColor`. The rack and carousel exclude
+  every can lacking a resolved RGB colour, even when an entry otherwise matches search.
+  Previously saved local #RRGGBB approximations still count as resolved for display;
+  their source is marked as user-entered, not official paint measurement.
+  The top-view rack uses the user's original five-top transparent spray-can asset
+  unmodified, with a separate solid circle in each can's colour layered underneath,
+  and one white background beneath the entire rack. The MTN 94 carousel uses the
+  other original user-provided upright transparent packshot, unmodified, with
+  an independent colour shape behind its translucent shoulder and white behind.
+  Node SHA-256 checks protect both PNGs and verify layer order; other can brands
+  retain the existing side-on vector representation. MTN maker RGB values remain
+  unavailable when no user approximation has been supplied. A live site/reference is not a redistribution license for its imagery or swatch
   database. Visual/touch checks on actual devices remain outstanding.
 - Custom mat and roll sizes, overlap/margin validation, and G-code laser/router settings
   (feed, travel, power, passes, safe/cut Z) are now exposed in the Cutter files UI. Invalid

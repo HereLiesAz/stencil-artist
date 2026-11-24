@@ -39,14 +39,18 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
   noted as not needed and left off the lists unless you keep it. The print PDF is given a shopping list
   of the cans for the sheets it prints. Chosen cans, allowed brands and learned barcodes are kept on the
   device (SharedPreferences, `localStorage`).
-- Can-top artwork is drawn in-app with an uncapped central valve, neutral metal and a coloured
-  shoulder ring. The **MTN 94** full-can carousel alone uses the user's exact original 1122 × 1402
-  transparent PNG, stored byte-for-byte in Compose resources. Its pixels are never edited or
-  masked: an independent colour fill sits behind the existing translucent shoulder, with white
-  behind both layers. All other can lines retain their vector side artwork; retailer imagery is
-  not embedded. Catalogue entries lacking RGB values stay visible
-  with hatched rings. Open one in the carousel and enter your own #RRGGBB approximation; that
-  specific can gains a coloured ring and becomes available to Free Colour, My cans and Pick for me.
+- **Rack:** the exact uploaded transparent five-top spray-can PNG (724 × 2172)
+  is stored byte-for-byte in Compose resources. The rack has ONE white background
+  for the entire grid. Each visible can gets its OWN solid RGB colour circle behind
+  its unmodified top-view image, drawn from the supplied strip without changing
+  source pixels. The five top views cycle across entries.
+  Only cans with an actual resolved RGB value appear in the rack or can carousel;
+  unknown colours are excluded, not replaced with gray or guessed.
+  **MTN 94 full-can carousel:** the other exact original 1122 × 1402 transparent
+  PNG remains unchanged and sits over its independent solid paint-colour shoulder
+  and white background. Other brands retain their existing side illustrations;
+  retailer imagery is not embedded. If a user previously entered an RGB swatch,
+  that can is visible until the swatch is cleared.
   Your colour stays in SharedPreferences (Android) or localStorage (web), keyed by the stable can
   identity, and may be corrected or cleared without changing the bundled catalogue. Saved colours
   are identified as user-entered and approximate, including in the print PDF. Retailer swatches (including
