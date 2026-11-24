@@ -245,10 +245,11 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
    adds independently overpainted cuts, exact island removal when already-placed
    later layers restore the entire detail (black to white or black to grey and
    white), and negative-stroke bridges only where later paint fully conceals them.
-   Exposed islands remain flagged, not silently deleted. Newly composed
-   grey/white corrections where existing cuts cannot restore a detail, full
-   semantic stroke-based generation, physical-width checking and real-world
-   validation remain.
+   Small missing grey/white paint marks can now be composed when the source
+   strongly supports the colour and no later-layer stock is detached. Exposed
+   or ambiguous details remain unresolved, not silently deleted. Full
+   directional stroke-trajectory synthesis, physical-width checking and
+   real-world validation remain.
    The opt-in Brush strokes mode now reconstructs wide later-layer regions as
    narrow additive, flow-guided paint ribbons (with bounded deviation and a
    retained-stock island check), leaving thin details and Classic available.

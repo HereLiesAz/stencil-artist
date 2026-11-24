@@ -13,6 +13,10 @@ data class IslandPlan(
     val skipped: Boolean = false,
     /** Islands removed from an earlier cut and exactly repainted by existing later cuts. */
     val reconstructedIslands: Int = 0,
+    /** Islands repaired with small later-layer source-matched corrective marks. */
+    val sourceGuidedIslands: Int = 0,
+    /** Number of expensive corrective-geometry validations, including rejected attempts. */
+    val sourceGuidedAttempts: Int = 0,
 )
 
 /**
@@ -21,8 +25,10 @@ data class IslandPlan(
  * a later sheet. Black may therefore be sprayed beneath a white detail, or beneath a
  * detail reconstructed jointly by grey and white. Otherwise, a negative brushstroke
  * bridge is allowed only where its entire footprint is concealed by later paint.
- * Both strategies keep the finished composite exactly unchanged. Exposed features
- * are never silently discarded.
+ * Both strategies keep the finished composite exactly unchanged. When a processed
+ * source is available, a small remaining gap may instead be filled with later-layer
+ * paint that is strongly supported by the source, if the new opening does not create
+ * a detached stock island in any later sheet. All other exposed details remain intact.
  *
  * Paths use 4-connected stock, trace shortest supported routes, and break equal-distance ties
  * along the source's luminance-contour tangent when one is available. Width is the minimum
@@ -33,13 +39,85 @@ data class IslandPlan(
  * must appear in the existing contextual cutting tips. Users never have to guess what vanished.
  */
 object IslandPlanner {
+    /**
+     * Border-supported retained stencil stock. The same four-connected rule is used
+     * both to find unsupported islands and to reject new ones in correction layers.
+     */
+    private fun supportedStock(cut: BooleanArray, w: Int, h: Int): BooleanArray {
+        val n = w * h
+        val supported = BooleanArray(n)
+        val queue = IntArray(n)
+        var head = 0
+        var tail = 0
+        fun visit(pixel: Int) {
+            if (!cut[pixel] && !supported[pixel]) {
+                supported[pixel] = true
+                queue[tail++] = pixel
+            }
+        }
+        for (x in 0 until w) {
+            visit(x)
+            visit((h - 1) * w + x)
+        }
+        for (y in 0 until h) {
+            visit(y * w)
+            visit(y * w + w - 1)
+        }
+        while (head < tail) {
+            val p = queue[head++]
+            val x = p % w
+            if (x > 0) visit(p - 1)
+            if (x + 1 < w) visit(p + 1)
+            if (p >= w) visit(p - w)
+            if (p + w < n) visit(p + w)
+        }
+        return supported
+    }
+
+    /** Give each unsupported stock component a stable ID for split checks. */
+    private fun unsupportedComponents(
+        cut: BooleanArray,
+        supported: BooleanArray,
+        w: Int,
+        h: Int,
+    ): IntArray {
+        val n = w * h
+        val ids = IntArray(n)
+        val queue = IntArray(n)
+        var nextId = 0
+        for (start in 0 until n) {
+            if (cut[start] || supported[start] || ids[start] != 0) continue
+            nextId++
+            ids[start] = nextId
+            var head = 0
+            var tail = 1
+            queue[0] = start
+            while (head < tail) {
+                val p = queue[head++]
+                val x = p % w
+                fun visit(q: Int) {
+                    if (!cut[q] && !supported[q] && ids[q] == 0) {
+                        ids[q] = nextId
+                        queue[tail++] = q
+                    }
+                }
+                if (x > 0) visit(p - 1)
+                if (x + 1 < w) visit(p + 1)
+                if (p >= w) visit(p - w)
+                if (p + w < n) visit(p + w)
+            }
+        }
+        return ids
+    }
+
     fun repair(
         original: Separation,
         source: RgbaImage? = null,
         minimumBridgePixels: Int = 1,
         maxPathPixels: Int = 128,
+        maxCorrectivePaintPixels: Int = 64,
     ): IslandPlan {
-        require(minimumBridgePixels >= 1 && maxPathPixels >= 1)
+        require(minimumBridgePixels >= 1 && maxPathPixels >= 1 && maxCorrectivePaintPixels >= 0)
         require(source == null || (source.width == original.width && source.height == original.height))
         val w = original.width
         val h = original.height
@@ -51,39 +129,29 @@ object IslandPlanner {
         val renderedBefore = original.render()
         var repaired = 0
         var reconstructed = 0
+        var sourceGuided = 0
+        var sourceGuidedAttempts = 0
         var unresolved = 0
         val n = w * h
+        val correctedPixels = BooleanArray(n)
+        // Limit the work spent validating geometry for source-guided corrections.
+        val maxSourceGuidedValidations = 16
+        val maxSourceErrorSquared = 3 * 36 * 36
+        fun colourError(a: Int, b: Int): Int {
+            val dr = (a shr 16 and 255) - (b shr 16 and 255)
+            val dg = (a shr 8 and 255) - (b shr 8 and 255)
+            val db = (a and 255) - (b and 255)
+            return dr * dr + dg * dg + db * db
+        }
         val radius = minimumBridgePixels / 2
 
         for (sheet in cuts.indices) {
             val cut = cuts[sheet]
             // The material connected to the border remains in the stencil after cutting.
-            val supported = BooleanArray(n)
+            val supported = supportedStock(cut, w, h)
             val queue = IntArray(n)
             var tail = 0
-            fun support(pixel: Int) {
-                if (!cut[pixel] && !supported[pixel]) {
-                    supported[pixel] = true
-                    queue[tail++] = pixel
-                }
-            }
-            for (x in 0 until w) {
-                support(x)
-                support((h - 1) * w + x)
-            }
-            for (y in 0 until h) {
-                support(y * w)
-                support(y * w + w - 1)
-            }
             var head = 0
-            while (head < tail) {
-                val p = queue[head++]
-                val x = p % w
-                if (x > 0) support(p - 1)
-                if (x + 1 < w) support(p + 1)
-                if (p >= w) support(p - w)
-                if (p + w < n) support(p + w)
-            }
             val visitedIsland = BooleanArray(n)
             val visitedPath = IntArray(n)
             val pathQueue = IntArray(n)
@@ -158,8 +226,8 @@ object IslandPlanner {
                     reconstructed++
                     continue
                 }
-                // Otherwise search only concealed negative-stroke connections from
-                // the island boundary to previously supported, uncut stock.
+                // Prefer a completely concealed negative-stroke bridge over a
+                // source-guided correction, because the bridge changes no visible paint.
                 generation++
                 var searchHead = 0
                 var searchTail = 0
@@ -194,6 +262,108 @@ object IslandPlanner {
                     }
                 }
                 if (destination < 0) {
+                    // If existing later cuts and concealed bridges cannot restore
+                    // the island, try a limited source-guided correction. Every missing pixel must closely match
+                    // an opaque later paint, and that paint must improve the source
+                    // colour match over the current composite. A dark feature, uncertain
+                    // detail, or transparent source pixel is never repainted on a guess.
+                    if (source != null && sourceGuidedAttempts < maxSourceGuidedValidations &&
+                        maxCorrectivePaintPixels > 0 && sheet + 1 < cuts.size) {
+                        val targets = IntArray(tail) { -1 }
+                        var missing = 0
+                        var viable = true
+                        for (i in 0 until tail) {
+                            val pixel = queue[i]
+                            if ((sheet + 1 until cuts.size).any { later -> cuts[later][pixel] }) continue
+                            if (++missing > maxCorrectivePaintPixels) {
+                                viable = false
+                                break
+                            }
+                            val sampled = source.pixels[pixel]
+                            if (sampled ushr 24 < 224) {
+                                viable = false
+                                break
+                            }
+                            val currentPaint = renderedBefore[pixel].let {
+                                if (it ushr 24 == 0) original.sheets[sheet].color else it
+                            }
+                            val oldError = colourError(sampled, currentPaint)
+                            var bestError = Int.MAX_VALUE
+                            var secondBestError = Int.MAX_VALUE
+                            var bestSheet = -1
+                            for (later in sheet + 1 until cuts.size) {
+                                val colour = original.sheets[later].color
+                                if (colour ushr 24 != 255) continue
+                                val error = colourError(sampled, colour)
+                                if (error < bestError) {
+                                    secondBestError = bestError
+                                    bestError = error
+                                    bestSheet = later
+                                } else if (error < secondBestError) {
+                                    secondBestError = error
+                                }
+                            }
+                            // Two similarly good colours do not provide enough
+                            // evidence to choose one by arbitrary sheet order.
+                            if (bestSheet < 0 || bestError > maxSourceErrorSquared ||
+                                bestError >= oldError || secondBestError - bestError <= 192) {
+                                viable = false
+                                break
+                            }
+                            targets[i] = bestSheet
+                        }
+                        if (viable && missing > 0) {
+                            sourceGuidedAttempts++
+                            val changedSheets = targets.filter { it >= 0 }.distinct()
+                            val originalSupport = changedSheets.associateWith { later ->
+                                supportedStock(cuts[later], w, h)
+                            }
+                            val originalIslands = changedSheets.associateWith { later ->
+                                unsupportedComponents(cuts[later], originalSupport.getValue(later), w, h)
+                            }
+                            for (i in 0 until tail) if (targets[i] >= 0) {
+                                cuts[targets[i]][queue[i]] = true
+                            }
+                            // A later paint stroke may close a cut ring and detach
+                            // previously supported stock. Reject the whole correction
+                            // instead of exchanging one island for another.
+                            val safe = changedSheets.all { later ->
+                                val afterSupport = supportedStock(cuts[later], w, h)
+                                val afterIslands = unsupportedComponents(cuts[later], afterSupport, w, h)
+                                val beforeSupport = originalSupport.getValue(later)
+                                val beforeIslands = originalIslands.getValue(later)
+                                val remainingComponents = HashMap<Int, Int>()
+                                (0 until n).all { pixel ->
+                                    if (cuts[later][pixel]) true else if (beforeSupport[pixel]) {
+                                        afterSupport[pixel] // a supported piece must not be detached
+                                    } else {
+                                        val oldId = beforeIslands[pixel]
+                                        if (oldId == 0) true else {
+                                            val newId = afterIslands[pixel]
+                                            val previous = remainingComponents[oldId]
+                                            if (newId == 0 || (previous != null && previous != newId)) {
+                                                false
+                                            } else {
+                                                remainingComponents[oldId] = newId
+                                                true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (safe) {
+                                for (i in 0 until tail) {
+                                    cut[queue[i]] = true
+                                    if (targets[i] >= 0) correctedPixels[queue[i]] = true
+                                }
+                                sourceGuided++
+                                continue
+                            }
+                            for (i in 0 until tail) if (targets[i] >= 0) {
+                                cuts[targets[i]][queue[i]] = false
+                            }
+                        }
+                    }
                     unresolved++
                     continue
                 }
@@ -216,9 +386,16 @@ object IslandPlanner {
         }
 
         val after = Separation.fromMasks(w, h, original.sheets, cuts, original.liftZones)
-        check(renderedBefore.contentEquals(after.render())) {
-            "Island planning changed finished paint; refusing to replace the original artwork"
+        val renderedAfter = after.render()
+        for (pixel in 0 until n) {
+            if (renderedBefore[pixel] == renderedAfter[pixel]) continue
+            check(correctedPixels[pixel] && source != null &&
+                colourError(source.pixels[pixel], renderedAfter[pixel]) <= maxSourceErrorSquared) {
+                "Island planning changed an unapproved detail; refusing the repair"
+            }
         }
-        return IslandPlan(after, repaired, unresolved, reconstructedIslands = reconstructed)
+        return IslandPlan(after, repaired, unresolved,
+            reconstructedIslands = reconstructed, sourceGuidedIslands = sourceGuided,
+            sourceGuidedAttempts = sourceGuidedAttempts)
     }
 }

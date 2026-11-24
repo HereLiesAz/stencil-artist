@@ -47,9 +47,18 @@ pixel-width connection does not prove a millimetre-width connection.
   paint-order reconstruction, not inferred new artwork. For islands that cannot
   be completely restored by existing later cuts, it may carve a negative stroke
   to border-connected stock **only when later paint hides its entire footprint**.
-  The final composite is checked exactly afterward. Unrepairable islands remain
-  annotated by existing PDF tips. Bridge paths use short connections with
-  luminance-flow tie-breaking, not full semantic stroke reconstruction.
+  A source-guided fallback can add up to 64 small missing paint pixels per
+  island to existing later layers, choosing only opaque paint closely matching
+  the processed source and improving the original pixel match. The change is
+  atomic: it is rejected if any existing border-supported retained stock in a
+  later sheet becomes detached. At most sixteen costly geometry validations (successful or rejected) are
+  attempted per image; unsafe corrections remain warnings. Unlike existing-cut reconstruction, this can intentionally
+  change the composite at the newly painted pixels; those changes are constrained
+  and reported in the app for inspection. Dark details, transparent pixels and
+  ambiguous colours are not automatically repainted.
+  Unrepairable islands remain annotated by existing PDF tips. Bridge paths use
+  short connections with luminance-flow tie-breaking, not full semantic stroke
+  reconstruction.
 - The optional **Brush strokes** mode now uses `StrokeStyler` to **construct
   additive paint ribbons** inside broad grey/white or other later-layer openings.
   It does not merely make decorative notches in existing blobs. The smallest
@@ -84,8 +93,9 @@ pixel-width connection does not prove a millimetre-width connection.
   currently limited to stacks of at most sixteen sheets. The app warns when it
   skips this analysis. Existing cutting hazard tips still run for any sheet count.
 - Synthetic JVM/Wasm tests cover layer overlap, exact reconstruction through
-  white or grey/white, unchanged composite paint, hidden bridge connectivity,
-  unresolved exposed islands, and slow versus sharp gradients.
+  white or grey/white, source-matched later-layer corrections, the refusal of
+  dark-detail replacement and new unsupported stock, unchanged composites
+  when no new paint is required, hidden bridges, and gradient detection.
 
 ## Still required
 
@@ -93,10 +103,10 @@ pixel-width connection does not prove a millimetre-width connection.
   perspective and anatomy; multi-stroke scribbles whose tapered ends describe
   broad gradients; and physically calibrated brush widths. The new additive
   ribbon generator is source-gradient-guided but still procedural, not semantic.
-- Joint across-layer design where **existing** later cuts cannot restore an
-  entire island or conceal a bridge. Such cases need newly composed grey/white
-  strokes, not simply painting over dark details. Existing-cut black-base
-  reconstruction is now supported, but creating missing corrective strokes is not.
+- Full stroke-trajectory synthesis for corrections across layers: the new
+  source-matched paint marks address only small missing regions. Their paths
+  are not yet composed as long flowing strokes. Ambiguous or unsupported
+  repairs remain unresolved; do not claim the solver rebuilds every feature.
 - Confidence/saliency checks around pupils, letters, hands and silhouettes.
 - Scale-aware material width, real cutter tests and wall tests of shim size,
   spray pressure, distance and the direction of overspray.

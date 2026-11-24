@@ -686,6 +686,9 @@ class StencilState(
                     }
                     val bridgePlan = planned.first
                     val output = planned.second
+                    if (bridgePlan.sourceGuidedIslands > 0) {
+                        notes += "${bridgePlan.sourceGuidedIslands} stencil island(s) were reconstructed with source-matched corrective paint marks; inspect each layer before cutting."
+                    }
                     if (bridgePlan.unresolved > 0) {
                         notes += "${bridgePlan.unresolved} stencil island(s) still need bridge or later-layer reconstruction; see the print notes."
                     }

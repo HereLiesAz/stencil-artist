@@ -81,8 +81,8 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 Island planning: independent layer cut masks allow black or grey to be painted beneath a
 lighter detail that existing later cuts already restore, eliminating unsupported stock islands
 without a bridge. If full repainting is impossible, the app can add a negative-stroke bridge
-only where later paint conceals its entire footprint; otherwise it flags an unresolved island
-instead of silently omitting detail. It also locates
+only where later paint conceals its entire footprint. Small missing later-layer paint marks
+can also be added when the processed source strongly supports their colour and the later cut creates no additional unsupported stock. Uncertain details remain flagged instead of silently omitted. It also locates
 soft source-image gradients on cut edges and labels the appropriate edge for controlled
 stencil lifting in the print PDF, with scrap-test guidance. **Stroke construction** offers
 Classic (the original masks) and opt-in Brush strokes, which now reconstruct broad
