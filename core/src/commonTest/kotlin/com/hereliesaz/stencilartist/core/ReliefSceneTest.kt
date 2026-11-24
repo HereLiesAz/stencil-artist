@@ -120,6 +120,50 @@ class ReliefSceneTest {
         assertTrue(diagnostic.pixels.any { it == 0xFFFFFFFF.toInt() })
         assertContentEquals(hard.pixels, scene.renderSource(light).pixels)
     }
+
+    @Test
+    fun grazingDirectionalLightDoesNotShadowAnUnobstructedPlane() {
+        val w = 128; val h = 32
+        val source = RgbaImage(w, h, IntArray(w * h) { 0x80FFFFFF.toInt() })
+        for (azimuth in listOf(0f, 180f)) {
+            val key = SceneLight(azimuth = azimuth, elevation = 8f, intensity = 1f)
+            val light = frontal.copy(lights = listOf(key))
+            val scene = ReliefScene.prepare(source, FloatArray(w * h), light)
+            for (softness in listOf(0, 4)) {
+                val image = scene.renderSource(light.copy(lights = listOf(key.copy(softness = softness))))
+                // A white horizontal receiver under an 8-degree unit light gets 35/255 diffuse
+                // brightness, independently of the shadow renderer. No object can occlude it.
+                for (y in 8 until 24) for (x in 32 until 96) {
+                    assertEquals(0x80232323.toInt(), image.pixels[y * w + x],
+                        "azimuth=$azimuth softness=$softness at ($x,$y)")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun grazingFiniteLightsDoNotShadowAnUnobstructedPlane() {
+        val w = 129; val h = 33
+        val source = RgbaImage(w, h, IntArray(w * h) { 0xFFFFFFFF.toInt() })
+        for (kind in listOf(SceneLightKind.POINT, SceneLightKind.SPOT)) {
+            val key = SceneLight(kind = kind, azimuth = 0f, elevation = 8f,
+                distance = 1.5f, intensity = 2f, cone = 60f)
+            val light = frontal.copy(lights = listOf(key))
+            val scene = ReliefScene.prepare(source, FloatArray(w * h), light)
+            val clear = scene.renderSource(light.copy(castShadows = false))
+            // The image centre lies at the origin. Inverse square falloff gives
+            // round(255 * 2 * sin(8 degrees) / 1.5^2) = 32.
+            assertEquals(0xFF202020.toInt(), clear.pixels[h / 2 * w + w / 2])
+            for (softness in listOf(0, 4)) {
+                val image = scene.renderSource(light.copy(lights = listOf(key.copy(softness = softness))))
+                for (y in 8 until 25) for (x in 32 until 97) {
+                    assertEquals(clear.pixels[y * w + x], image.pixels[y * w + x],
+                        "kind=$kind softness=$softness at ($x,$y)")
+                }
+            }
+        }
+    }
+
     @Test
     fun solidMaterialReplacesPhotographicRgbButPreservesAlphaAndSource() {
         val original = intArrayOf(0xFFFF0000.toInt(), 0x800000FF.toInt(), 0x00123456)
