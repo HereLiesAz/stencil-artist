@@ -42,7 +42,7 @@ The test clears app data and its named output files. It is not a physical phone,
 
 ## Print identification
 
-The PDF includes a viewer page label for every instruction, assembly map, cutting tile and reference page. The identifier for a cutting tile uses lowercase paper coordinates and uppercase board coordinates. Printed labels remain on retained stock only; the PDF viewer label and the ordered assembly map identify a tile when no safe printed label fits. Empty and wholly removed tiles are omitted, not treated as usable stock. Print geometry and label-placement checks remain separate from native/browser interaction tests. CI retains the four no-shopping-list PDF golden candidates with the physical validation kit so they can be independently rendered and hashed before golden changes are accepted.
+The PDF includes a viewer page label for every instruction, assembly map, cutting tile and reference page. The identifier for a cutting tile uses lowercase paper coordinates and uppercase board coordinates. Printed labels remain on retained stock only; the PDF viewer label and the ordered assembly map identify a tile when no safe printed label fits. Empty and wholly removed tiles are omitted, not treated as usable stock. Print geometry and label-placement checks remain separate from native/browser interaction tests.
 
 ## Manual acceptance matrix (not yet verified)
 
