@@ -135,12 +135,23 @@ def smoke(browser, url, width, height, directory, profile=False):
             setting = label in ("Whole", "SVG", "DXF", "HPGL", "G-code")
             # Compose Wasm exposes Choice as a button in the actual Chromium AX tree.
             target = control(page, label)
+            # The footer changes semantics when the scroll reaches the bottom.
+            page.wait_for_timeout(300)
+            bounds = target.bounding_box(timeout=2000) if target.count() else None
+            if bounds is not None and 55 < bounds["y"] + bounds["height"] / 2 < height - 55:
+                expect(target).to_be_enabled(timeout=90000)
+                return target
             shortcut = control(page, "Show export settings" if setting else "Show download controls")
-            if shortcut.is_visible():
-                shortcut.click(force=True)
+            if shortcut.count() and shortcut.is_visible():
+                from playwright.sync_api import Error
+                try:
+                    shortcut.click(force=True, timeout=2000)
+                except Error:
+                    # Compose can replace the footer during the click. Recheck the target.
+                    pass
             # The target may be temporarily clipped while Compose updates semantics.
             for _ in range(40):
-                bounds = target.bounding_box()
+                bounds = target.bounding_box(timeout=2000) if target.count() else None
                 if bounds is not None:
                     y = bounds["y"] + bounds["height"] / 2
                     if 55 < y < height - 55 and bounds["height"] > 0:
@@ -150,7 +161,7 @@ def smoke(browser, url, width, height, directory, profile=False):
             # Some Images controls are above the bottom of a short panel; use the normal
             # scroll surface rather than invoking a hidden DOM action.
             for _ in range(20):
-                bounds = target.bounding_box()
+                bounds = target.bounding_box(timeout=2000) if target.count() else None
                 if bounds is not None and 55 < bounds["y"] + bounds["height"] / 2 < height - 55:
                     expect(target).to_be_enabled(timeout=90000)
                     return target
