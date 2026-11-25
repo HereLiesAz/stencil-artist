@@ -47,11 +47,12 @@
 #   ci                    .github/workflows/ci.yml is target CI: it runs here, by policy, and
 #                         reports through the ci-report action.
 #
-# NOT YET REQUESTED: android-github-release / android-play-release. They need a purpose profile
-# for this repository (module :androidApp, package com.hereliesaz.stencilartist) and a decision on
-# which signing material to use; see tasks/todo.md.
+# Android release profiles are registered centrally for :androidApp / com.hereliesaz.stencilartist.
+# Play publishing is limited to internal testing until paint catalogue redistribution is cleared.
 requested:
   - github-pages-deploy
+  - android-github-release
+  - android-play-release
 
 # If the needed capability is absent from the menu, describe the GENERAL workflow
 # to add to HereLiesAz/workflows. This is a request, not executable automation.
