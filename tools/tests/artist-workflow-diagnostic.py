@@ -1,8 +1,8 @@
 """Browser regression against the actual Wasm distribution, not a mock of Compose.
 
 Use the browser's accessibility tree and native file chooser/download events.
-A transparent input deliberately avoids model inference; depth and physical-device
-checks remain separate acceptance gates. Save screenshots even on failure.
+An opaque NASA photograph exercises automatic subject isolation, the guided studio,
+and real export downloads. Physical-device and physical-material checks remain separate. Save screenshots even on failure.
 """
 import argparse
 import io
@@ -14,7 +14,7 @@ from threading import Thread
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from PIL import Image
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 
 def control(page, name):
@@ -59,6 +59,7 @@ def smoke(browser, url, width, height, directory, profile=False):
         fixture = Image.fromarray(data.astronaut()).convert("RGB").resize((256, 256))
         buffer = io.BytesIO()
         fixture.save(buffer, format="PNG")
+        fixture.save(directory / f"{label}-input.png")
         with page.expect_file_chooser() as chooser:
             control(page, "Open image").click(force=True)
         chooser.value.set_files({"name": "smoke.png", "mimeType": "image/png",
@@ -66,7 +67,7 @@ def smoke(browser, url, width, height, directory, profile=False):
         # Completion acknowledgement is mandatory; do not skip it by sleeping.
         # The native browser dialog is a real modal DOM element, not a canvas overlay.
         modal = page.locator("dialog#stencil-loading-notice[open]")
-        modal.get_by_role("button", name="Continue", exact=True).wait_for(timeout=300000)
+        expect(modal.get_by_role("button", name="Continue", exact=True)).to_be_enabled(timeout=300000)
         page.screenshot(path=directory / f"{label}-acknowledgement.png")
         # Role locators query DOM semantics, not Chromium's platform accessibility tree.
         # A native modal leaves underlying Compose nodes in the DOM but makes them inert.
@@ -110,8 +111,11 @@ def smoke(browser, url, width, height, directory, profile=False):
         page.screenshot(path=directory / f"{label}-subject.png")
 
         for stage in ("Palette", "Light", "Adjust", "Edges", "Inspect", "Images"):
-            control(page, f"Next: {stage}").wait_for(state="visible")
-            control(page, f"Next: {stage}").click(force=True)
+            target = control(page, f"Next: {stage}")
+            expect(target).to_be_enabled(timeout=120000)
+            target.click(force=True)
+            page.screenshot(path=directory / f"{label}-{stage.lower()}.png")
+            print(f"ENTERED {stage}", flush=True)
         with page.expect_download(timeout=30000) as download:
             control(page, "Download composite PNG").click(force=True)
         output = directory / f"{label}-composite.png"
@@ -131,7 +135,9 @@ def smoke(browser, url, width, height, directory, profile=False):
         import xml.etree.ElementTree as ET
         def save(label, name):
             with page.expect_download(timeout=90000) as pending:
-                control(page, label).click(force=True)
+                target = control(page, label)
+                expect(target).to_be_enabled(timeout=90000)
+                target.click(force=True)
             path = directory / f"{width}x{height}-{name}"
             pending.value.save_as(path)
             assert path.stat().st_size > 0
@@ -144,9 +150,23 @@ def smoke(browser, url, width, height, directory, profile=False):
             for n in names:
                 with Image.open(io.BytesIO(archive.read(n))) as png:
                     assert png.size == (256, 256)
-        layered = save("Export layered StencilPack for Graffux / GraffitiXR", "stencilpack.zip")
+        layered = save("Export layered StencilPack for Graffux / GraffitiXR", "layers.stencilpack")
         with zipfile.ZipFile(layered) as archive:
             assert archive.testzip() is None
+            manifest = json.loads(archive.read("manifest.json"))
+            assert manifest["format"] == "com.hereliesaz.stencilpack"
+            assert manifest["version"] == 1 and manifest["order"] == "bottom-to-top"
+            assert (manifest["width"], manifest["height"]) == (256, 256)
+            assert len(manifest["layers"]) > 1
+            with Image.open(io.BytesIO(archive.read(manifest["composite"]))) as packed, Image.open(output) as standalone:
+                assert packed.convert("RGBA").tobytes() == standalone.convert("RGBA").tobytes()
+            composed = Image.new("RGBA", (256, 256))
+            for layer in manifest["layers"]:
+                with Image.open(io.BytesIO(archive.read(layer["file"]))) as png:
+                    assert png.size == (256, 256)
+                    composed = Image.alpha_composite(composed, png.convert("RGBA"))
+            with Image.open(output) as standalone:
+                assert composed.tobytes() == standalone.convert("RGBA").tobytes(), "Layer paint order differs from exported composite"
         control(page, "Next: Print").click(force=True)
         page.screenshot(path=directory / f"{width}x{height}-print.png")
         pdf = save("Download all sheets print PDF", "print.pdf")
@@ -156,42 +176,22 @@ def smoke(browser, url, width, height, directory, profile=False):
         print(f"PDF pages: {len(reader.pages)}", flush=True)
         control(page, "Next: Cutter").click(force=True)
         page.screenshot(path=directory / f"{width}x{height}-cutter.png")
-        for format in ("SVG", "DXF", "HPGL", "G-code"):
+        control(page, "Whole").click(force=True)
+        for format, extension in (("SVG", "svg"), ("DXF", "dxf"), ("HPGL", "plt"), ("G-code", "gcode")):
             control(page, format).click(force=True)
-            out = save(f"Download all sheets {format}", f"{format}.zip")
-            with zipfile.ZipFile(out) as archive:
-                assert archive.testzip() is None
-                assert archive.namelist()
-                if format == "SVG":
-                    for n in archive.namelist():
-                        if n.endswith(".svg"):
-                            root = ET.fromstring(archive.read(n))
-                            assert root.tag.endswith("svg")
-        print("PASS: photograph through subject, palette, light, adjust, edges, inspect, image, print and cutter exports", flush=True)
-        return
-        # Observe the persisted checkpoint through the real storage transaction; do not assume
-        # that completion of a download implies the asynchronously saved stage is committed.
-        page.get_by_label("Workspace saved", exact=True).wait_for(state="visible", timeout=30000)
-        page.reload(wait_until="load", timeout=90000)
-        page.locator("#loading").wait_for(state="detached", timeout=90000)
-        page.keyboard.press("Tab")
-        modal.get_by_role("button", name="Continue", exact=True).wait_for(timeout=120000)
-        modal.get_by_role("button", name="Continue", exact=True).click()
-        modal.wait_for(state="detached")
-        control(page, "Download composite PNG").wait_for(state="visible")
-        with page.expect_download(timeout=30000) as restored_download:
-            control(page, "Download composite PNG").click(force=True)
-        restored = directory / f"{label}-restored.png"
-        restored_download.value.save_as(restored)
-        with Image.open(output) as before, Image.open(restored) as after:
-            assert before.size == after.size
-            assert before.convert("RGBA").tobytes() == after.convert("RGBA").tobytes(), "Restored stencil changed"
-        page.screenshot(path=directory / f"{label}-restored-screen.png")
+            out = save(f"Download all sheets {format}", f"stencil.{extension}")
+            if format == "SVG":
+                root = ET.parse(out).getroot()
+                assert root.tag.endswith("svg")
+                assert any(node.tag.endswith("path") for node in root.iter())
+            else:
+                content = out.read_text(encoding="utf-8")
+                markers = {"DXF": ("SECTION", "EOF"), "HPGL": ("IN;", "PU"), "G-code": ("G0", "G1")}
+                assert all(marker in content for marker in markers[format]), f"Invalid {format} output"
         assert not errors, f"Uncaught browser errors: {errors}"
         if profile:
-            assert any("status=ok " in record and "total_ms=" in record for record in records), (
-                "No successful processing timing record")
-        print(f"PASS {label}: startup, transparent image import, acknowledgement, stages, PNG download")
+            assert any("status=ok " in record and "total_ms=" in record for record in records)
+        print("PASS: photograph through subject, palette, light, adjust, edges, inspect, image, print and cutter exports", flush=True)
     finally:
         try:
             page.screenshot(path=directory / f"{label}-last.png")
