@@ -154,7 +154,7 @@ def main():
             assert rgba.size == (256, 256)
             assert rgba.getchannel("A").getextrema() == (0, 255), "Subject isolation failed"
             assert len({p[:3] for p in rgba.getdata() if p[3] == 255}) > 1
-        device.tap("Show download controls", "Downloads ↓")
+        device.optional("Show download controls", "Downloads ↓")
         archive = device.save("Download all sheets + composite ZIP", filenames[1])
         with zipfile.ZipFile(archive) as pack:
             assert pack.testzip() is None
@@ -171,17 +171,14 @@ def main():
             with Image.open(composite) as image:
                 assert result.tobytes() == image.convert("RGBA").tobytes()
         device.tap("Next: Print", "Print →")
-        device.tap("Show download controls", "Downloads ↓")
+        device.optional("Show download controls", "Downloads ↓")
         pdf = device.save("Download all sheets print PDF", filenames[3])
         assert len(PdfReader(pdf, strict=True).pages) > 1
         device.tap("Next: Cutter", "Cutter →")
         for format, filename in zip(("SVG", "DXF", "HPGL", "G-code"), filenames[4:]):
-            # A stage always starts at the top; move back up before changing format.
-            for _ in range(8):
-                adb("shell", "input", "swipe", str(device.width // 2), str(int(device.height * .61)),
-                    str(device.width // 2), str(int(device.height * .84)), "200")
-            device.tap(format)
-            device.tap("Show download controls", "Downloads ↓")
+            device.optional("Show export settings", "Settings ↑")
+            device.tap(format, scroll=True)
+            device.optional("Show download controls", "Downloads ↓")
             exported = device.save("Download all sheets " + format, filename)
             if format == "SVG":
                 assert ET.parse(exported).getroot().tag.endswith("svg")

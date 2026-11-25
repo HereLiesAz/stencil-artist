@@ -28,7 +28,7 @@ The opaque photograph must produce an isolated multicolour stencil, and the real
 
 ## Native Android acceptance
 
-The Android artist workflow CI job builds a debug APK (including the emulator's x86_64 ABI), boots API 35 at phone dimensions, imports an opaque photograph using the native image chooser, acknowledges loading and navigates the actual Compose controls. It exercises the fixed Downloads shortcut and system Save As dialogs, pulls the PNG, ZIP, StencilPack, PDF and cutter files from Downloads, and checks them with independent readers. Screenshots, accessibility XML, exported files and logcat are retained even on failure.
+The Android artist workflow CI job builds a debug APK (including the emulator's x86_64 ABI), boots API 35 at phone dimensions, imports an opaque photograph using the native image chooser, acknowledges loading and navigates the actual Compose controls. It exercises the fixed Downloads/Settings shortcut (jumps between the beginning and end of the existing panel) and system Save As dialogs, pulls the PNG, ZIP, StencilPack, PDF and cutter files from Downloads, and checks them with independent readers. Screenshots, accessibility XML, exported files and logcat are retained even on failure.
 
 On a disposable emulator with adb connected, run:
 
