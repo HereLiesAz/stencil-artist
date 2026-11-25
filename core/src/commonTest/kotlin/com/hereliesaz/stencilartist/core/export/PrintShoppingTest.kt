@@ -192,14 +192,17 @@ class PrintShoppingTest {
             "mounted" to (71772 to "2e4a8a0f2f061018"),
             "one-sheet-of-three" to (7583 to "4ea28cf1faccf848"),
         )
-        val now = mapOf(
+        val now = noListFixtures()
+        for ((name, bytes) in now) println("PRINT_GOLDEN $name ${bytes.size} ${fnv(bytes)}")
+        assertEquals(golden, now.mapValues { (_, bytes) -> bytes.size to fnv(bytes) }, "No-list PDF goldens")
+    }
+
+    internal fun noListFixtures(): Map<String, ByteArray> = mapOf(
             "stripes450" to PrintPdf.make(stripes(), PrintOptions(450.0, shopping = emptyList())),
             "three-a4-land" to PrintPdf.make(three(), PrintOptions(500.0, Paper.A4, true)),
             "mounted" to PrintPdf.make(stripes(), PrintOptions(1000.0, Paper.US_LETTER, false, MountOptions(Board.POSTER_22X28))),
             "one-sheet-of-three" to PrintPdf.make(three(), PrintOptions(300.0), listOf(1)),
         )
-        for ((name, bytes) in now) assertEquals(golden.getValue(name), bytes.size to fnv(bytes), name)
-    }
 
     // ---- The list.
 

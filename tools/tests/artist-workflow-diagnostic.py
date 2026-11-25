@@ -133,8 +133,8 @@ def smoke(browser, url, width, height, directory, profile=False):
         def reveal(label):
             """Use the fixed footer to reach settings or downloads through real clicks."""
             setting = label in ("Whole", "SVG", "DXF", "HPGL", "G-code")
-            role = "radio" if setting else "button"
-            target = page.get_by_role(role, name=label, exact=True).first
+            # Compose Wasm exposes Choice as a button in the actual Chromium AX tree.
+            target = control(page, label)
             shortcut = control(page, "Show export settings" if setting else "Show download controls")
             if shortcut.is_visible():
                 shortcut.click(force=True)
@@ -201,6 +201,11 @@ def smoke(browser, url, width, height, directory, profile=False):
         from pypdf import PdfReader
         reader = PdfReader(pdf, strict=True)
         assert len(reader.pages) > 1
+        assert len(reader.page_labels) == len(reader.pages)
+        assert len(set(reader.page_labels)) == len(reader.pages)
+        assert reader.page_labels[0] == "Instructions 1"
+        assert any(" - assembly map" in label for label in reader.page_labels)
+        assert any(" - Row " in label for label in reader.page_labels)
         print(f"PDF pages: {len(reader.pages)}", flush=True)
         control(page, "Next: Cutter").click(force=True)
         page.screenshot(path=directory / f"{width}x{height}-cutter.png")

@@ -172,7 +172,7 @@ class PrintPlan(
  * Upright page labels use lowercase paper and uppercase board coordinates and identify the paint.
  * They are placed on visible retained stock only, never on an opening. A wholly removed visible
  * tile is omitted. Labels use retained stock when available; a placement failure never blocks export.
- * The assembly map remains available for identification.
+ * The assembly map and PDF viewer page labels remain available for identification.
  */
 object PrintPdf {
     /** The unprintable border of every page, from the paper's edge, in mm. Fixed. */
@@ -662,7 +662,8 @@ object PrintPdf {
         val layout = layoutFor(separation, options, sheets.size)
         val first = layout.lay(separation.sheets.size)
         val doc = PdfDoc()
-        for (content in Instructions.pages(first, layout, sheets.size)) doc.addPage(first.pageW, first.pageH, content)
+        for ((index, content) in Instructions.pages(first, layout, sheets.size).withIndex())
+            doc.addPage(first.pageW, first.pageH, content, "Instructions ${index + 1}")
 
         var tipsUsed = 0
         for (sheet in sheets) {
@@ -688,7 +689,7 @@ object PrintPdf {
             val lay = layout.lay(separation.sheets.size, analysis.tabs)
 
             doc.addPage(first.pageW, first.pageH, if (layout.boardGrid == null) lay.mapPage(sheet, analysis.used, shapes, color, doc)
-            else lay.boardMapPage(sheet, layout, analysis, shapes, color, doc))
+            else lay.boardMapPage(sheet, layout, analysis, shapes, color, doc), "Sheet ${sheet + 1} - assembly map")
 
             val required = LinkedHashMap<String, Note>()
             val homes = HashMap<Int, MutableList<Note>>()
@@ -700,12 +701,12 @@ object PrintPdf {
             val placed = HashSet<String>()
             for ((index, tile) in layout.grid.tiles.withIndex()) {
                 if (!analysis.needed(index)) continue
-                doc.addPage(first.pageW, first.pageH, lay.tilePage(sheet, tile, shapes, color, doc, uncut, homes[index].orEmpty(), placed, options.shopping.firstOrNull { it.layerNumber == sheet + 1 }?.name))
+                doc.addPage(first.pageW, first.pageH, lay.tilePage(sheet, tile, shapes, color, doc, uncut, homes[index].orEmpty(), placed, options.shopping.firstOrNull { it.layerNumber == sheet + 1 }?.name), lay.label(sheet, tile))
                 require(doc.pageCount <= MAX_PAGES) { "Printout needs too many pages" }
             }
-            for (notes in required.values.filter { it.key !in placed }.chunked(first.referenceRows)) {
+            for ((index, notes) in required.values.filter { it.key !in placed }.chunked(first.referenceRows).withIndex()) {
                 require(doc.pageCount < MAX_PAGES) { "Printout needs too many reference pages" }
-                doc.addPage(first.pageW, first.pageH, first.referencePage(notes, sheet, shapes, color, doc))
+                doc.addPage(first.pageW, first.pageH, first.referencePage(notes, sheet, shapes, color, doc), "Sheet ${sheet + 1} - reference ${index + 1}")
             }
         }
         return doc.finish("Stencil Artist - print")
@@ -891,7 +892,7 @@ object PrintPdf {
         }
 
         /** Upright page identifier; paint names are optional and exact RGB is always available. */
-        private fun label(sheet: Int, tile: Tile): String {
+        fun label(sheet: Int, tile: Tile): String {
             val ids = touching(tile).map { boardCode(it.cell) }
             val where = if (ids.isEmpty()) "Row ${tile.row + 1} Col ${tile.col + 1} (${tileCode(tile)})"
                 else "Boards ${ids.joinToString("+")} - ${tileCode(tile)}"
@@ -1241,7 +1242,7 @@ object PrintPdf {
             val page = spec
             val lines = listOf(
                 "Finished size: ${Decimal.format(widthMm, 1)} x ${Decimal.format(heightMm, 1)} mm (${Decimal.format(widthMm / 25.4, 2)} x ${Decimal.format(heightMm / 25.4, 2)} in)",
-                "Pages: ${grid.cols} across x ${grid.rows} down = ${used.size}; $printed printed, $blank skipped as blank (nothing to cut)",
+                "Pages: ${grid.cols} across x ${grid.rows} down = ${used.size}; $printed printed, $blank skipped as blank (empty or fully removed)",
                 "Paper: ${page.name} ${Decimal.format(page.pageWidthMm, 1)} x ${Decimal.format(page.pageHeightMm, 1)} mm, ${Decimal.format(MARGIN_MM, 0)} mm unprintable border; sheets overlap ${Decimal.format(PAPER_OVERLAP_MM, 0)} mm, leaving a ${Decimal.format(MARGIN_MM, 0)} mm blank strip at every join",
                 "Print at 100%. Work left to right, top to bottom; lay each later page on top and put its paper edge on the guide marks.",
             )
@@ -1666,8 +1667,8 @@ object PrintPdf {
             if (mount == null) return listOf(
                 print,
                 "FIND YOUR PAGES" to "Each sheet starts with an assembly map: the grid of pages, each with a short code (column letter, " +
-                    "row number: a1, b1, a2 ...). Pages with nothing to cut are left out and marked blank. Every page has its sheet and code " +
-                    "printed small on uncut material.",
+                    "row number: a1, b1, a2 ...). Empty and wholly removed pages are left out and marked blank. Pages are ordered as on the map. " +
+                    "If a code cannot safely fit retained stock, use the PDF page label and map to identify that page before cutting.",
                 lay, tape, strip, repeat,
                 "CUT" to "Dark outlines mark cuts. Cutting notes may sit in openings or retained stock, clear of cut edges. " +
                     "REFERENCE ONLY pages show details too tight for a note; do not cut them.",
@@ -1682,7 +1683,8 @@ object PrintPdf {
                     "map and needs no board. Every board keeps ${inches(border)} in (${Decimal.format(border, 1)} mm) of uncut border on all four sides.",
                 "FIND YOUR PAGES" to "Each sheet starts with an assembly map: its boards laid edge to edge as one rectangle with one grid of pages over it. " +
                     "A page's code is its column letter and row number in that grid (a1, b1, a2 ...); a1 is the top-left corner page and is always " +
-                    "printed. A page that runs across a board edge names every board it touches (for example Boards A1+B1).",
+                    "printed when there is artwork. A page that crosses an edge names the boards it touches (for example Boards A1+B1). " +
+                    "Use the PDF page label and map if a printed code cannot safely fit retained stock.",
                 "LAY THE PAGES" to "Nothing is cut yet. Start at board 1's top-left corner with page a1's paper edges on the board's top and left edges. " +
                     "Work left to right, top to bottom. Lay each later page ON TOP of the pages already in place, as it is. The page underneath prints thin " +
                     "guide lines and corner marks showing exactly where the top page's paper edges go: slide the top page until each of its paper edges " +
