@@ -1412,6 +1412,14 @@ private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifi
                 enabled = step > 0,
                 modifier = Modifier.semantics { contentDescription = "Back" },
             ) { Text("←") }
+            // Downloads live after the settings in the scrollable panel. Keep a way to reach
+            // them in the fixed navigation footer, especially on a short phone screen.
+            if (step in 7..9) {
+                OutlinedButton(
+                    onClick = { exportScope.launch { stepScroll.animateScrollTo(stepScroll.maxValue) } },
+                    modifier = Modifier.semantics { contentDescription = "Show download controls" },
+                ) { Text("Downloads ↓") }
+            }
             if (step < STUDIO_STEPS.lastIndex) {
                 val next = STUDIO_STEPS[step + 1].first
                 Button(
