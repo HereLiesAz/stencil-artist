@@ -121,7 +121,13 @@ class PhysicalValidationTest {
             }
             assertContentEquals(pixels, source.pixels)
         }
-        output?.let { File(it, "digital-inspection.csv").writeText(report.toString()) }
+        output?.let { directory ->
+            File(directory, "digital-inspection.csv").writeText(report.toString())
+            // Retain the exact no-list golden candidates for independent rendering and hashing.
+            val golden = File(directory, "print-goldens").apply { mkdirs() }
+            for ((name, bytes) in com.hereliesaz.stencilartist.core.export.PrintShoppingTest().noListFixtures())
+                File(golden, "$name.pdf").writeBytes(bytes)
+        }
     }
 
     /** Lossless reference image; no additional separation or geometry conversion. */

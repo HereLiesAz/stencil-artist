@@ -92,13 +92,26 @@ class Device:
         # when available to select the exact named fixture from Downloads.
         self.tap("Open image", seconds=90)
         self.shot("01-picker")
-        if self.optional("More options"):
-            self.optional("Browse", "Browse files")
-        self.optional("Browse", "Browse files")
-        if self.optional("Show roots", "Open navigation drawer"):
-            self.tap("Downloads", "Download")
-        self.optional("Downloads", "Download")
-        self.tap(FIXTURE, seconds=60, scroll=True)
+        # Android 35's Photo Picker exposes date descriptions, not filenames.
+        # A disposable emulator with one seeded photo gives an unambiguous choice.
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            root = self.tree()
+            photos = [node for node in root.iter("node")
+                      if node.get("clickable") == "true" and
+                      node.get("content-desc", "").startswith("Photo taken on ")]
+            if photos:
+                assert len(photos) == 1, "Expected exactly one seeded photo in disposable emulator"
+                self.tap(photos[0].get("content-desc"))
+                return
+            if self.match(root, (FIXTURE,)):
+                self.tap(FIXTURE)
+                return
+            if self.optional("Show roots", "Open navigation drawer"):
+                self.tap("Downloads", "Download")
+            elif not self.optional("Downloads", "Download"):
+                time.sleep(.5)
+        raise AssertionError("Seeded photo not visible in native image picker")
 
     def save(self, label, filename):
         self.tap(label, seconds=90, scroll=True)
