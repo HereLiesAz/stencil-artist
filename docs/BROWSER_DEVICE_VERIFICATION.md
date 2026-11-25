@@ -13,6 +13,19 @@ python3 tools/tests/browser-smoke.py --distribution composeApp/build/dist --arti
 
 Use `--url https://hereliesaz.com/stencil-artist/` instead of `--distribution` to check a published build. Use `--chromium /path/to/chromium` for a locally installed browser. The baseline uses a transparent synthetic image so no model download is needed. A missing semantic control, failed file chooser, incomplete loading acknowledgement, incorrect export, or uncaught page exception fails the test. Screenshots and downloaded PNGs are written to the artifact directory. A narrow browser viewport with touch enabled is not a physical Android device.
 
+## Photograph-to-stencil browser acceptance
+
+CI builds the actual Compose Wasm distribution in a separate job from core tests, then serves it on loopback. No deployed site is required. Run the same check locally:
+
+```sh
+./gradlew :composeApp:wasmJsBrowserDistribution
+python3 -m pip install playwright==1.57.0 Pillow==12.0.0 scikit-image==0.25.2 pypdf==6.4.0
+python3 -m playwright install --with-deps chromium
+python3 tools/tests/artist-workflow-diagnostic.py --distribution composeApp/build/dist --artifacts build/artist-workflow
+```
+
+The opaque photograph must produce an isolated multicolour stencil, and the real download controls must produce a PNG archive, StencilPack with independently recomposited sheets, PDF and whole-piece SVG/DXF/HPGL/G-code. Captures are digital evidence only, not proof of physical cutting or painting. The job uploads screenshots and exports on failure as well as success.
+
 ## Manual acceptance matrix (not yet verified)
 
 Record commit, browser/OS/device, viewport, input image, result, and screenshot or downloaded file for each row. Use an actual photograph as well as transparent artwork; compare matching regions of the original and prepared preview. Do not mark a row passed on compilation alone.
