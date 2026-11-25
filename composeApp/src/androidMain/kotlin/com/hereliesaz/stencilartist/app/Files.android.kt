@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ClipData
 import android.content.Intent
 import android.graphics.Bitmap
+import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,10 +43,21 @@ private class DocumentSaver(private val context: Context, private val scope: Cor
 
     override fun save(file: ExportFile, onResult: (Boolean) -> Unit) {
         pending = file to onResult
+        // DocumentsUI appends the canonical MIME extension if the requested filename
+        // disagrees with it (e.g. stencil.plt.hpgl or stencil.gcode.txt).
+        // Cutter filenames are part of their import contract. Ask Android for the
+        // MIME it associates with that extension, or an opaque document if unknown.
+        // Leave the shared ExportFile MIME and all other Android save types intact.
+        val extension = file.name.substringAfterLast('.', "").lowercase()
+        val documentMime = when (extension) {
+            CutterFormat.HPGL.extension, CutterFormat.GCODE.extension ->
+                MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+            else -> file.mimeType
+        }
         launch(
             Intent(Intent.ACTION_CREATE_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType(file.mimeType)
+                .setType(documentMime)
                 .putExtra(Intent.EXTRA_TITLE, file.name)
         )
     }
