@@ -34,6 +34,7 @@ class Device:
 
     def tree(self):
         for _ in range(3):
+            adb("shell", "rm", "-f", "/sdcard/stencil-ui.xml")
             adb("shell", "uiautomator", "dump", "/sdcard/stencil-ui.xml", check=False)
             raw = adb("shell", "cat", "/sdcard/stencil-ui.xml", check=False)
             try:
@@ -60,6 +61,7 @@ class Device:
 
     def tap(self, *labels, seconds=45, scroll=False):
         deadline = time.monotonic() + seconds
+        attempts = 0
         while time.monotonic() < deadline:
             point = self.match(self.tree(), labels)
             if point:
@@ -69,8 +71,11 @@ class Device:
                 return
             if scroll:
                 # Only swipe inside the lower settings panel, never across the preview.
-                adb("shell", "input", "swipe", str(self.width // 2), str(int(self.height * .84)),
-                    str(self.width // 2), str(int(self.height * .61)), "350")
+                # The Downloads shortcut may have left the panel at the bottom.
+                start, end = (.84, .61) if (attempts // 6) % 2 == 0 else (.61, .84)
+                adb("shell", "input", "swipe", str(self.width // 2), str(int(self.height * start)),
+                    str(self.width // 2), str(int(self.height * end)), "350")
+                attempts += 1
             time.sleep(.5)
         raise AssertionError(f"Could not reach {labels}")
 
@@ -120,6 +125,7 @@ def main():
     parser.add_argument("--apk", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path, required=True)
     args = parser.parse_args()
+    assert adb("shell", "getprop", "ro.kernel.qemu").strip() == b"1", "Refusing to clear app data on a physical device"
     out = args.artifacts
     out.mkdir(parents=True, exist_ok=True)
     Image.fromarray(data.astronaut()).convert("RGB").resize((256, 256)).save(out / FIXTURE)
@@ -142,7 +148,6 @@ def main():
         for stage in ("Palette", "Light", "Adjust", "Edges", "Inspect", "Images"):
             device.tap("Next: " + stage, stage + " →")
             device.shot(stage.lower())
-        device.tap("Show download controls", "Downloads ↓")
         composite = device.save("Download composite PNG", filenames[0])
         with Image.open(composite) as image:
             rgba = image.convert("RGBA")
@@ -154,7 +159,6 @@ def main():
         with zipfile.ZipFile(archive) as pack:
             assert pack.testzip() is None
             assert len([n for n in pack.namelist() if n.endswith(".png")]) > 2
-        device.tap("Show download controls", "Downloads ↓")
         layered = device.save("Export layered StencilPack for Graffux / GraffitiXR", filenames[2])
         with zipfile.ZipFile(layered) as pack:
             manifest = json.loads(pack.read("manifest.json"))
