@@ -132,7 +132,9 @@ def smoke(browser, url, width, height, directory, profile=False):
 
         def reveal(label):
             """Scroll the real Compose settings panel until the semantic control is on-screen."""
-            target = control(page, label)
+            # Format and fit choices use RadioButton semantics, not Button.
+            role = "radio" if label in ("Whole", "SVG", "DXF", "HPGL", "G-code") else "button"
+            target = page.get_by_role(role, name=label, exact=True).first
             expect(target).to_be_enabled(timeout=90000)
             for _ in range(20):
                 bounds = target.bounding_box()
