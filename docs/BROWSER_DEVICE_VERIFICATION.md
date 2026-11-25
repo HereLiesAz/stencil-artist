@@ -26,6 +26,20 @@ python3 tools/tests/artist-workflow-diagnostic.py --distribution composeApp/buil
 
 The opaque photograph must produce an isolated multicolour stencil, and the real download controls must produce a PNG archive, StencilPack with independently recomposited sheets, PDF and whole-piece SVG/DXF/HPGL/G-code. Captures are digital evidence only, not proof of physical cutting or painting. The job uploads screenshots and exports on failure as well as success.
 
+## Native Android acceptance
+
+The Android artist workflow CI job builds a debug APK (including the emulator's x86_64 ABI), boots API 35 at phone dimensions, imports an opaque photograph using the native image chooser, acknowledges loading and navigates the actual Compose controls. It exercises the fixed Downloads shortcut and system Save As dialogs, pulls the PNG, ZIP, StencilPack, PDF and cutter files from Downloads, and checks them with independent readers. Screenshots, accessibility XML, exported files and logcat are retained even on failure.
+
+On a disposable emulator with adb connected, run:
+
+```sh
+./gradlew :androidApp:assembleDebug
+python3 -m pip install Pillow==12.0.0 scikit-image==0.25.2 pypdf==6.4.0
+python3 tools/tests/android-artist-workflow.py --apk androidApp/build/outputs/apk/debug/androidApp-debug.apk --artifacts build/android-artist-workflow
+```
+
+The test clears app data and its named output files. It is not a physical phone, printer, cutter or painting test. Do not mark physical acceptance passed from this run.
+
 ## Manual acceptance matrix (not yet verified)
 
 Record commit, browser/OS/device, viewport, input image, result, and screenshot or downloaded file for each row. Use an actual photograph as well as transparent artwork; compare matching regions of the original and prepared preview. Do not mark a row passed on compilation alone.
