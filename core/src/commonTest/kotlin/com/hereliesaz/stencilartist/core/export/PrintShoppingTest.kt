@@ -185,21 +185,23 @@ class PrintShoppingTest {
 
     @Test
     fun withoutAListMatchesTheVerifiedPdfGoldenAfterCuttingGuidanceUpdate() {
-        // Fixed output lengths and FNV-1a hashes recomputed from CI job 138185095432 after the cutting guidance update.
+        // Fixed output lengths and FNV-1a hashes independently recomputed from CI job 139220855364, artifact 15023441862. All four PDFs rendered and page labels checked with independent readers.
         val golden = mapOf(
-            "stripes450" to (16850 to "a489b794404e1c76"),
-            "three-a4-land" to (22466 to "9ea11199fe5f964e"),
-            "mounted" to (71772 to "2e4a8a0f2f061018"),
-            "one-sheet-of-three" to (7583 to "4ea28cf1faccf848"),
+            "stripes450" to (17465 to "29e9afcef28f7fe3"),
+            "three-a4-land" to (23843 to "9b08d0e363322368"),
+            "mounted" to (75153 to "9a356b291d3ec2db"),
+            "one-sheet-of-three" to (7982 to "6170347c1a834e81"),
         )
-        val now = mapOf(
+        val now = noListFixtures()
+        assertEquals(golden, now.mapValues { (_, bytes) -> bytes.size to fnv(bytes) }, "No-list PDF goldens")
+    }
+
+    internal fun noListFixtures(): Map<String, ByteArray> = mapOf(
             "stripes450" to PrintPdf.make(stripes(), PrintOptions(450.0, shopping = emptyList())),
             "three-a4-land" to PrintPdf.make(three(), PrintOptions(500.0, Paper.A4, true)),
             "mounted" to PrintPdf.make(stripes(), PrintOptions(1000.0, Paper.US_LETTER, false, MountOptions(Board.POSTER_22X28))),
             "one-sheet-of-three" to PrintPdf.make(three(), PrintOptions(300.0), listOf(1)),
         )
-        for ((name, bytes) in now) assertEquals(golden.getValue(name), bytes.size to fnv(bytes), name)
-    }
 
     // ---- The list.
 

@@ -133,14 +133,25 @@ def smoke(browser, url, width, height, directory, profile=False):
         def reveal(label):
             """Use the fixed footer to reach settings or downloads through real clicks."""
             setting = label in ("Whole", "SVG", "DXF", "HPGL", "G-code")
-            role = "radio" if setting else "button"
-            target = page.get_by_role(role, name=label, exact=True).first
+            # Compose Wasm exposes Choice as a button in the actual Chromium AX tree.
+            target = control(page, label)
+            # The footer changes semantics when the scroll reaches the bottom.
+            page.wait_for_timeout(300)
+            bounds = target.bounding_box(timeout=2000) if target.count() else None
+            if bounds is not None and 55 < bounds["y"] + bounds["height"] / 2 < height - 55:
+                expect(target).to_be_enabled(timeout=90000)
+                return target
             shortcut = control(page, "Show export settings" if setting else "Show download controls")
-            if shortcut.is_visible():
-                shortcut.click(force=True)
+            if shortcut.count() and shortcut.is_visible():
+                from playwright.sync_api import Error
+                try:
+                    shortcut.click(force=True, timeout=2000)
+                except Error:
+                    # Compose can replace the footer during the click. Recheck the target.
+                    pass
             # The target may be temporarily clipped while Compose updates semantics.
             for _ in range(40):
-                bounds = target.bounding_box()
+                bounds = target.bounding_box(timeout=2000) if target.count() else None
                 if bounds is not None:
                     y = bounds["y"] + bounds["height"] / 2
                     if 55 < y < height - 55 and bounds["height"] > 0:
@@ -150,7 +161,7 @@ def smoke(browser, url, width, height, directory, profile=False):
             # Some Images controls are above the bottom of a short panel; use the normal
             # scroll surface rather than invoking a hidden DOM action.
             for _ in range(20):
-                bounds = target.bounding_box()
+                bounds = target.bounding_box(timeout=2000) if target.count() else None
                 if bounds is not None and 55 < bounds["y"] + bounds["height"] / 2 < height - 55:
                     expect(target).to_be_enabled(timeout=90000)
                     return target
@@ -201,6 +212,11 @@ def smoke(browser, url, width, height, directory, profile=False):
         from pypdf import PdfReader
         reader = PdfReader(pdf, strict=True)
         assert len(reader.pages) > 1
+        assert len(reader.page_labels) == len(reader.pages)
+        assert len(set(reader.page_labels)) == len(reader.pages)
+        assert reader.page_labels[0] == "Instructions 1"
+        assert any(" - assembly map" in label for label in reader.page_labels)
+        assert any(" - Row " in label for label in reader.page_labels)
         print(f"PDF pages: {len(reader.pages)}", flush=True)
         control(page, "Next: Cutter").click(force=True)
         page.screenshot(path=directory / f"{width}x{height}-cutter.png")
