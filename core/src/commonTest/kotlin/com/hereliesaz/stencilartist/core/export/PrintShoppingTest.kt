@@ -198,6 +198,7 @@ class PrintShoppingTest {
             "mounted" to PrintPdf.make(stripes(), PrintOptions(1000.0, Paper.US_LETTER, false, MountOptions(Board.POSTER_22X28))),
             "one-sheet-of-three" to PrintPdf.make(three(), PrintOptions(300.0), listOf(1)),
         )
+        for ((name, bytes) in now) println("PRINT_GOLDEN $name ${bytes.size} ${fnv(bytes)}")
         for ((name, bytes) in now) assertEquals(golden.getValue(name), bytes.size to fnv(bytes), name)
     }
 

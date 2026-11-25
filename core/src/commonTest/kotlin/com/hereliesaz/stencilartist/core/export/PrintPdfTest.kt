@@ -31,6 +31,7 @@ class PrintPdfTest {
     private class Pdf(val s: String) {
         val pages = ArrayList<Pair<Double, Double>>()
         val contents = ArrayList<String>()
+        lateinit var labels: List<String>
     }
 
     private fun parse(bytes: ByteArray): Pdf {
@@ -63,7 +64,17 @@ class PrintPdfTest {
         }
         assertEquals(pdf.pages.size, Regex("/Count (\\d+)").find(s)!!.groupValues[1].toInt())
         assertEquals(pdf.pages.size, pdf.contents.size)
+        pdf.labels = pageLabels(s)
+        assertEquals(pdf.pages.size, pdf.labels.size)
         return pdf
+    }
+
+    private fun pageLabels(s: String): List<String> {
+        val entries = assertNotNull(Regex("""/PageLabels << /Nums \[(.*?)\] >>""").find(s)).groupValues[1]
+        return Regex("""(\d+) << /P \(((?:\\.|[^\\)])*)\) >>""").findAll(entries).mapIndexed { index, match ->
+            assertEquals(index, match.groupValues[1].toInt())
+            match.groupValues[2].replace("\\(", "(").replace("\\)", ")").replace("\\\\", "\\")
+        }.toList()
     }
 
     private class Poly(val pts: List<Pair<Double, Double>>, val width: Double)
@@ -182,8 +193,9 @@ class PrintPdfTest {
     private fun options(widthMm: Double, paper: Paper = Paper.US_LETTER, landscape: Boolean = false) = PrintOptions(widthMm, paper, landscape)
 
     private fun tileContent(pdf: Pdf, sheet: Int, total: Int, tile: Tile): String? {
-        val label = "(Sheet ${sheet + 1} of $total - Row ${tile.row + 1} Col ${tile.col + 1} \\("
-        return pdf.contents.firstOrNull { label in it }
+        val prefix = "Sheet ${sheet + 1} of $total - Row ${tile.row + 1} Col ${tile.col + 1} ("
+        val index = pdf.labels.indexOfFirst { it.startsWith(prefix) }
+        return pdf.contents.getOrNull(index)
     }
 
     /** The marks of [content], as polylines in finished-piece mm for [tile] of [grid]. */
@@ -245,13 +257,24 @@ class PrintPdfTest {
         val pdf = parse(PrintPdf.make(s, opts))
         assertEquals(1 + 1 + 2, pdf.pages.size)
         val map = pdf.contents[1]
-        assertTrue("(C1 blank)" in map && "(B2 blank)" in map && "(A1)" in map && "(A2)" in map, map)
+        assertTrue("(c1 blank)" in map && "(b2 blank)" in map && "(a1)" in map && "(a2)" in map, map)
         assertTrue("4 skipped as blank" in map)
         // Labels and map agree: exactly the printed tiles have a page.
         for (t in plan.grid.tiles) {
             val printed = sheet.printed.contains(t)
             assertEquals(printed, tileContent(pdf, 0, 1, t) != null, "tile ${t.row},${t.col}")
         }
+    }
+
+    @Test
+    fun whollyRemovedInteriorTileIsOmittedAndRemainingPagesHaveViewerLabels() {
+        // 450 mm wide: the first Letter tile lies entirely in the removed 300 mm band.
+        // The second tile straddles the band edge, the third has no cut.
+        val image = stencil(450, 100) { x, _ -> x < 300 }
+        val pdf = parse(PrintPdf.make(image, options(450.0)))
+        val tileLabels = pdf.labels.filter { " - Row " in it }
+        assertEquals(listOf("Sheet 1 of 1 - Row 1 Col 2 (b1)"), tileLabels)
+        assertTrue("(a1 blank)" in pdf.contents[1] && "(c1 blank)" in pdf.contents[1])
     }
 
     @Test
@@ -294,7 +317,8 @@ class PrintPdfTest {
         val page = paper.oriented(landscape)
         val width = PrintSizing.widthMmForSheetsWide(2.5, page)
         val aspect = (1.5 * PrintPdf.stepHeightMm(page) + PrintPdf.printableHeightMm(page)) / width
-        val sep = stencil(100, (100 * aspect).roundToInt()) { _, _ -> true }
+        // Retained stripes ensure every page is needed under the wholly-removed-tile rule.
+        val sep = stencil(100, (100 * aspect).roundToInt()) { x, _ -> x % 8 != 0 }
         val o = PrintOptions(width, paper, landscape)
         val pdf = parse(PrintPdf.make(sep, o))
         val plan = PrintPdf.plan(sep, o).grid
@@ -401,7 +425,7 @@ class PrintPdfTest {
         val width = PrintSizing.widthMmForSheetsWide(3.0, page)
         val height = PrintSizing.widthMmForSheetsHigh(2.0, 1.0, page) // 2 pages high at aspect 1: a square piece is not what we want; use the height directly
         val aspect = ((2 - 1) * PrintPdf.stepHeightMm(page) + PrintPdf.printableHeightMm(page)) / width
-        val sep = stencil(300, (300 * aspect).roundToInt()) { _, _ -> true }
+        val sep = stencil(300, (300 * aspect).roundToInt()) { x, _ -> x % 12 != 0 }
         val o = PrintOptions(width, Paper.US_LETTER, false)
         val plan = PrintPdf.plan(sep, o).grid
         assertEquals(3, plan.cols); assertEquals(2, plan.rows)
@@ -579,7 +603,9 @@ class PrintPdfTest {
         val s = stencil(240, 240) { x, y -> x in 20..60 || y in 100..140 }
         val pdf = parse(PrintPdf.make(s, options(200.0)))
         val tile = pdf.contents.single { pageKind(it) == "tile" }
-        val label = interpret(tile).words.single { it.text.startsWith("Sheet 1 of 1 - Row 1 Col 1 (A1)") }
+        val label = interpret(tile).words.single { it.text.startsWith("Sheet 1 of 1 - Row 1 Col 1 (a1)") }
+        assertTrue("Sheet 1 of 1 - Row 1 Col 1 (a1)" in pdf.labels)
+        assertTrue(interpret(tile).words.any { it.text.startsWith("TOP - ") })
         val width = PdfText.width(label.text, label.size)
         val mm = 200.0 / 240
         for (px in 0 until 240) for (py in 0 until 240) {

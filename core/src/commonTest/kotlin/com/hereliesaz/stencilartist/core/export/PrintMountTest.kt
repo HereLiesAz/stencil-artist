@@ -31,7 +31,7 @@ class PrintMountTest {
 
     // ---- A small content-stream reader (the print tests have their own; this one also reads curves).
 
-    private class Page(val content: String) {
+    private class Page(val content: String, val label: String) {
         val kind = when {
             "How to put the pages together" in content -> "instructions"
             "assembly map" in content -> "map"
@@ -143,15 +143,25 @@ class PrintMountTest {
         val count = Regex("xref\n0 (\\d+)\n").find(s, startxref)!!.groupValues[1].toInt()
         val entries = s.substring(Regex("xref\n0 (\\d+)\n").find(s, startxref)!!.range.last + 1).take(count * 20)
         for (i in 1 until count) assertTrue(s.startsWith("$i 0 obj\n", entries.substring(i * 20, i * 20 + 10).toInt()), "xref entry $i")
+        val labels = pageLabels(s)
         val out = ArrayList<Page>()
         for (m in Regex("<< /Length (\\d+) >>\nstream\n").findAll(s)) {
             val from = m.range.last + 1
             val end = s.indexOf("\nendstream", from)
             assertEquals(m.groupValues[1].toInt(), end - from)
-            out += Page(s.substring(from, end))
+            out += Page(s.substring(from, end), labels[out.size])
         }
         assertEquals(out.size, Regex("/Count (\\d+)").find(s)!!.groupValues[1].toInt())
+        assertEquals(labels.size, out.size)
         return out
+    }
+
+    private fun pageLabels(s: String): List<String> {
+        val entries = assertNotNull(Regex("""/PageLabels << /Nums \[(.*?)\] >>""").find(s)).groupValues[1]
+        return Regex("""(\d+) << /P \(((?:\\.|[^\\)])*)\) >>""").findAll(entries).mapIndexed { index, match ->
+            assertEquals(index, match.groupValues[1].toInt())
+            match.groupValues[2].replace("\\(", "(").replace("\\)", ")").replace("\\\\", "\\")
+        }.toList()
     }
 
     // ---- Boards and options.
@@ -220,13 +230,12 @@ class PrintMountTest {
     private val bh = 711.2
 
     /** A tile page's boards, and its column and row (0-based) in the one grid, from its label. */
-    private class Where(val boards: List<Int>, val col: Int, val row: Int)
+    private class Where(val boards: List<String>, val col: Int, val row: Int)
 
-    private fun whereIs(d: Drawn): Where? {
-        val label = d.words.map { it.third }.firstOrNull { Regex("Sheet \\d+ of \\d+ - (Board \\d+ of \\d+|Boards [0-9+]+) - [A-Z]+\\d+").matches(it) } ?: return null
-        val m = Regex("- (Board (\\d+) of \\d+|Boards ([0-9+]+)) - ([A-Z]+)(\\d+)$").find(label)!!
-        val boards = if (m.groupValues[2].isNotEmpty()) listOf(m.groupValues[2].toInt()) else m.groupValues[3].split("+").map { it.toInt() }
-        return Where(boards, m.groupValues[4][0] - 'A', m.groupValues[5].toInt() - 1)
+    private fun whereIs(page: Page): Where? {
+        val m = Regex("""Sheet \d+ of \d+ - Boards ([A-Z]+\d+(?:\+[A-Z]+\d+)*) - ([a-z]+)(\d+)""").matchEntire(page.label) ?: return null
+        val col = m.groupValues[2].fold(0) { value, letter -> value * 26 + (letter - 'a' + 1) } - 1
+        return Where(m.groupValues[1].split("+"), col, m.groupValues[3].toInt() - 1)
     }
 
     private fun windowLeft(w: Where) = 3.0 + w.col * stepX
@@ -286,7 +295,7 @@ class PrintMountTest {
         assertTrue(p.sheets.single().printed.any { it.col == 0 && it.row == 0 }, "A1 is the squaring reference")
         assertTrue(p.sheets.single().blank.isNotEmpty())
         val pdf = pages(PrintPdf.make(sep, options(400.0)))
-        assertTrue(pdf.filter { it.kind == "tile" }.mapNotNull { whereIs(interpret(it.content)) }.any { it.col == 0 && it.row == 0 })
+        assertTrue(pdf.filter { it.kind == "tile" }.mapNotNull { whereIs(it) }.any { it.col == 0 && it.row == 0 })
         val none = plan(stencil(100, 100) { _, _ -> false }, options(400.0))
         assertTrue(none.sheets.single().printed.isEmpty())
     }
@@ -297,15 +306,19 @@ class PrintMountTest {
         val pdf = pages(PrintPdf.make(sep, options(1000.0)))
         assertEquals("instructions", pdf[0].kind)
         assertEquals(1, pdf.count { it.kind == "map" })
-        val labels = pdf.filter { it.kind == "tile" }.map { interpret(it.content).words.map { w -> w.third }.first { w -> w.startsWith("Sheet ") } }
-        assertTrue(labels.any { Regex("Sheet 1 of 1 - Board 1 of 6 - A1").matches(it) }, labels.take(3).toString())
-        assertTrue(labels.any { Regex("Sheet 1 of 1 - Boards 1\\+2 - [A-Z]\\d").matches(it) }, "a page across the edge between boards 1 and 2")
-        assertTrue(labels.any { Regex("Sheet 1 of 1 - Boards 1\\+4 - [A-Z]\\d").matches(it) }, "and one across the edge between boards 1 and 4")
-        assertTrue(labels.any { Regex("Sheet 1 of 1 - Boards [0-9]\\+[0-9]\\+[0-9]\\+[0-9] - [A-Z]\\d").matches(it) }, "and one at a corner touching four boards")
+        val labels = pdf.filter { it.kind == "tile" }.map { it.label }
+        assertTrue("Sheet 1 of 1 - Boards A1 - a1" in labels, labels.take(3).toString())
+        assertTrue(labels.any { Regex("""Sheet 1 of 1 - Boards A1\+B1 - [a-z]\d""").matches(it) }, "horizontal board crossing")
+        assertTrue(labels.any { Regex("""Sheet 1 of 1 - Boards A1\+A2 - [a-z]\d""").matches(it) }, "vertical board crossing")
+        assertTrue(labels.any { Regex("""Sheet 1 of 1 - Boards [A-Z]\d\+[A-Z]\d\+[A-Z]\d\+[A-Z]\d - [a-z]\d""").matches(it) }, "four-board crossing")
+        for (page in pdf.filter { it.kind == "tile" }) {
+            val printed = interpret(page.content).words.map { it.third }.filter { it.startsWith("Sheet ") }
+            assertTrue(printed.all { it == page.label }, "printed and viewer labels agree")
+        }
         val map = pdf.first { it.kind == "map" }.content
         assertTrue("[0.01 3.0] 0 d" in map, "dotted lines on the map")
         val words = interpret(map).words.map { it.third }
-        assertTrue("Board 1" in words && "Board 6" in words, words.toString())
+        assertTrue("Board A1" in words && "Board C2" in words, words.toString())
         assertTrue(words.any { "Boards: 6 (3 across x 2 down, portrait)" in it })
     }
 
@@ -314,8 +327,8 @@ class PrintMountTest {
         val s = stencil(400, 400) { x, _ -> x < 120 }
         val map = pages(PrintPdf.make(s, options())).first { it.kind == "map" }.content
         val words = interpret(map).words.map { it.third }
-        assertTrue("Board 2 blank" in words && "Board 3 blank" in words && "Board 5 blank" in words && "Board 6 blank" in words, words.toString())
-        assertTrue("Board 1" in words && "Board 4" in words)
+        assertTrue("Board B1 blank" in words && "Board C1 blank" in words && "Board B2 blank" in words && "Board C2 blank" in words, words.toString())
+        assertTrue("Board A1" in words && "Board A2" in words)
     }
 
     /** The dotted cut lines of a tile page, as ((x1, y1), (x2, y2)) in grid mm. */
@@ -341,7 +354,7 @@ class PrintMountTest {
         var crossings = 0
         for (page in pdf.filter { it.kind == "tile" }) {
             val d = interpret(page.content)
-            val w = assertNotNull(whereIs(d))
+            val w = assertNotNull(whereIs(page))
             val lines = dottedLines(page.content, w)
             val wl = windowLeft(w); val wt = windowTop(w)
             // The vertical and horizontal board edges that cross this page's printed area.
@@ -426,7 +439,7 @@ class PrintMountTest {
         val pdf = pages(PrintPdf.make(sep, opts))
         var straddling = 0
         for (page in pdf.filter { it.kind == "tile" }) {
-            val w = assertNotNull(whereIs(interpret(page.content)))
+            val w = assertNotNull(whereIs(page))
             val wl = windowLeft(w)
             for ((clip, tx) in artBlocks(page.content, w)) {
                 // Which board this block belongs to: the one whose rectangle holds it.
@@ -462,7 +475,7 @@ class PrintMountTest {
         val border = poster.borderMm
         var checked = 0
         for (page in pdf.filter { it.kind == "tile" }) {
-            val w = assertNotNull(whereIs(interpret(page.content)))
+            val w = assertNotNull(whereIs(page))
             val blocks = artBlocks(page.content, w)
             val b2 = blocks.firstOrNull { (clip, _) -> clip[0] >= bw - 0.01 && clip[0] < 2 * bw && clip[1] < bh } ?: continue
             val b1 = blocks.firstOrNull { (clip, _) -> clip[2] <= bw + 0.01 && clip[1] < bh }
@@ -486,7 +499,7 @@ class PrintMountTest {
         val pdf = pages(PrintPdf.make(sep, options(1000.0)))
         for (page in pdf.filter { it.kind == "tile" }) {
             val d = interpret(page.content)
-            val w = assertNotNull(whereIs(d))
+            val w = assertNotNull(whereIs(page))
             for ((i, word) in d.words.withIndex()) {
                 if (word.third.startsWith("cut ") || word.third == "cut here - board edge" || word.third == "TAB") continue
                 val x0 = (word.first / k - 3.0) + windowLeft(w)
@@ -540,10 +553,10 @@ class PrintMountTest {
         val pdf = pages(PrintPdf.make(stripes(), options()))
         val text = interpret(pdf[0].content).words.joinToString(" ") { it.third }
         for (needle in listOf("GET THE BOARD", "Poster board 22 x 28 in", "railroad board", "Thin poster board tears", "6 boards", "2 in", "50.8 mm",
-            "FIND YOUR PAGES", "one grid of pages", "LAY THE PAGES", "page A1's paper edges on the board's top and left edges", "THE 3 MM STRIP", "Continue each cut line",
+            "FIND YOUR PAGES", "one grid of pages", "LAY THE PAGES", "page a1's paper edges on the board's top and left edges", "THE 3 MM STRIP", "Continue each cut line",
             "CUT AT THE DOTTED LINE", "cut the paper along the dotted line", "keep the offcut", "first piece of the next board",
             "up to three other boards", "The dotted line is the only place paper is cut", "waste", "GLUE", "butt it square", "CUT", "Cut paper and board along dark outlines",
-            "Two boards edge to edge: cut on the dotted line", "A1 is the top-left corner page")) {
+            "Two boards edge to edge: cut on the dotted line", "a1 is the top-left corner page")) {
             assertTrue(needle in text, "instructions mention '$needle'")
         }
         for (gone in listOf("REGISTER", "target", "pierce", "fitted", "overhang")) assertFalse(gone in text, "no '$gone' in the instructions")
