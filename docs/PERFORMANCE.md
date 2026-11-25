@@ -19,6 +19,6 @@ For each representative Android phone and browser/device combination, record the
 4. Orbit changes and zoom/pan: capture browser Performance traces or Android frame timing separately from full pipeline elapsed time.
 5. Export PNG and print/cutter files separately; check output dimensions and cut geometry before comparing latency.
 
-Memory is not inferred from elapsed time. On Android capture `adb shell dumpsys meminfo com.hereliesaz.stencilartist` before and after each scenario (PSS snapshots, not peak); use Android Studio Profiler for peaks. On Chromium use task/process memory or browser performance tooling; JavaScript heap alone does not include all Wasm or Skia allocations. Record measurement method, sampling interval, and whether a value is peak or snapshot.
+Memory is not inferred from elapsed time. On Android capture `adb shell dumpsys meminfo com.hereliesaz.stencil_artist` before and after each scenario (PSS snapshots, not peak); use Android Studio Profiler for peaks. On Chromium use task/process memory or browser performance tooling; JavaScript heap alone does not include all Wasm or Skia allocations. Record measurement method, sampling interval, and whether a value is peak or snapshot.
 
 No latency or memory target is asserted until representative measurements exist. The longest working edge is currently 1600 pixels; mesh and orbit resolution are independent. Do not reduce committed image/export resolution as an unmeasured shortcut.

@@ -47,7 +47,7 @@
 #   ci                    .github/workflows/ci.yml is target CI: it runs here, by policy, and
 #                         reports through the ci-report action.
 #
-# Android release profiles are registered centrally for :androidApp / com.hereliesaz.stencilartist.
+# Android release profiles are registered centrally for :androidApp / com.hereliesaz.stencil_artist.
 # Play publishing targets closed alpha testing only.
 requested:
   - github-pages-deploy

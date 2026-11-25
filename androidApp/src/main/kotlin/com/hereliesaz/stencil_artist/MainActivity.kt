@@ -1,4 +1,4 @@
-package com.hereliesaz.stencilartist
+package com.hereliesaz.stencil_artist
 
 import android.os.Bundle
 import com.hereliesaz.aznavrail.updates.AzUpdateChecker
