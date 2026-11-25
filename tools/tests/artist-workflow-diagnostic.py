@@ -131,25 +131,33 @@ def smoke(browser, url, width, height, directory, profile=False):
         page.screenshot(path=directory / f"{label}-images.png")
 
         def reveal(label):
-            """Scroll the real Compose settings panel until the semantic control is on-screen."""
-            # Format and fit choices use RadioButton semantics, not Button.
-            role = "radio" if label in ("Whole", "SVG", "DXF", "HPGL", "G-code") else "button"
+            """Use the fixed footer to reach settings or downloads through real clicks."""
+            setting = label in ("Whole", "SVG", "DXF", "HPGL", "G-code")
+            role = "radio" if setting else "button"
             target = page.get_by_role(role, name=label, exact=True).first
-            expect(target).to_be_enabled(timeout=90000)
-            for _ in range(20):
+            shortcut = control(page, "Show export settings" if setting else "Show download controls")
+            if shortcut.is_visible():
+                shortcut.click(force=True)
+            # The target may be temporarily clipped while Compose updates semantics.
+            for _ in range(40):
                 bounds = target.bounding_box()
                 if bounds is not None:
                     y = bounds["y"] + bounds["height"] / 2
-                    if 55 < y < height - 75:
+                    if 55 < y < height - 55 and bounds["height"] > 0:
+                        expect(target).to_be_enabled(timeout=90000)
                         return target
-                    # The desktop settings column is the right-hand scrollable surface.
-                    page.mouse.move(width - 100, height // 2)
-                    page.mouse.wheel(0, 560 if y >= height - 75 else -560)
-                else:
-                    page.mouse.move(width - 100, height // 2)
-                    page.mouse.wheel(0, 560)
-                page.wait_for_timeout(250)
-            raise AssertionError(f"Unable to scroll {label!r} into view")
+                page.wait_for_timeout(150)
+            # Some Images controls are above the bottom of a short panel; use the normal
+            # scroll surface rather than invoking a hidden DOM action.
+            for _ in range(20):
+                bounds = target.bounding_box()
+                if bounds is not None and 55 < bounds["y"] + bounds["height"] / 2 < height - 55:
+                    expect(target).to_be_enabled(timeout=90000)
+                    return target
+                page.mouse.move(width - 185, height // 2)
+                page.mouse.wheel(0, -350 if bounds is not None and bounds["y"] < 55 else 350)
+                page.wait_for_timeout(200)
+            raise AssertionError(f"Unable to reveal {label!r}")
 
         # Download the actual exports from the remaining stages, without calling the pipeline directly.
         import zipfile

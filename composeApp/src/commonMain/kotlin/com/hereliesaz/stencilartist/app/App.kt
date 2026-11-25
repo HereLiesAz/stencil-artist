@@ -1415,10 +1415,13 @@ private fun Controls(state: StencilState, ui: StudioUi, pick: () -> Unit, modifi
             // Downloads live after the settings in the scrollable panel. Keep a way to reach
             // them in the fixed navigation footer, especially on a short phone screen.
             if (step in 7..9) {
+                val atDownloads = stepScroll.maxValue > 0 && stepScroll.value >= stepScroll.maxValue
                 OutlinedButton(
-                    onClick = { exportScope.launch { stepScroll.animateScrollTo(stepScroll.maxValue) } },
-                    modifier = Modifier.semantics { contentDescription = "Show download controls" },
-                ) { Text("Downloads ↓") }
+                    onClick = { exportScope.launch { stepScroll.scrollTo(if (atDownloads) 0 else stepScroll.maxValue) } },
+                    modifier = Modifier.semantics {
+                        contentDescription = if (atDownloads) "Show export settings" else "Show download controls"
+                    },
+                ) { Text(if (atDownloads) "Settings ↑" else "Downloads ↓") }
             }
             if (step < STUDIO_STEPS.lastIndex) {
                 val next = STUDIO_STEPS[step + 1].first
