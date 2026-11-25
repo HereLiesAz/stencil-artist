@@ -19,6 +19,9 @@ val appVersionName: String = (findProperty("versionName") as String?)?.takeIf { 
 val appVersionCode: Int = (findProperty("versionCode") as String?)?.toIntOrNull()
     ?: maxOf(1, ((versionPart("versionMajor") * 100 + versionPart("versionMinor")) * 100 + versionPart("versionPatch")) * 1000 + versionPart("versionBuild"))
 
+// Only the central Play profile opts into R8 and Play-specific update behavior.
+val playRelease = providers.gradleProperty("stencilPlayRelease").orNull == "true"
+
 android {
     namespace = "com.hereliesaz.stencilartist"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
@@ -32,7 +35,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "PLAY_RELEASE", "false")
+        }
         release {
+            // The central Play publisher requires a real R8 mapping; GitHub APKs stay as before.
+            isMinifyEnabled = playRelease
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            buildConfigField("boolean", "PLAY_RELEASE", playRelease.toString())
             // ONNX Runtime ships a native library per CPU type, tens of megabytes each. Phones are
             // ARM; the x86 builds only serve emulators, which the debug build still covers.
             ndk {
@@ -43,6 +53,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     // The models live once, at the repository root, and are packaged from there. Stored

@@ -13,6 +13,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent { App() }
-        AzUpdateChecker.check(this, "HereLiesAz/stencil-artist")
+        // Play-installed releases receive updates through Google Play, not GitHub APKs.
+        if (!BuildConfig.PLAY_RELEASE) AzUpdateChecker.check(this, "HereLiesAz/stencil-artist")
     }
 }
