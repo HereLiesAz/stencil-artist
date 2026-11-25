@@ -130,7 +130,9 @@ class Device:
                     print("EXPORTED", filename, path.stat().st_size, flush=True)
                     return path
             time.sleep(1)
-        raise AssertionError(f"Document picker did not save {filename} in Downloads")
+        actual = adb("shell", "ls", "-la", "/sdcard/Download", check=False).decode(errors="replace")
+        (self.evidence / "downloads-on-failure.txt").write_text(actual)
+        raise AssertionError(f"Document picker did not save exact filename {filename} in Downloads:\n{actual}")
 
 
 def main():
