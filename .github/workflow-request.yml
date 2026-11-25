@@ -48,7 +48,7 @@
 #                         reports through the ci-report action.
 #
 # Android release profiles are registered centrally for :androidApp / com.hereliesaz.stencilartist.
-# Play publishing is limited to internal testing until paint catalogue redistribution is cleared.
+# Play publishing targets closed alpha testing only.
 requested:
   - github-pages-deploy
   - android-github-release

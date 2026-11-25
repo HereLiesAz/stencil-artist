@@ -19,7 +19,7 @@ val appVersionName: String = (findProperty("versionName") as String?)?.takeIf { 
 val appVersionCode: Int = (findProperty("versionCode") as String?)?.toIntOrNull()
     ?: maxOf(1, ((versionPart("versionMajor") * 100 + versionPart("versionMinor")) * 100 + versionPart("versionPatch")) * 1000 + versionPart("versionBuild"))
 
-// Only the central Play profile opts into R8 and Play-specific update behavior.
+// The central closed-alpha Play profile opts into R8 and Play-specific update behavior.
 val playRelease = providers.gradleProperty("stencilPlayRelease").orNull == "true"
 
 android {

@@ -297,7 +297,7 @@ catalog; see `.github/WORKFLOW_POLICY.md`.
 
 The Android launcher checks for stable GitHub releases using AzNavRail 12.5, except in Play bundles, which receive updates through Google Play. It sends no drawing or model data, and opens the release page only when the user chooses Update. The web build is unchanged.
 
-Android publishing is handled by [the central Play workflow](https://github.com/HereLiesAz/workflows/blob/main/.github/workflows/android-play-release.yml). It builds `:androidApp:bundleRelease -PstencilPlayRelease=true`, enabling R8 and producing a real `mapping.txt`; existing GitHub APK builds remain unminified. Signing and Play API credentials belong in the central `stencil-artist` environment. The release profile targets internal testing only until paint catalogue redistribution is cleared. Local CI builds the same bundle without signing and checks its mapping.
+Android publishing is handled by [the central Play workflow](https://github.com/HereLiesAz/workflows/blob/main/.github/workflows/android-play-release.yml). It builds `:androidApp:bundleRelease -PstencilPlayRelease=true`, enabling R8 and producing a real `mapping.txt`; existing GitHub APK builds remain unminified. Signing and Play API credentials belong in the central `stencil-artist` environment. The release profile publishes to the closed alpha testing track only; it does not update internal, beta or production tracks. Local CI builds the same bundle without signing and checks its mapping.
 
 
 ## Branding
