@@ -268,12 +268,13 @@ class PrintPdfTest {
 
     @Test
     fun whollyRemovedInteriorTileIsOmittedAndRemainingPagesHaveViewerLabels() {
-        // 450 mm wide: the first Letter tile lies entirely in the removed 300 mm band.
-        // The second tile straddles the band edge, the third has no cut.
-        val image = stencil(450, 100) { x, _ -> x < 300 }
+        // The first Letter tile lies entirely in the removed 300 mm band.
+        // The second straddles the edge; the short bottom row contains exterior stock.
+        val image = stencil(450, 280) { x, _ -> x < 300 }
         val pdf = parse(PrintPdf.make(image, options(450.0)))
         val tileLabels = pdf.labels.filter { " - Row " in it }
-        assertEquals(listOf("Sheet 1 of 1 - Row 1 Col 2 (b1)"), tileLabels)
+        assertEquals(listOf("Sheet 1 of 1 - Row 1 Col 2 (b1)",
+            "Sheet 1 of 1 - Row 2 Col 1 (a2)", "Sheet 1 of 1 - Row 2 Col 2 (b2)"), tileLabels)
         assertTrue("(a1 blank)" in pdf.contents[1] && "(c1 blank)" in pdf.contents[1])
     }
 
