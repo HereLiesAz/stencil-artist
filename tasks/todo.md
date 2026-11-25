@@ -84,7 +84,7 @@ stencil-artist/
   tasks/        todo.md, lessons.md
 ~~~
 
-- Package `com.hereliesaz.stencilartist`.
+- Android application ID and launcher namespace: `com.hereliesaz.stencil_artist`. Shared app and core Kotlin packages retain `com.hereliesaz.stencilartist` as their prefix.
 - **No OpenCV.** Median, close and flood fill are rewritten in pure Kotlin so one implementation
   serves Android and Wasm. The only platform code is ONNX inference and file I/O.
 - Pipeline is byte/int-array in, byte/int-array out; the UI owns bitmaps.

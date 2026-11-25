@@ -23,11 +23,11 @@ val appVersionCode: Int = (findProperty("versionCode") as String?)?.toIntOrNull(
 val playRelease = providers.gradleProperty("stencilPlayRelease").orNull == "true"
 
 android {
-    namespace = "com.hereliesaz.stencilartist"
+    namespace = "com.hereliesaz.stencil_artist"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.hereliesaz.stencilartist"
+        applicationId = "com.hereliesaz.stencil_artist"
         minSdk = libs.versions.androidMinSdk.get().toInt()
         targetSdk = libs.versions.androidTargetSdk.get().toInt()
         versionCode = appVersionCode
