@@ -22,3 +22,21 @@ expect fun rememberImagePicker(onPicked: (RgbaImage) -> Unit, onError: (String) 
 
 /** Straight-alpha ARGB [pixels], row-major, as something Compose can draw. */
 expect fun argbToImageBitmap(pixels: IntArray, width: Int, height: Int): ImageBitmap
+
+/** Whether local, opt-in timing diagnostics are enabled for this process/page. */
+internal expect fun stencilPerformanceEnabled(): Boolean
+
+/** Report one timing record locally; never include image data or send network telemetry. */
+internal expect fun reportStencilPerformance(record: String)
+
+
+/**
+ * A genuine modal loading/acknowledgement surface. Android uses a Compose window; the
+ * browser uses a native HTML dialog to keep the canvas accessibility tree alive.
+ * The state owner must reject dismissal while [processing] is true.
+ */
+@Composable
+internal expect fun PlatformLoadingNotice(
+    heading: String, tip: String, processing: Boolean, progress: Float,
+    error: String?, onDismiss: () -> Unit,
+)

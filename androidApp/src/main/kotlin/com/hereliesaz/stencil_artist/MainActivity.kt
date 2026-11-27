@@ -1,6 +1,7 @@
-package com.hereliesaz.stencilartist
+package com.hereliesaz.stencil_artist
 
 import android.os.Bundle
+import com.hereliesaz.aznavrail.updates.AzUpdateChecker
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -12,5 +13,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent { App() }
+        // Play-installed releases receive updates through Google Play, not GitHub APKs.
+        if (!BuildConfig.PLAY_RELEASE) AzUpdateChecker.check(this, "HereLiesAz/stencil-artist")
     }
 }

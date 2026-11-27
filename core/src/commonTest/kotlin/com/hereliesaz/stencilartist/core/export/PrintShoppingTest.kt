@@ -184,22 +184,24 @@ class PrintShoppingTest {
     // ---- No list: byte for byte what the exporter wrote before the list existed.
 
     @Test
-    fun withoutAListTheFileIsByteForByteWhatItWasBefore() {
-        // Hashes (FNV-1a 64) and lengths of the output taken from the exporter BEFORE this feature, for four fixed inputs.
+    fun withoutAListMatchesTheVerifiedPdfGoldenAfterCuttingGuidanceUpdate() {
+        // Fixed output lengths and FNV-1a hashes independently recomputed from CI job 139220855364, artifact 15023441862. All four PDFs rendered and page labels checked with independent readers.
         val golden = mapOf(
-            "stripes450" to (16880 to "c317e3a9a678e767"),
-            "three-a4-land" to (22531 to "e20d31f873d83c91"),
-            "mounted" to (71863 to "da3e01d908666171"),
-            "one-sheet-of-three" to (7613 to "7771240bbd0dbdd6"),
+            "stripes450" to (17465 to "29e9afcef28f7fe3"),
+            "three-a4-land" to (23843 to "9b08d0e363322368"),
+            "mounted" to (75153 to "9a356b291d3ec2db"),
+            "one-sheet-of-three" to (7982 to "6170347c1a834e81"),
         )
-        val now = mapOf(
+        val now = noListFixtures()
+        assertEquals(golden, now.mapValues { (_, bytes) -> bytes.size to fnv(bytes) }, "No-list PDF goldens")
+    }
+
+    internal fun noListFixtures(): Map<String, ByteArray> = mapOf(
             "stripes450" to PrintPdf.make(stripes(), PrintOptions(450.0, shopping = emptyList())),
             "three-a4-land" to PrintPdf.make(three(), PrintOptions(500.0, Paper.A4, true)),
             "mounted" to PrintPdf.make(stripes(), PrintOptions(1000.0, Paper.US_LETTER, false, MountOptions(Board.POSTER_22X28))),
             "one-sheet-of-three" to PrintPdf.make(three(), PrintOptions(300.0), listOf(1)),
         )
-        for ((name, bytes) in now) assertEquals(golden.getValue(name), bytes.size to fnv(bytes), name)
-    }
 
     // ---- The list.
 
@@ -249,6 +251,19 @@ class PrintShoppingTest {
         assertFalse("Twin 4" in all)
         assertTrue("also: Other1 Line1 Twin 1 (T1), Other2 Line2 Twin 2 (T2)" in all && "and 0 more" !in all)
         assertEquals(2, Regex("also:").findAll(all).count())
+    }
+
+    @Test
+    fun userEnteredCanColourIsIdentifiedAsApproximateInThePdf() {
+        val userCan = can("MTN", "94", "Custom Red", "R-1", 0xFFAA2233.toInt(), src = HexSource.USER)
+        val item = ShoppingList.of(listOf(PaintLayer(0xFFAA2233.toInt(), listOf(userCan)))).single()
+        assertFalse(item.sampled)
+        assertTrue(item.userColour)
+        val words = PrintPdf.make(stripes(), PrintOptions(450.0, shopping = listOf(item)))
+            .let { parse(it).contents }.joinToString(" ") { textOf(it) }
+        assertTrue("user-entered colour, approximate" in words)
+        assertFalse("colour sampled" in words)
+        assertTrue("Custom Red" in words)
     }
 
     @Test

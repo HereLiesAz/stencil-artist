@@ -1,10 +1,10 @@
 package com.hereliesaz.stencilartist.core
 
 /** A physical cutting problem, anchored to a position in the original stencil image. */
-enum class PrintTipKind { ISLAND, FINE_CUT }
+enum class PrintTipKind { ISLAND, FINE_CUT, SOFT_GRADIENT }
 
 /** Pixel coordinates are in the full stencil, never in a cropped print tile. */
-data class PrintTip(val kind: PrintTipKind, val x: Int, val y: Int)
+data class PrintTip(val kind: PrintTipKind, val x: Int, val y: Int, val direction: LiftDirection? = null)
 
 /**
  * Finds physical cutting problems without modifying the cuts.

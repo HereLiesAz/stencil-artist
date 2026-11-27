@@ -3,6 +3,7 @@ package com.hereliesaz.stencilartist.app
 import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.export.DxfExporter
 import com.hereliesaz.stencilartist.core.export.GcodeExporter
+import com.hereliesaz.stencilartist.core.export.GcodeOptions
 import com.hereliesaz.stencilartist.core.export.HpglExporter
 import com.hereliesaz.stencilartist.core.export.PhysicalSize
 import com.hereliesaz.stencilartist.core.export.SvgExporter
@@ -44,6 +45,8 @@ object CutterExports {
      * @param fit the mat or page to split the piece across, or null to write it whole.
      * @param cutLines SVG only: hairline outlines with no fill, as cutter software expects, instead
      *   of filled shapes in the sheets' colours.
+     * @param gcodeOptions feed, travel, power, passes and laser/router parameters, for G-code only.
+     *   Other formats do not use them; defaults keep prior G-code exports unchanged.
      */
     fun make(
         separation: Separation,
@@ -52,6 +55,7 @@ object CutterExports {
         sheet: Int? = null,
         fit: TileSpec? = null,
         cutLines: Boolean = true,
+        gcodeOptions: GcodeOptions = GcodeOptions(),
     ): ExportFile {
         require(separation.sheets.isNotEmpty()) { "A cutter file needs at least one sheet" }
         require(sheet == null || sheet in separation.sheets.indices) { "There is no sheet ${(sheet ?: 0) + 1}" }
@@ -65,7 +69,7 @@ object CutterExports {
             CutterFormat.SVG -> SvgExporter.export(drawing, size, one, tile, SvgOptions(cutLines = cutLines))
             CutterFormat.DXF -> DxfExporter.export(drawing, size, one, tile)
             CutterFormat.HPGL -> HpglExporter.export(drawing, size, one, tile)
-            CutterFormat.GCODE -> GcodeExporter.export(drawing, size, one, tile)
+            CutterFormat.GCODE -> GcodeExporter.export(drawing, size, one, tile, gcodeOptions)
         }.encodeToByteArray()
 
         val files = ArrayList<ExportFile>()

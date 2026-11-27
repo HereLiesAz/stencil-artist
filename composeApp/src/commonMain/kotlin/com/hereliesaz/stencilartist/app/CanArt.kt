@@ -1,6 +1,10 @@
 package com.hereliesaz.stencilartist.app
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -9,79 +13,85 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.runtime.remember
-import com.hereliesaz.stencilartist.core.paint.CanTop as CanTopArtwork
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
 import com.hereliesaz.stencilartist.core.paint.CanColours
+import com.hereliesaz.stencilartist.app.generated.resources.Res
+import com.hereliesaz.stencilartist.app.generated.resources.mtn94_original_packshot
+import com.hereliesaz.stencilartist.app.generated.resources.mtn94_original_top_strip
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.imageResource
 
 /*
- * Spray cans, drawn from nothing but their colour value. There are no photographs of the makers' cans
- * and no licence for their pictures. The top of a can is the owner's photograph of a bare can top,
- * painted the can's colour (see core CanTop); the side view is a few shapes. Both are deterministic,
- * cheap and the same on every target.
+ * Generic cans are drawn as deterministic vector shapes. The MTN 94 carousel is the exception:
+ * it uses the user's original unmodified transparent PNG, with an independent colour fill below
+ * the existing translucent shoulder. No pixel of that photograph is masked, cut or regenerated.
  */
 
 private fun tone(rgb: Int) = Color(rgb)
 private fun lighter(rgb: Int, by: Double) = Color(CanColours.lighten(rgb, by))
 private fun darker(rgb: Int, by: Double) = Color(CanColours.darken(rgb, by))
 
-/** The can-top photograph painted each colour, kept so scrolling a grid of 60 tops does not repaint them. */
-private val paintedTops = HashMap<Int, ImageBitmap>()
-
-private fun paintedTop(rgb: Int): ImageBitmap {
-    val key = rgb or (0xFF shl 24)
-    paintedTops[key]?.let { return it }
-    // Bounded: a long session of browsing must not hold every colour in the catalogue.
-    if (paintedTops.size >= 512) paintedTops.clear()
-    return argbToImageBitmap(CanTopArtwork.pixels(key), CanTopArtwork.SIZE, CanTopArtwork.SIZE).also { paintedTops[key] = it }
-}
-
 /**
- * A can seen from above, [size] square: a photograph of a can top painted [colour], with the can's own
- * rim, light and nozzle ring. [colour] null draws a hatched grey disc, for a can with no colour value. [selected]
- * adds a thick white ring and a check; [sampled] adds a small dot, for a colour that is our own sampling.
+ * Exact unmodified supplied spray-can TOP artwork, composited over one solid RGB circle
+ * for this can. The grid (not this tile) supplies the SINGLE shared white background.
+ *
+ * The supplied 724×2172 PNG contains five metal tops. Their per-frame source bounds are located at the transparent seam minima, so adjacent tops do not bleed into one another. We
+ * crop only at draw time; no uploaded file pixels are recoloured, masked or resampled
+ * before Compose draws them. The per-can paint circle remains an independent layer.
  */
 @Composable
-internal fun CanTop(colour: Int?, selected: Boolean, sampled: Boolean, size: Dp, modifier: Modifier = Modifier) {
-    val picture = remember(colour) { colour?.let { paintedTop(it) } }
+internal fun CanTop(
+    colour: Int?,
+    selected: Boolean,
+    sampled: Boolean,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    artIndex: Int = 0,
+) {
+    // Unknown colours never receive invented colour swatches or placeholder can art.
+    if (colour == null) return
+    val original = imageResource(Res.drawable.mtn94_original_top_strip)
     Canvas(modifier.size(size)) {
-        val c = Offset(this.size.width / 2, this.size.height / 2)
-        val r = this.size.minDimension / 2 * (if (selected) 0.86f else 0.92f)
-        if (colour == null) {
-            // Rim: two greys, so the edge of the can has a lip.
-            drawCircle(Color(0xFF9A9A9A), r, c)
-            drawCircle(Color(0xFF4A4A4A), r * 0.93f, c)
-            val disc = r * 0.80f
-            drawCircle(Color(0xFF2A2A2A), disc, c)
-            val clip = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, disc)) }
-            clipPath(clip) {
-                val step = disc / 3.2f
-                var x = c.x - disc * 2
-                while (x < c.x + disc * 2) {
-                    drawLine(Color(0xFF6A6A6A), Offset(x, c.y + disc), Offset(x + disc * 2, c.y - disc), strokeWidth = r * 0.07f)
-                    x += step
-                }
-            }
-        } else if (picture != null) {
-            // The photograph of a can top, painted this can's colour.
-            val side = (r * 2).toInt().coerceAtLeast(1)
-            drawImage(
-                picture,
-                srcOffset = IntOffset.Zero, srcSize = IntSize(picture.width, picture.height),
-                dstOffset = IntOffset((c.x - side / 2f).toInt(), (c.y - side / 2f).toInt()),
-                dstSize = IntSize(side, side),
-            )
+        val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        val diameter = this.size.minDimension
+        drawCircle(Color(colour), diameter * 0.45f, center)
+        // Five separate views from one unchanged image file. Source coordinates deliberately
+        // preserve the full metal ring and transparent shoulder of each top.
+        val frame = artIndex.mod(5)
+        // Transparency minima measured across the original PNG separate its tops
+        // at rows 428, 847, 1264, 1678 and 2111. No frame shares a neighbouring
+        // ring. They differ slightly in height, so use each source height as-is.
+        val frameTop = when (frame) {
+            0 -> 0
+            1 -> 428
+            2 -> 847
+            3 -> 1264
+            else -> 1678
         }
+        val frameBottom = when (frame) {
+            0 -> 428
+            1 -> 847
+            2 -> 1264
+            3 -> 1678
+            else -> 2111
+        }
+        drawImage(
+            image = original,
+            srcOffset = IntOffset(140, frameTop),
+            srcSize = IntSize(440, frameBottom - frameTop),
+            dstSize = IntSize(this.size.width.roundToInt(), this.size.height.roundToInt()),
+            filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+        )
         if (selected) {
-            drawCircle(Color.White, this.size.minDimension / 2 - 1.5f, c, style = Stroke(this.size.minDimension * 0.07f))
-            val badge = this.size.minDimension * 0.17f
+            drawCircle(Color.White, diameter / 2f - 1.5f, center, style = Stroke(diameter * 0.07f))
+            val badge = diameter * 0.17f
             val b = Offset(this.size.width - badge * 1.05f, this.size.height - badge * 1.05f)
             drawCircle(Color.White, badge, b)
             val check = Path().apply {
@@ -92,10 +102,49 @@ internal fun CanTop(colour: Int?, selected: Boolean, sampled: Boolean, size: Dp,
             drawPath(check, Color.Black, style = Stroke(badge * 0.3f, cap = StrokeCap.Round))
         }
         if (sampled) {
-            val d = this.size.minDimension * 0.07f
-            drawCircle(Color(0xFFE6E6E6), d, Offset(this.size.width - d * 2.2f, d * 2.2f))
-            drawCircle(Color(0xFF0E0E0E), d * 0.45f, Offset(this.size.width - d * 2.2f, d * 2.2f))
+            val dot = diameter * 0.07f
+            val at = Offset(this.size.width - dot * 2.2f, dot * 2.2f)
+            drawCircle(Color(0xFFE6E6E6), dot, at)
+            drawCircle(Color(0xFF0E0E0E), dot * 0.45f, at)
         }
+    }
+}
+
+/**
+ * The exact user-supplied MTN 94 photograph, unmodified and placed above a separate paint layer.
+ *
+ * The original 1122×1402 RGBA PNG has a semitransparent white shoulder. Its RGB/alpha remain
+ * unchanged; paint is drawn only BEHIND that region, with opaque white behind both layers.
+ * ContentScale.Crop removes empty lateral viewport space, never any part of the photographed can.
+ * This is deliberately not used for Montana Cans, MTN Hardcore or MTN fluorescent/transparent lines.
+ */
+@Composable
+internal fun Mtn94Packshot(colour: Int?, width: Dp, height: Dp, modifier: Modifier = Modifier) {
+    Box(modifier.size(width, height).background(Color.White)) {
+        if (colour != null) {
+            Canvas(Modifier.fillMaxSize()) {
+                // ContentScale.Crop scales the 1122×1402 original by its full source height.
+                // Map the independent shoulder underlay from the original source coordinates.
+                val scale = size.height / 1402f
+                val offsetX = (size.width - 1122f * scale) / 2f
+                val x: (Float) -> Float = { offsetX + it * scale }
+                val y: (Float) -> Float = { it * scale }
+                val shoulder = Path().apply {
+                    moveTo(x(423f), y(223f))
+                    cubicTo(x(394f), y(230f), x(362f), y(254f), x(354f), y(285f))
+                    lineTo(x(751f), y(285f))
+                    cubicTo(x(737f), y(255f), x(703f), y(226f), x(677f), y(220f))
+                    close()
+                }
+                drawPath(shoulder, Color(colour))
+            }
+        }
+        Image(
+            painter = painterResource(Res.drawable.mtn94_original_packshot),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 

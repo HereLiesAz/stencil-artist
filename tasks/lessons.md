@@ -16,11 +16,11 @@ Rules written after corrections. Read at the start of every session on this repo
 - _(My reading, not Az's words:)_ the up-front plan check-in still stands; it is the mid-plan
   pauses that were the problem.
 
-## 2026-11-22 — Print guidance must not change cuts
+## 2026-11-22/23 — Print guidance must not change cuts
 
-- Contextual PDF tips belong **inside uncut, surviving stencil stock**, never in a side gutter.
+- **Clarified 2026-11-23:** Cutting tips may occupy either removed openings **or** surviving stencil stock, wherever safely legible. Earlier stock-only placement was overly restrictive; its original purpose was to prevent annotations crossing or interfering with cuts, **not** to ban notes in removable areas. Painting tips about soft-gradient overspray still prefer uncut stock.
 - Check the entire note's physical bounding rectangle plus safety clearance against the full
-  sheet's cut mask. If it cannot fit, use an adjacent detail on a non-cutting reference page.
+  sheet's cut mask. A cutting note must fit entirely within one region, not cross its boundary. If it cannot fit, use an adjacent detail on a non-cutting reference page.
 - Never draw a pointer, leader, frame, or marker across a cut. Detect islands on the complete
   sheet, not separately on each tile, because tile borders are not physical cut lines.
 - Keep the tip adjacent to a cropped depiction of its original cut issue on that reference
@@ -50,6 +50,42 @@ Rules written after corrections. Read at the start of every session on this repo
 - Never claim a model is benchmarked because a build compiled. Measure runtime and visual quality
   on representative devices before checking off performance tasks.
 
+## 2026-11-24 — Real 3D extrusion is the approved lighting architecture
+
+- The depth model shapes the front of a closed relief solid; the subject mask defines its silhouette and inferred walls/back. Render lights and occlusion in a real 3D scene, then pass the rendered image to the existing separator.
+- Keep the source-aligned output camera independent of the interactive orbit view. Do not label image-space height-field shading as 3D scene lighting or infer unseen geometry as fact.
+- Preserve the no-depth path, source alpha/framing, generation guards and the single completed separation consumed by exports. Mesh geometry resolution is not the stencil/export resolution.
+- A tested mesh without an application caller is a foundation, not a completed feature. Do not retire the old renderer until the new path is integrated and verified.
+
+## 2026-11-24 — Paint choices precede image rendering
+
+- Offer image, subject isolation, layer count and optional arbitrary paint selection before the image/3D choice. Never require a completed separation just to choose paints.
+- Colour matching is the initial mode. Tonal separation is a brightness-to-paint mapping, not a restriction to black, white or grey; arbitrary chosen RGB is valid.
+- Keep a locked palette independent of scene lighting, source texture, material and adjustments. A count edit retains the selected slots that fit, not an automatic reset. All outputs use the same committed separation.
+
+## 2026-11-24 — Subject correction and the two meanings of choosing paint
+
+- Image first, then isolate/correct the subject, then select layer count and the palette policy before choosing image or extrusion.
+- Early chosen colours constrain separation. Deferred colours are assignments to already-generated cut sheets; never rerun the separator or reorder geometry for a late assignment.
+- Manual foreground restores original alpha; manual background remains excluded from every sheet even when automatic silhouette closing fills holes. An explicitly enabled opaque receiver is a new background, not a failed mask.
+- Preserve source, generation guards, cut masks, paint order and export snapshot identity.
+
+## 2026-11-24 — Loading advice belongs to one processing generation
+
+- Advance the tip on every process start or restart, even if the previous overlay is still visible. Never advance on a timer. The same tip remains through that process's completion.
+- Use a modal dialog to block interaction with the workspace until the current generation succeeds or fails. After completion, replace progress with Continue; the button or a tap anywhere dismisses the overlay. A stale completion must not unlock current work.
+
+## 2026-11-24 — Depth editing shapes geometry, not paint or segmentation
+
+- Keep original inferred depth for automatic masking. Apply artist corrections only after the subject mask is committed; never feed the altered map back into inference or isolation.
+- Share the corrected relative depth between flat relighting and extrusion; preserve original image, alpha, palette and fixed frontal camera. A depth map is not a physical distance measurement.
+- Reuse image-space brush coordinates, keep editing local until Apply, invalidate separation synchronously and guard generation publication.
+
+## 2026-11-24 — Entire depth/stencil plan approved
+
+- Continue approved implementation and verification without requesting phase approval. Track real remaining work in the repository; distinguish implementation, CI, visual and physical validation.
+- Separate assumed source light from the new scene lights. Never claim unique intrinsic albedo from a single image. Preserve source, alpha, fixed camera, palette and export contracts.
+
 ## 2026-11-22 — Raster output must stay identical to the stencil preview
 
 - Encode per-sheet PNG pixels through `Separation.render(sheet)` and composite through
@@ -60,3 +96,7 @@ Rules written after corrections. Read at the start of every session on this repo
 - Use the existing Android/Skia PNG encoders and ZIP writer rather than duplicating codecs.
   Bound in-memory archive size, and keep individual sheet export available when an archive
   is too large.
+
+## 2026-11-24 — Wasm loading modal accessibility
+
+- CI screenshot and accessibility evidence contradicted each other: Continue dismissed the canvas dialog, but Compose's accessibility tree stayed frozen on that dialog (CMP-10623). Use a native HTML top-layer loading dialog on Wasm and keep the Android Compose dialog. Preserve the guarded one-tip lifecycle; do not bypass modal or export assertions to make browser CI green.

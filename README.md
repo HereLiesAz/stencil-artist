@@ -10,39 +10,82 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 
 ## What it does today
 
+- A single local editing checkpoint resumes the working image, current stage, palette, lighting,
+  image adjustments, committed and draft mask/depth corrections, selected sheet, and valid print/cutter
+  settings. Android uses an app-private atomic file; the web app uses IndexedDB, not a server.
+  Derived output is regenerated before exports become available. A storage failure
+  is reported; browser eviction or app-data clearing can remove local work.
+- Preview, Prepared, Layers and contextual Masking/Depth/Orbit/Occlusion/Cut risks views share the
+  primary workspace. Masking defaults to tapping connected, colour- and edge-bounded regions of
+  the original image. Brush mode allows precise remove/restore corrections. Two fingers zoom or pan
+  without changing the mask; both edit types share undo, reset, persistence and explicit Apply.
+  The region selector is deterministic, not a semantic object-recognition model.
+
 - Opens an image, removes its background on the device (U²-Net), and separates the subject into
   sheets, **by tone** (a grey ramp) or **by colour** (the picture's own paint colours).
 - Any number of sheets, each with its own colour: greys by default in Tone mode, the colours found
   in the image in Colour mode.
 - Depth-assisted background removal combines U²-Net saliency and relative depth around uncertain
   subject edges, preserving confident segmentation and falling back if depth is unavailable.
-- Optional depth-based Lambert lighting (azimuth, elevation, intensity, ambient and depth strength)
-  relights the **base image before any stencil sheets are generated**, with a base-image preview.
+- Inspect each actual cut sheet at the selected physical width: unsupported-island and fine-opening markers, cut boundaries, and narrow-stock screening against the chosen minimum bridge width. Diagnostics are never exported or applied as cuts.
+- Explicit RGB/can palettes can be selected before opening an image or choosing a rendering mode. Locked palettes retain their exact colours through rendering; changing count retains existing slots up to the new count and supplies editable suggestions for new slots. Automatic palettes remain optional.
+- Edit inferred depth in Light: paint raise/lower/set/smooth/flatten strokes with zoom/pan, strength and hardness; global edge-preserving smoothing, flattening, clamp and gamma remap; depth, false-colour and shaded previews, undo/reset/discard and explicit Apply. Both flat relighting and the 3D mesh use the corrected field. Subject alpha, original inference and chosen palette remain separate.
+- Two independent, non-destructive adjustment stacks: source/skin and final stencil image. Each provides levels/auto-levels, a draggable monotone value curve, exposure, brightness, contrast, gamma, shadows/highlights, saturation, warmth/tint, grayscale/invert, despeckle, edge-preserving smoothing, blur, sharpening, local contrast and hue-preserving value posterization. All lighting paths use the final adjusted pixels; alpha is preserved.
+- Independent flat depth relight mode: stronger image-relative surface normals, foreground depth contrast, lower ambient defaults, adjustable matte mix, depth reversal and directional controls. No extrusion or cast shadows in this mode.
+- Opt-in 3D relief lighting: closed depth-derived extrusion, up to four independently placed directional, point and spot lights, RGB colour, filtered geometric shadows, key/fill/rim preset, orbit and occlusion inspection, thickness and depth reversal. Choose original-image skinning or a custom solid RGB coating on the entire extrusion. Both materials receive the scene lights and shadows; the fixed frontal combined render creates the stencil. An optional coloured, receive-only backdrop behind the relief catches geometric shadows and deliberately fills the frame. Intrinsic albedo recovery and device validation remain planned. See [design and implementation plan](docs/DEPTH_RELIGHT_DISCUSSION.md).
 - Colour separation: the subject's colours are clustered (k-means in Oklab, deterministic, on a
   colour histogram so a 1600 px photo takes under a second on the JVM) into as many flat paint colours
   as there are sheets, up to 1024, and sprayed in an order of your choice: auto (dark base for a
   dark subject, light for a light one), light to dark, dark to light, or largest area first.
   An image with fewer distinct colours than sheets asked for makes that many sheets, not duplicates.
-  The core also takes the user's own paint colours instead of finding them (`ColorParams.colors`).
+  Free Colour mode has a palette editor: select a sheet swatch and browse the full paint catalogue
+  as a grid of uncapped, top-view spray cans. A tap opens a swipeable carousel with the whole can,
+  the maker and colour name alongside it, and the edges of adjacent cans visible as navigation cues.
+  The colour can be applied to that sheet, regenerating the stencil and subsequent exports. Brand
+  filters and search narrow the gallery; the bounded lazy grid scrolls through every can
+  without rendering all rows, while the carousel traverses every result. Exact hex and RGB sliders are available underneath for custom colours;
+  duplicate colours are refused. **Use image colours again** restores the image-derived palette.
+  The setting is `ColorParams.colors`. Can-based paint modes keep their own selections.
 - Paints a stencil from real spray cans. In Colour mode, **Paint** is *Free* (any colours), *Pick for me*
   (you set the layer count and which brands or lines are allowed; the app matches the image's colours to
-  distinct cans) or *My cans* (a can picker: search, brand chips, a grid of can tops and a swipeable carousel of whole cans, with a selected strip; the layers are
+  distinct cans) or *My cans* (the same can-top grid and swipeable full-can carousel, plus a selected strip; the layers are
   exactly the chosen cans' distinct colours, and two cans of one colour make one layer). A **Paint list**
   shows each layer's can, code and how near it is (Exact, Close, Approximate); a can no pixel uses is
   noted as not needed and left off the lists unless you keep it. The print PDF is given a shopping list
   of the cans for the sheets it prints. Chosen cans, allowed brands and learned barcodes are kept on the
   device (SharedPreferences, `localStorage`).
+- **Rack:** the exact uploaded transparent five-top spray-can PNG (724 × 2172)
+  is stored byte-for-byte in Compose resources. The rack has ONE white background
+  for the entire grid. Each visible can gets its OWN solid RGB colour circle behind
+  its unmodified top-view image, drawn from the supplied strip without changing
+  source pixels. The five top views cycle across entries.
+  Only cans with an actual resolved RGB value appear in the rack or can carousel;
+  unknown colours are excluded, not replaced with gray or guessed.
+  **MTN 94 full-can carousel:** the other exact original 1122 × 1402 transparent
+  PNG remains unchanged and sits over its independent solid paint-colour shoulder
+  and white background. Other brands retain their existing side illustrations;
+  retailer imagery is not embedded. If a user previously entered an RGB swatch,
+  that can is visible until the swatch is cleared.
+  Your colour stays in SharedPreferences (Android) or localStorage (web), keyed by the stable can
+  identity, and may be corrected or cleared without changing the bundled catalogue. Saved colours
+  are identified as user-entered and approximate, including in the print PDF. Retailer swatches (including
+  [Spray Planet's MTN 94 selection](https://www.sprayplanet.com/collections/mtn-94)) are approximate
+  references, not licensed source artwork or automatically imported colour measurements.
 - Smoothing and edge closing for either mode; tonal bias and a forced dark or light base in Tone mode.
-- Shows the improved base image, the finished piece, or any one sheet alone.
+- The guided studio begins with Image, then Subject (automatic isolation and manual remove/restore brush), then Palette (layer count, colour or tonal mapping, optional specific RGB/cans), Light and Adjust, followed by Edges, Inspect, Images, Print and Cutter. Choosing paints upfront constrains separation; deciding later lets the artist assign paint to the existing sheets in Inspect without changing cuts.
+- Loading shows one different tip per process start or restart with determinate progress. The workspace is modal until the current process succeeds or fails; Continue or any tap then dismisses the same tip.
+- A persistent source/result comparison (or single-image view) supports synchronized pinch-zoom and panning on both panes, plus explicit zoom and reset buttons. The result may show the processed image, finished stencil, or any sheet alone. Visual and touch behavior still require device verification.
 - Exports the finished stencil as a transparent composite PNG; any selected sheet as its own
-  transparent PNG; or every sheet plus the composite in one ZIP. Every PNG uses the same paint
+  transparent PNG; or every sheet plus the composite in one ZIP. Also exports a versioned
+  [StencilPack](docs/STENCILPACK_V1.md) with individually named, aligned PNG sheets for
+  Graffux and GraffitiXR. Every PNG uses the same paint
   order, sheet colours and alpha as the preview, at the current working-image pixel dimensions.
 - Downloads one actual-size print PDF for the shown sheet or every sheet: a single instructions page,
   then per sheet an assembly map and the tiled pages. Nothing is trimmed: pages are laid left to right, top to
   bottom, each on top of the earlier ones, with the paper edge on thin guide marks the page underneath prints. A fixed
   3 mm border is unprintable, so at every join there is a 3 mm strip of blank paper (the top page's margin);
-  the artwork either side is at its true place and cut lines simply continue across the strip. Printouts label trapped islands,
-  delicate openings and tile codes inside uncut material; a note that cannot safely fit goes to a
+  the artwork either side is at its true place and cut lines simply continue across the strip. Printouts label trapped islands and
+  delicate openings in either cutaway areas or surviving stock, whichever is nearer and safely fits without crossing a cut. Gradient-lift painting notes stay on surviving stock. Tile codes avoid cut lines; a note that cannot safely fit goes to a
   non-cutting reference page beside the affected detail. Pages with nothing to cut are skipped and
   shown as blank on the map.
 - Optionally mounts the print on poster board (22 x 28 in, or a custom board of at least 18 in a side) with an
@@ -56,19 +99,43 @@ Status and roadmap: [`tasks/todo.md`](tasks/todo.md).
 - Traces every sheet into vector outlines and writes cutter files at a real physical size: SVG,
   DXF (R12), HPGL and G-code, whole or split across a cutting mat or sheet of paper.
 
-Not yet: bridges for islands, a free colour picker for colour sheets, custom mat sizes in the UI. See the roadmap.
+Island planning: independent layer cut masks allow black or grey to be painted beneath a
+lighter detail that existing later cuts already restore, eliminating unsupported stock islands
+without a bridge. If full repainting is impossible, the app can add a negative-stroke bridge
+only where later paint conceals its entire footprint. Small missing later-layer paint marks
+can also be added when the processed source strongly supports their colour and the later cut creates no additional unsupported stock. Uncertain details remain flagged instead of silently omitted. It also locates
+soft source-image gradients on cut edges and labels the appropriate edge for controlled
+stencil lifting in the print PDF, with scrap-test guidance. **Stroke construction** offers
+Classic (the original masks) and opt-in Brush strokes, which now reconstruct broad
+later-layer openings from adjustable-width additive paint ribbons (1–24 working-image pixels)
+following the processed image's luminance contours. Areas narrower than the chosen brush
+keep their original solid, potentially blotchy, paint openings rather than forcing strokes. Small, thin features and the black base stay untouched; stencil
+islands created by new gaps are filled back in. Explicit semantic reconstruction of
+exposed islands is still outstanding. See [the implementation and limitations](docs/STROKE_ISLANDS.md).
 
 ## Cutter files
 
-Set **Physical size**, then in **Cutter files** pick a format and, if the piece is larger than
-the machine takes, a mat or paper size to split it across. Download the shown sheet or all of them.
+Set **Physical size**, then in **Cutter files** pick a format and choose **Whole**, a preset mat
+or sheet, **Custom mat**, or **Roll**. Custom mats accept width, height, edge margin and tile
+overlap in millimetres. Rolls accept width, edge and overlap; length is unlimited, so tiled
+roll exports produce full-length strips. The panel reports the number of tiles and disables
+downloads if a size/overlap is invalid or the plan exceeds its tile limit. Disconnected
+pieces of concave shapes and clipped holes use independent closed cutter paths, not retraced
+tile-border edges. Download the shown sheet or all sheets.
+
+For **G-code**, select **Laser** or **Router** and set cutting feed, travel feed (mm/min),
+controller-specific power/spindle S value, and passes. Router mode also exposes safe and
+cut Z positions in millimetres. These settings are passed into actual exported G-code,
+including every tile in ZIP exports. Confirm your machine's S range, cut depth and travel
+motion; simulate or dry-run the output before enabling the tool. No machine is controlled
+directly by the app.
 
 | Format | For |
 |---|---|
 | SVG | Cricut Design Space, Brother CanvasWorkspace, Silhouette Studio (paid tiers), LightBurn, Inkscape |
 | DXF (R12, millimetres) | Silhouette Studio's free tier, CAD/CAM |
 | HPGL (`.plt`) | Roll plotters and vinyl cutters |
-| G-code | GRBL lasers and routers (outline only; default feed and power, edit before running) |
+| G-code | GRBL lasers and routers (outline only; configurable feed, power, passes and router Z) |
 
 Printing on paper is the separate **Print PDF** section (see below), not a cutter format.
 
@@ -165,15 +232,8 @@ colours of an image to the nearest cans. Regenerate it with `python3 tools/catal
   own sampling of the maker's swatch and are flagged so.
 - **Not for public release yet.** No licence to redistribute the data was found; `models/paints.NOTICE.txt`
   says where each brand's data came from. Check the makers' terms before shipping it.
-- Built so far: the data, its loading, and the logic in `core`. The picker screen is built (above); next: the barcode scanner.
-
-### Can tops
-
-In the can chooser each can is shown from above, as a photograph of a can top (supplied by the owner)
-laid over a disc of the can's paint colour: the dome is clear, so the colour shows through it, while
-the rim, the nozzle ring and the glints stay silver. The picture is stored at 128 x 128 as grey level and
-alpha (`core/.../paint/CanTopArt.kt`, generated by `tools/canart/make.py` from the source image) and
-composed with the colour in `core/.../paint/CanTop.kt`, so it is the same on every target.
+- The scanner is wired into the My cans picker. Unknown barcodes can be linked to a known can in
+  the same search/carousel, with that mapping persisted locally.
 
 ## Barcode scanner
 
@@ -199,6 +259,9 @@ again for two seconds while it stays in view. A barcode can also be typed.
 - **Android decoding.** CameraX and ML Kit's on-device barcode scanner, the bundled model (no Play services download,
   works offline). It adds about 13.6 MB to the release APK (arm64 and armeabi-v7a, not minified), most of it ML Kit's
   native library.
+- **Integrated:** The My cans picker scans and accepts manually typed barcodes, adds known cans
+  without toggling off already-selected ones, and offers catalogue search to identify unknown codes.
+  A recognized can without a colour value cannot form a stencil layer.
 - **Tested** with a fake camera (a generated EAN-13, UPC-A and UPC-E picture played as video) in headless Chromium,
   on both decoders' paths as far as that browser allows, and in unit tests. **Not tested:** a real camera or can, an
   Android device, iPhone Safari, or a real `BarcodeDetector`.
@@ -229,3 +292,32 @@ Android builds need the SDK (`sdk.dir` in `local.properties`, or `ANDROID_HOME`)
 
 Workflows come from the central [`HereLiesAz/workflows`](https://github.com/HereLiesAz/workflows)
 catalog; see `.github/WORKFLOW_POLICY.md`.
+
+## Android updates
+
+The Android launcher checks for stable GitHub releases using AzNavRail 12.5, except in Play bundles, which receive updates through Google Play. It sends no drawing or model data, and opens the release page only when the user chooses Update. The web build is unchanged.
+
+Android publishing is handled by [the central Play workflow](https://github.com/HereLiesAz/workflows/blob/main/.github/workflows/android-play-release.yml). It builds `:androidApp:bundleRelease -PstencilPlayRelease=true`, enabling R8 and producing a real `mapping.txt`; existing GitHub APK builds remain unminified. Signing and Play API credentials belong in the central `stencil-artist` environment. The release profile publishes to the closed alpha testing track only; it does not update internal, beta or production tracks. Local CI builds the same bundle without signing and checks its mapping.
+
+
+## Branding
+
+The Android adaptive launcher and generated PWA icons use the supplied spray-painter artwork
+(`androidApp/src/main/res/drawable-nodpi/stencil_brand.jpg`), with safe-area padding for masked icons.
+The shared studio palette uses weathered teal, charcoal and paper white. Image preview checkerboards,
+paint swatches, catalogue backgrounds and exports retain their existing colours.
+
+### Private typography
+
+The supplied Prodes Stencil and Cavier faces are non-commercial freeware, not redistributable assets
+of this public repository. For a private build only, extract the supplied TTFs into the ignored
+`private-branding/font/` directory at the repository root:
+
+- `ProdesStencil-WpjLA.ttf` → `prodes_stencil.ttf` (app wordmark)
+- `CavierRegular-3lMoX.ttf` → `cavier.ttf` (studio headings)
+
+Build with `./gradlew :androidApp:assembleDebug -PprivateBrandFonts=true` or
+`./gradlew :composeApp:wasmJsBrowserDevelopmentRun -PprivateBrandFonts=true`.
+The private option requires both files; public builds use the original system typography and never
+package private font files. Do not distribute private builds without appropriate font permission.
+Small controls, numerical readouts and export text are unchanged.

@@ -33,6 +33,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,6 +48,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -66,6 +71,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
+import com.hereliesaz.stencilartist.core.PaletteColor
+import com.hereliesaz.stencilartist.core.Sheet
 import com.hereliesaz.stencilartist.core.paint.Can
 import com.hereliesaz.stencilartist.core.paint.CanFilter
 import com.hereliesaz.stencilartist.core.paint.HexSource
@@ -84,14 +92,25 @@ internal fun PaintSection(state: StencilState) {
     val subdued = MaterialTheme.colorScheme.onSurfaceVariant
     Section("Paint") {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("Free", selected = state.paintMode == PaintMode.FREE) { state.selectPaintMode(PaintMode.FREE) }
+            Choice("Decide colours later", selected = state.paintMode == PaintMode.FREE && state.customPalette == null) {
+                state.selectPaintMode(PaintMode.FREE)
+                state.useCustomPalette(false)
+            }
+            Choice("Choose colours now", selected = state.paintMode == PaintMode.FREE && state.customPalette != null) {
+                state.selectPaintMode(PaintMode.FREE)
+                state.useCustomPalette(true)
+            }
             Choice("Pick for me", selected = state.paintMode == PaintMode.PICK_FOR_ME) { state.selectPaintMode(PaintMode.PICK_FOR_ME) }
             Choice("My cans", selected = state.paintMode == PaintMode.MY_CANS) { state.selectPaintMode(PaintMode.MY_CANS) }
         }
         if (state.paintMode == PaintMode.FREE) {
-            Text("Any colours: the picture's own.", style = MaterialTheme.typography.bodySmall, color = subdued)
+            if (state.customPalette == null) {
+                Text("Generate layers from the image first; assign their paint colours in Inspect without changing any cuts.",
+                    style = MaterialTheme.typography.bodySmall, color = subdued)
+            } else FreePaletteEditor(state)
             return@Section
         }
+        LaunchedEffect(state.paintMode) { state.ensureCatalogue() }
         val catalogue = state.catalogue
         if (catalogue == null) {
             Text(
@@ -106,9 +125,170 @@ internal fun PaintSection(state: StencilState) {
             else -> MyCans(state)
         }
         Text(
-            "Colour values are on-screen approximations; cans marked sampled are approximate; some makers have no colour value yet.",
+            "Can colours are approximate. Sampled and personally entered values are not verified paint measurements.",
             style = MaterialTheme.typography.bodySmall, color = subdued,
         )
+    }
+}
+
+/**
+ * Edits requested palette slots in either separator, without modifying can-based paint selection.
+ * In setup this is an input palette. With [existing], edit only the completed cut sheets.
+ *
+ * Only one layer is edited at a time. The local hex/RGB draft is applied on demand rather than on
+ * every slider tick: an early colour change regenerates and may reorder the sheets; a late edit
+ * changes only the captured separation. All exporters consume the completed separation.
+ * An additional catalogue browser lets the user select a real can's recorded colour, with the
+ * same can-top grid and full-can carousel as My cans. Entries without resolved RGB are hidden.
+ * Custom hex/RGB editing remains available. A palette can be restored to the image-derived colours
+ * without changing the requested sheet count.
+ */
+@Composable
+internal fun FreePaletteEditor(state: StencilState, existing: Boolean = false) {
+    val snapshot = if (existing) state.separation ?: return else null
+    val sheets = snapshot?.sheets ?: state.editablePalette.map(::Sheet)
+    fun applyColor(index: Int, color: Int): Boolean {
+        if (snapshot != null) return state.recolorSheet(snapshot, index, color)
+        state.setSheetColor(index, color)
+        return true
+    }
+    val scheme = MaterialTheme.colorScheme
+    var editing by remember(state.mode, snapshot) { mutableStateOf<Int?>(null) }
+
+    Text(if (existing) "Assign paint to existing sheets. Cuts and paint order remain unchanged. Rebuilding layers discards these assignments."
+        else if (state.customPalette != null) "Custom palette locked. Edit any slot; rendering cannot change the chosen colours."
+        else if (state.source == null) "Choose your own colours now, or leave the palette automatic until an image is opened."
+        else "Automatic palette. Edit a swatch or lock the displayed colours to keep them through lighting changes.",
+        style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+    if (!existing && state.mode == SeparationMode.COLOUR) {
+        Text("Swatches are palette slots; the selected paint order determines final sheet numbers.",
+            style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+    }
+    run {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            items(sheets.size) { index ->
+                val rgb = sheets[index].color
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(6.dp))
+                        .border(if (editing == index) 3.dp else 1.dp,
+                            if (editing == index) scheme.primary else scheme.outline, RoundedCornerShape(6.dp))
+                        .clickable(enabled = !state.busy, role = Role.Button) {
+                            editing = if (editing == index) null else index
+                            if (editing != null) state.ensureCatalogue()
+                        }
+                        .semantics { contentDescription = "Edit palette slot ${index + 1} colour ${PaletteColor.hex(rgb)}" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Swatch(rgb, 40.dp)
+                    Text("${index + 1}", style = MaterialTheme.typography.labelMedium,
+                        color = if (Color(rgb).isLight()) Color.Black else Color.White)
+                }
+            }
+        }
+    }
+
+    val custom = state.customPalette != null
+    if (!existing) OutlinedButton(onClick = {
+        editing = null
+        state.useCustomPalette(!custom)
+    }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+        Text(if (custom) "Use automatic colours" else "Lock custom palette")
+    }
+
+    val index = editing
+    if (index != null && index in sheets.indices) {
+        val current = sheets[index].color
+        var hexText by remember(index, current) { mutableStateOf(PaletteColor.hex(current)) }
+        val candidate = PaletteColor.parseHex(hexText)
+        val duplicate = !existing && candidate != null && sheets.indices.any {
+            it != index && (sheets[it].color and 0xFFFFFF) == (candidate and 0xFFFFFF)
+        }
+        val draft = candidate ?: current
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                .border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(if (existing) "SHEET ${index + 1}" else "PALETTE SLOT ${index + 1}", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            Text("SPRAY CAN COLOURS", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            if (state.catalogue != null) {
+                CanBrowser(
+                    state = state,
+                    selectedColour = current,
+                    requireColour = true,
+                    assignLabel = "Use this can's colour",
+                    onPick = { can ->
+                        val rgb = can.rgb
+                        when {
+                            rgb == null -> false
+                            !existing && sheets.indices.any { it != index && (sheets[it].color and 0xFFFFFF) == (rgb and 0xFFFFFF) } -> {
+                                state.fail("Another sheet already has that colour.")
+                                false
+                            }
+                            else -> {
+                                val applied = applyColor(index, rgb)
+                                if (applied) editing = null
+                                applied
+                            }
+                        }
+                    },
+                )
+            } else {
+                Text(
+                    if (state.catalogueLoading) "Loading spray can colours..."
+                    else state.catalogueError ?: "Spray can catalogue unavailable.",
+                    style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                )
+                if (!state.catalogueLoading) {
+                    OutlinedButton(onClick = state::ensureCatalogue, modifier = Modifier.fillMaxWidth()) { Text("Try again") }
+                }
+            }
+            Text("CUSTOM RGB COLOUR", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Swatch(draft, 52.dp)
+                BasicTextField(
+                    value = hexText,
+                    onValueChange = { hexText = it },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    textStyle = TextStyle(color = scheme.onSurface, fontSize = 14.sp),
+                    cursorBrush = SolidColor(scheme.primary),
+                    modifier = Modifier.weight(1f).fieldBox("Hex colour, six digits"),
+                    decorationBox = { inner ->
+                        Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) { inner() }
+                    },
+                )
+            }
+            if (candidate == null) {
+                Text("Enter a six-digit hex colour, such as #1A2B3C.",
+                    style = MaterialTheme.typography.bodySmall, color = scheme.error)
+            } else if (duplicate) {
+                Text("Another sheet already uses this colour.",
+                    style = MaterialTheme.typography.bodySmall, color = scheme.error)
+            }
+            for ((label, shift) in listOf("Red" to 16, "Green" to 8, "Blue" to 0)) {
+                val value = (draft shr shift) and 0xFF
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("$label $value", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(74.dp))
+                    Slider(
+                        value = value.toFloat(),
+                        onValueChange = { hexText = PaletteColor.hex(PaletteColor.withChannel(draft, shift, it.roundToInt())) },
+                        valueRange = 0f..255f,
+                        modifier = Modifier.weight(1f).semantics { contentDescription = "$label channel" },
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { editing = null }, modifier = Modifier.weight(1f)) { Text("Cancel") }
+                OutlinedButton(
+                    onClick = {
+                        if (candidate != null && applyColor(index, candidate)) editing = null
+                    },
+                    enabled = candidate != null && !duplicate && (candidate != current || (!existing && !custom)) && !state.busy,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Apply colour") }
+            }
+        }
     }
 }
 
@@ -148,14 +328,14 @@ private fun PickForMe(state: StencilState) {
         Text("Matching the image's colours to cans...", style = MaterialTheme.typography.bodySmall, color = subdued)
     } else if (chosen.isNotEmpty()) {
         Text("CHOSEN CANS", style = MaterialTheme.typography.labelSmall, color = subdued)
-        val cans = chosen.map { it.layer.primary }
+        val cans = chosen.map { it.layer.primary }.filter { it.rgb != null }
         var viewing by remember { mutableStateOf<Int?>(null) }
         val index = viewing
         if (index != null && index in cans.indices) {
             CanCarousel(state, cans, index, readOnly = true, onBack = { viewing = null })
         } else {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((i, can) in cans.withIndex()) CanTile(can, selected = false) { viewing = i }
+                for ((i, can) in cans.withIndex()) CanTile(can, selected = false, artIndex = i) { viewing = i }
             }
         }
         Text(
@@ -170,7 +350,7 @@ private fun PickForMe(state: StencilState) {
 private fun MyCans(state: StencilState) {
     val subdued = MaterialTheme.colorScheme.onSurfaceVariant
     var open by remember { mutableStateOf(false) }
-    val chosen = state.selected
+    val chosen = state.selected.filter { it.rgb != null }
     val layers = chosen.map { it.rgb }.distinct().size
     OutlinedButton(onClick = { open = !open }, modifier = Modifier.fillMaxWidth()) {
         Text(if (open) "Close the can picker" else if (chosen.isEmpty()) "Choose cans" else "Choose cans (${chosen.size} chosen)")
@@ -193,66 +373,34 @@ private const val SWIPE_PX = 40f
 /** A set of cans being looked through in the carousel, from [start]. */
 private class Browsing(val cans: List<Can>, val start: Int)
 
-/** How many can tops show at first, and how many more each "Show more" tile adds. */
-private const val TOPS = 60
-
 /**
- * The can picker, inline in the panel: a search box and brand chips over a wrapping grid of can tops.
- * Tapping a top opens the carousel at that can, over the same results; the selected cans are a row of
- * small tops below.
+ * My cans adds the scanner and selected-can strip to the same can browser used by Free Colour.
+ * Scanning never changes a free-colour palette or its selected sheet.
  */
 @Composable
 private fun CanPicker(state: StencilState) {
-    val catalogue = state.catalogue ?: return
     val scheme = MaterialTheme.colorScheme
-    var query by remember { mutableStateOf("") }
-    var brand by remember { mutableStateOf<String?>(null) }
-    var shown by remember { mutableStateOf(TOPS) }
-    var browsing by remember { mutableStateOf<Browsing?>(null) }
-    val chosen = state.selected
-
+    val chosen = state.selected.filter { it.rgb != null }
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+            .border(1.dp, scheme.outline, RoundedCornerShape(8.dp)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        val open = browsing
-        if (open != null) {
-            CanCarousel(state, open.cans, open.start, readOnly = false, onBack = { browsing = null })
-        } else {
-            ScannerPanel(onGtin = { state.addCanByBarcode(it) }, onClose = {}, resultNote = state.scanNote)
-            SearchField(query, onChange = { query = it; shown = TOPS })
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SmallChoice("All brands", selected = brand == null) { brand = null; shown = TOPS }
-                for (b in catalogue.brands) SmallChoice(b, selected = brand == b) { brand = b; shown = TOPS }
-            }
-            val results = remember(query, brand, shown, catalogue) {
-                val b = brand
-                when {
-                    query.isNotBlank() -> catalogue.search(query, shown + 1, if (b == null) emptySet() else setOf(b))
-                    b != null -> catalogue.cans(b).take(shown + 1)
-                    else -> emptyList()
-                }
-            }
-            if (query.isBlank() && brand == null) {
-                Text("Search by name, code or brand, or pick a brand.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-            } else if (results.isEmpty()) {
-                Text("No can matches.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-            } else {
-                val list = results.take(shown)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((i, can) in list.withIndex()) CanTile(can, can in chosen) { browsing = Browsing(list, i) }
-                    if (results.size > shown) {
-                        Box(
-                            Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(scheme.surfaceVariant)
-                                .clickable(role = Role.Button) { shown += TOPS },
-                            contentAlignment = Alignment.Center,
-                        ) { Text("Show more", style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center) }
-                    }
-                }
-                Text("Tap a can to see it.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-            }
+        ScannerPanel(onGtin = state::addCanByBarcode, onClose = {}, resultNote = state.barcodeNote)
+        val unknown = state.unknownBarcode
+        unknown?.let { gtin ->
+            Text(
+                "Unknown barcode $gtin. Find its can and choose it to remember this code.",
+                style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+            )
         }
-
+        CanBrowser(
+            state = state,
+            onPick = unknown?.let { gtin ->
+                { can: Can -> state.learnBarcode(gtin, can); true }
+            },
+            assignLabel = "Remember barcode for this can",
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("SELECTED (${chosen.size})", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             Spacer(Modifier.weight(1f))
@@ -264,7 +412,6 @@ private fun CanPicker(state: StencilState) {
         if (chosen.isEmpty()) {
             Text("Nothing selected.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         } else {
-            // Bounded and scrolling, so thirty cans do not push the rest of the panel away.
             Column(Modifier.heightIn(max = 130.dp).verticalScroll(rememberScrollState())) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (can in chosen) SelectedTop(can) { state.removeCan(can) }
@@ -274,16 +421,115 @@ private fun CanPicker(state: StencilState) {
     }
 }
 
-/** One can top in the grid: tapping it opens the carousel. A can with no colour value is hatched and labelled. */
+/**
+ * Shared catalogue browser: a top-view grid, search and brand filters, and a full-can carousel.
+ * The grid lazily scrolls through every catalogue entry in a fixed-height viewport, so several
+ * thousand cans are navigable without inflating the outer controls panel or rendering them all.
+ * Opening any can navigates over the complete filtered results, including currently unseen rows.
+ *
+ * [onPick] applies a can colour to a Free sheet or learns a barcode; null means My cans'
+ * usual selection toggle. Unresolved colours are omitted from both rack and carousel;
+ * [requireColour] remains for call-site compatibility but no longer affects visibility.
+ */
 @Composable
-private fun CanTile(can: Can, selected: Boolean, onOpen: () -> Unit) {
+private fun CanBrowser(
+    state: StencilState,
+    onPick: ((Can) -> Boolean)? = null,
+    assignLabel: String = "Select can",
+    requireColour: Boolean = false,
+    selectedColour: Int? = null,
+) {
+    val catalogue = state.catalogue ?: return
+    val scheme = MaterialTheme.colorScheme
+    var query by remember { mutableStateOf("") }
+    var brand by remember { mutableStateOf<String?>(null) }
+    val gridState = rememberLazyGridState()
+    var browsing by remember { mutableStateOf<Browsing?>(null) }
+    LaunchedEffect(query, brand) { gridState.scrollToItem(0) }
+    val open = browsing
+
+    if (open != null) {
+        // Catalogue colours can be edited while the carousel is open. Refresh each visible
+        // can from its stable key, otherwise a saved colour leaves its action disabled until Back.
+        val currentCans = remember(open, catalogue) {
+            open.cans.mapNotNull { can ->
+                (catalogue.byKey(can.canKey) ?: can).takeIf { it.rgb != null }
+            }
+        }
+        val firstKey = open.cans.getOrNull(open.start)?.canKey
+        val firstIndex = currentCans.indexOfFirst { it.canKey == firstKey }
+            .takeIf { it >= 0 } ?: open.start.coerceAtMost((currentCans.size - 1).coerceAtLeast(0))
+        if (currentCans.isEmpty()) {
+            LaunchedEffect(catalogue) { browsing = null }
+        } else CanCarousel(
+            state, currentCans, firstIndex, readOnly = false, onBack = { browsing = null },
+            onAssign = onPick?.let { pick ->
+                { can: Can -> if (pick(can)) browsing = null }
+            },
+            assignLabel = assignLabel,
+            requireColour = requireColour,
+        )
+    } else {
+        SearchField(query, onChange = { query = it })
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SmallChoice("All brands", selected = brand == null) { brand = null }
+            for (b in catalogue.brands.filter { name -> catalogue.cans(name).any { it.rgb != null } }) {
+                SmallChoice(b, selected = brand == b) { brand = b }
+            }
+        }
+        val results = remember(query, brand, catalogue) {
+            val b = brand
+            when {
+                query.isNotBlank() -> catalogue.search(
+                    query, catalogue.cans.size, if (b == null) emptySet() else setOf(b),
+                )
+                b != null -> catalogue.cans(b)
+                else -> catalogue.cans
+            }.filter { it.rgb != null }
+        }
+        if (results.isEmpty()) {
+            Text("No can matches.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+        } else {
+            Text(
+                "${results.size} cans · scroll to browse",
+                style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+            )
+            // The parent control panel is vertically scrollable; the grid must have a finite
+            // viewport to remain lazy and avoid infinite-height nested-scroll exceptions.
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 68.dp),
+                modifier = Modifier.fillMaxWidth().height(320.dp).background(Color.White),
+                state = gridState,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(results.size) { i ->
+                    val can = results[i]
+                    CanTile(
+                        can,
+                        selected = if (onPick == null) can in state.selected
+                            else selectedColour != null && can.rgb == selectedColour,
+                        artIndex = i,
+                    ) { browsing = Browsing(results, i) }
+                }
+            }
+            Text(
+                "Tap a can top to view the whole can. Swipe or use the arrows to browse.",
+                style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** One can top in the grid: only cans with a known colour reach this composable. */
+@Composable
+private fun CanTile(can: Can, selected: Boolean, artIndex: Int = 0, onOpen: () -> Unit) {
     Column(
         Modifier.width(56.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onOpen)
-            .semantics { contentDescription = can.displayName + (if (selected) ", selected" else "") + (if (can.rgb == null) ", no colour value" else "") },
+            .semantics { contentDescription = can.displayName + (if (selected) ", selected" else "") },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        CanTop(can.rgb, selected, can.hexSource == HexSource.SAMPLED, 56.dp)
-        if (can.rgb == null) Text("no colour", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        CanTop(can.rgb, selected, can.hexSource == HexSource.SAMPLED, 56.dp, artIndex = artIndex)
     }
 }
 
@@ -309,9 +555,21 @@ private fun SelectedTop(can: Can, onRemove: () -> Unit) {
  * left and its maker, colour name, code, barcode and (where known) match quality at right, with a
  * Select toggle unless [readOnly]. Swipe by mouse drag or touch, press the arrow buttons or the
  * keyboard's left and right arrows. Only the pages near the centre are composed and drawn.
+ * [onAssign] replaces My cans' selection action with applying a can's colour to a free sheet
+ * or teaching an unknown barcode. Entries without resolved RGB are omitted.
+ * Both workflows share the same peeking carousel.
  */
 @Composable
-private fun CanCarousel(state: StencilState, cans: List<Can>, start: Int, readOnly: Boolean, onBack: () -> Unit) {
+private fun CanCarousel(
+    state: StencilState,
+    cans: List<Can>,
+    start: Int,
+    readOnly: Boolean,
+    onBack: () -> Unit,
+    onAssign: ((Can) -> Unit)? = null,
+    assignLabel: String = "Remember barcode for this can",
+    requireColour: Boolean = false,
+) {
     val scheme = MaterialTheme.colorScheme
     val pager = rememberPagerState(initialPage = start.coerceIn(0, (cans.size - 1).coerceAtLeast(0))) { cans.size }
     val scope = rememberCoroutineScope()
@@ -379,23 +637,79 @@ private fun CanCarousel(state: StencilState, cans: List<Can>, start: Int, readOn
             ArrowButton("›", "Next can", enabled = pager.currentPage < cans.size - 1) { go(1) }
         }
         if (!readOnly) {
+            // Previously entered colour values can be corrected or cleared. A cleared
+            // value disappears from the rack and carousel on the next catalogue update.
+            if (current.hexSource == HexSource.USER) {
+                var hexDraft by remember(current.canKey, current.rgb) {
+                    mutableStateOf(current.rgb?.let(PaletteColor::hex).orEmpty())
+                }
+                val candidate = PaletteColor.parseHex(hexDraft)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        if (current.rgb == null) "ADD YOUR COLOUR TO THIS CAN"
+                        else "EDIT YOUR SAVED CAN COLOUR",
+                        style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant,
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (candidate != null) Swatch(candidate, 36.dp)
+                        BasicTextField(
+                            value = hexDraft,
+                            onValueChange = { hexDraft = it },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                            textStyle = TextStyle(color = scheme.onSurface, fontSize = 14.sp),
+                            cursorBrush = SolidColor(scheme.primary),
+                            modifier = Modifier.weight(1f).fieldBox("Can colour hex"),
+                            decorationBox = { inner ->
+                                Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+                                    if (hexDraft.isEmpty()) Text("#RRGGBB", color = scheme.onSurfaceVariant)
+                                    inner()
+                                }
+                            },
+                        )
+                        OutlinedButton(
+                            onClick = { candidate?.let { state.saveCanColour(current, it) } },
+                            enabled = candidate != null && candidate != current.rgb,
+                        ) { Text("Save") }
+                    }
+                    if (hexDraft.isNotEmpty() && candidate == null) {
+                        Text("Use six RGB hex digits.", style = MaterialTheme.typography.bodySmall, color = scheme.error)
+                    }
+                    if (current.hexSource == HexSource.USER) {
+                        OutlinedButton(onClick = { state.clearCanColour(current) }) { Text("Clear my colour") }
+                    }
+                    Text(
+                        "Your approximation stays on this device, not in the manufacturer's catalogue.",
+                        style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                    )
+                }
+            }
             val isSelected = current in state.selected
             val selectable = current.rgb != null
             Box(
                 Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(6.dp))
-                    .background(if (isSelected) scheme.primary else scheme.surfaceVariant)
-                    .clickable(enabled = selectable, role = Role.Checkbox) { state.toggleCan(current) }
-                    .semantics { contentDescription = (if (isSelected) "Remove " else "Select ") + current.displayName },
+                    .background(if (isSelected && onAssign == null) scheme.primary else scheme.surfaceVariant)
+                    .clickable(enabled = selectable, role = if (onAssign != null) Role.Button else Role.Checkbox) {
+                        if (onAssign != null) onAssign(current) else state.toggleCan(current)
+                    }
+                    .semantics {
+                        contentDescription = (if (onAssign != null) "$assignLabel: " else if (isSelected) "Remove " else "Select ") +
+                            current.displayName
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     when {
-                        !selectable -> "No colour value: can't be a layer"
+                        onAssign != null -> assignLabel
                         isSelected -> "Selected"
                         else -> "Select"
                     },
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (isSelected) scheme.onPrimary else if (selectable) scheme.onSurface else scheme.onSurfaceVariant,
+                    color = if (isSelected && onAssign == null) scheme.onPrimary
+                        else if (selectable) scheme.onSurface else scheme.onSurfaceVariant,
                 )
             }
         }
@@ -427,12 +741,14 @@ private fun CanPage(can: Can, state: StencilState, signed: Float, pageWidth: Dp,
         ?.let { MatchQuality.of(it.layer.distance) }
     val travel = pageWidth - 52.dp
     Box(modifier.fillMaxWidth().height(190.dp)) {
-        CanSide(
-            can.rgb, 44.dp, 120.dp,
-            Modifier.align(Alignment.CenterStart).graphicsLayer {
-                translationX = (-signed).coerceIn(0f, 1f) * travel.toPx()
-            },
-        )
+        val canImage = Modifier.align(Alignment.CenterStart).graphicsLayer {
+            translationX = (-signed).coerceIn(0f, 1f) * travel.toPx()
+        }
+        if (can.brand == "MTN (Montana Colors)" && can.line == "94") {
+            Mtn94Packshot(can.rgb, 44.dp, 120.dp, canImage)
+        } else {
+            CanSide(can.rgb, 44.dp, 120.dp, canImage)
+        }
         Column(
             Modifier.align(Alignment.CenterStart).padding(start = 52.dp).graphicsLayer { alpha = (1f - 2f * abs(signed)).coerceIn(0f, 1f) },
             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -449,7 +765,7 @@ private fun CanPage(can: Can, state: StencilState, signed: Float, pageWidth: Dp,
                 )
             }
             when {
-                can.rgb == null -> Text("no colour value", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+                can.hexSource == HexSource.USER -> Text("your colour · approximate", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
                 can.hexSource == HexSource.SAMPLED -> Text("colour sampled", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             }
         }
@@ -543,6 +859,7 @@ internal fun PaintListSection(state: StencilState) {
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             listOfNotNull(item.code, if (item.sampled) "sampled" else null,
+                                if (item.userColour) "your colour" else null,
                                 if (item.equivalents.isNotEmpty()) "+${item.equivalents.size} same colour" else null).joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,

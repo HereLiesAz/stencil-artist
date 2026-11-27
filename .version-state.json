@@ -1,6 +1,7 @@
 {
-  "run_id": "sync",
+  "run_id": "45628217585",
   "schema": 1,
-  "source_sha": "5d77118b3699751d61e7ecc15ff0ead3b1295579",
-  "version": "0.1.0.0"
+  "source_sha": "1ab96cbffb2ea890944d2b2af7a09c9d18aa7d32",
+  "trigger_id": "webhook-8ee716ba-e8d7-11f1-886b-a0d4aa7e89f7",
+  "version": "0.8.50.1"
 }

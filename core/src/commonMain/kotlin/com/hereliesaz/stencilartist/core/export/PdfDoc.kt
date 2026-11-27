@@ -8,6 +8,7 @@ package com.hereliesaz.stencilartist.core.export
 internal class PdfDoc {
     private val bodies = ArrayList<String>()
     private val pages = ArrayList<Int>()
+    private val pageLabels = ArrayList<String>()
     private val alphas = LinkedHashMap<Int, Pair<String, Int>>()
     private val catalog = reserve()
     private val pageTree = reserve()
@@ -39,8 +40,9 @@ internal class PdfDoc {
         }.first
     }
 
-    /** Adds a page of [widthPt] x [heightPt] drawn by [content] (a content stream). */
-    fun addPage(widthPt: Double, heightPt: Double, content: String) {
+    /** Adds a page of [widthPt] x [heightPt] drawn by [content], with its non-printing viewer [label]. */
+    fun addPage(widthPt: Double, heightPt: Double, content: String, label: String) {
+        pageLabels.add(label)
         val contentObj = add("<< /Length ${content.length} >>\nstream\n$content\nendstream")
         val box = "[0 0 ${Decimal.format(widthPt, 3)} ${Decimal.format(heightPt, 3)}]"
         pages.add(add("<< /Type /Page /Parent $pageTree 0 R /MediaBox $box /Contents $contentObj 0 R /Resources $resources 0 R >>"))
@@ -48,7 +50,10 @@ internal class PdfDoc {
 
     /** The finished file. */
     fun finish(title: String): ByteArray {
-        bodies[catalog - 1] = "<< /Type /Catalog /Pages $pageTree 0 R >>"
+        // A prefix-only page label is the exact identifier, without an appended page number.
+        // It identifies a tile even when its retained stock cannot safely fit printed text.
+        val labels = pageLabels.mapIndexed { index, label -> "$index << /P (${PdfText.escape(label)}) >>" }.joinToString(" ")
+        bodies[catalog - 1] = "<< /Type /Catalog /Pages $pageTree 0 R /PageLabels << /Nums [$labels] >> >>"
         bodies[pageTree - 1] = "<< /Type /Pages /Kids [${pages.joinToString(" ") { "$it 0 R" }}] /Count ${pages.size} >>"
         val gs = if (alphas.isEmpty()) "" else " /ExtGState << ${alphas.values.joinToString(" ") { "/${it.first} ${it.second} 0 R" }} >>"
         bodies[resources - 1] = "<< /ProcSet [/PDF /Text] /Font << /F1 $font 0 R /F2 $fontBold 0 R >>$gs >>"

@@ -9,14 +9,15 @@ on:
   pull_request:
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 permissions:
   contents: read
   id-token: write # the run's OIDC identity authenticates ci-report; nothing else is needed
 jobs:
   test:
-    name: Core tests (JVM and Wasm), web build
-    runs-on: ubuntu-latest
+    name: Core tests (JVM and Wasm)
+    # Playwright 1.57 does not provide Chromium for Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,16 +30,32 @@ jobs:
       # The whole stencil pipeline and every exporter is common code: the same tests run on the JVM
       # (what Android uses) and on Wasm (what the web uses).
       - name: Core tests
+        env:
+          STENCIL_PHYSICAL_OUTPUT: ${{ github.workspace }}/build/physical-validation
+          STENCIL_MATERIAL_OUTPUT: ${{ github.workspace }}/build/material-evaluation
         run: ./gradlew :core:jvmTest :core:wasmJsNodeTest --no-daemon --stacktrace
+      - name: Physical validation kit (digital files only)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: physical-validation-kit
+          path: build/physical-validation
+          if-no-files-found: ignore
+      - name: Controlled material evaluation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: material-evaluation
+          path: build/material-evaluation
+          if-no-files-found: ignore
       - name: Service worker cache regression tests
         run: node tools/tests/service-worker-cache.mjs
-      # The same command the Pages deploy runs, so a broken web build is caught on the pull request.
-      - name: Web build
-        run: ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon --stacktrace
+      - name: Original MTN 94 packshot verification
+        run: node tools/tests/mtn94-original-packshot.mjs
       - if: always()
         uses: HereLiesAz/workflows/.github/actions/ci-report@main
         with:
-          summary: Core tests on JVM and Wasm; web distribution builds
+          summary: Core tests on JVM and Wasm; service worker and resource checks
 
   android:
     name: Android build and lint
@@ -55,7 +72,109 @@ jobs:
       # central Android release workflow, once one is bound.
       - name: Build and lint
         run: ./gradlew :androidApp:assembleDebug :androidApp:lintDebug --no-daemon --stacktrace
+      - name: Play bundle and real R8 mapping (unsigned)
+        run: |
+          ./gradlew :androidApp:bundleRelease -PstencilPlayRelease=true --no-daemon --stacktrace
+          test -s androidApp/build/outputs/bundle/release/androidApp-release.aab
+          test -s androidApp/build/outputs/mapping/release/mapping.txt
       - if: always()
         uses: HereLiesAz/workflows/.github/actions/ci-report@main
         with:
-          summary: Debug APK builds; lint
+          summary: Debug APK builds; lint; Play bundle and R8 mapping
+
+  artist-workflow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - name: Build local Compose Wasm application
+        run: ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon --stacktrace
+      - name: Install browser and photo fixture
+        run: |
+          python3 -m venv "$RUNNER_TEMP/stencil-e2e"
+          "$RUNNER_TEMP/stencil-e2e/bin/pip" install playwright==1.57.0 Pillow==12.0.0 scikit-image==0.25.2 pypdf==6.4.0
+          "$RUNNER_TEMP/stencil-e2e/bin/python" -m playwright install --with-deps chromium
+      - name: Transparent-image baseline
+        run: '"$RUNNER_TEMP/stencil-e2e/bin/python" tools/tests/browser-smoke.py --distribution composeApp/build/dist --artifacts build/browser-smoke'
+      - name: Photograph to stencil and physical exports
+        if: success() || failure()
+        run: '"$RUNNER_TEMP/stencil-e2e/bin/python" tools/tests/artist-workflow-diagnostic.py --distribution composeApp/build/dist --artifacts build/artist-workflow'
+      - name: Capture browser screenshots and downloaded stencil files
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: artist-workflow-evidence
+          path: |
+            build/browser-smoke
+            build/artist-workflow
+      - if: always()
+        uses: HereLiesAz/workflows/.github/actions/ci-report@main
+        with:
+          summary: Local Compose Wasm artist workflow and export verification
+
+  android-artist-workflow:
+    name: Android artist workflow (emulator)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - name: Build installable debug APK
+        run: ./gradlew :androidApp:assembleDebug --no-daemon --stacktrace
+      - name: Install emulator and test readers
+        run: |
+          set -euo pipefail
+          sudo chmod 666 /dev/kvm
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/stencil-android-home"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          printf '%s\n' "ANDROID_USER_HOME=$ANDROID_USER_HOME" "ANDROID_EMULATOR_HOME=$ANDROID_EMULATOR_HOME" "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          printf 'no\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n stencil-ci -k "system-images;android-35;google_apis;x86_64" --device pixel_2 -p "$ANDROID_AVD_HOME/stencil-ci.avd"
+          test -s "$ANDROID_AVD_HOME/stencil-ci.ini"
+          test -s "$ANDROID_AVD_HOME/stencil-ci.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx stencil-ci
+          python3 -m venv "$RUNNER_TEMP/stencil-android"
+          "$RUNNER_TEMP/stencil-android/bin/pip" install Pillow==12.0.0 scikit-image==0.25.2 pypdf==6.4.0
+      - name: Boot Android and execute real stencil workflow
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          command -v adb
+          adb version
+          mkdir -p build/android-artist-workflow
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx stencil-ci
+          "$ANDROID_HOME/emulator/emulator" -avd stencil-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect >build/android-artist-workflow/emulator.log 2>&1 &
+          emulator_pid=$!
+          trap 'if kill -0 "$emulator_pid" 2>/dev/null; then adb emu kill || kill "$emulator_pid" || true; fi; tail -100 build/android-artist-workflow/emulator.log' EXIT
+          timeout 180 adb wait-for-device
+          timeout 240 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+          adb shell input keyevent 82
+          adb shell wm size 1080x1920
+          adb shell wm density 420
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          "$RUNNER_TEMP/stencil-android/bin/python" tools/tests/android-artist-workflow.py --apk androidApp/build/outputs/apk/debug/androidApp-debug.apk --artifacts build/android-artist-workflow
+      - name: Android screenshots and exported files
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-artist-workflow-evidence
+          path: build/android-artist-workflow
+          if-no-files-found: ignore
+      - if: always()
+        uses: HereLiesAz/workflows/.github/actions/ci-report@main
+        with:
+          summary: Native Android photo-to-stencil UI and Storage Access Framework export test

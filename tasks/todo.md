@@ -3,7 +3,59 @@
 Source: GraffitiXR `StencilTones.kt`, `StencilProcessor.kt`, `SubjectIsolator.kt`, `StencilTonesTest.kt`
 (copied; GraffitiXR is not modified).
 
-Status: **all planned phases implemented.** What has not been verified on real hardware is listed under Review.
+Status: **full depth/extrusion, lighting, material and stencil-preparation plan approved; continue implementation and verification without another phase approval.** What has not been verified on real hardware is listed under Review.
+
+## Guided studio redesign (2026-11-23)
+
+- [x] Split the one-screen settings column into eight named, focused stages with context explaining each decision; preserve the underlying processing and export code.
+- [x] Add an original/result comparison with shared, fitted-image-bounded zoom and pan, plus single-view and explicit zoom controls.
+- [x] Show one creation/cutting/painting tip per processing generation, advancing on every start or restart, never on a timer. Keep the blurred workspace behind a modal dialog with determinate progress during work; after success or failure retain the same tip with Continue or tap-anywhere dismissal. Caller: `StencilState.remake` → `LoadingNotice.begin/finish`; App → `dismissLoadingNotice`. Permit cutaway or retained stock for cutting notes and require retained stock for painting notes. Preserve a reference-page fallback for unsafe locations.
+- [x] Put advanced lighting and edge-adjustment sliders behind deliberate disclosure; leave depth-lighting behavior unchanged pending design review.
+- [ ] Visually inspect both wide web and narrow Android layouts, including keyboard and touch input, and verify pinch-pan, clipped zoom and side-by-side accuracy on devices.
+- [x] Approve the 3D extrusion, actual scene lighting and rendered-source stencil architecture. See `docs/DEPTH_RELIGHT_DISCUSSION.md`.
+
+- [x] Choose layer count and arbitrary paint palette before Original/Depth relight/3D scene, then source/render adjustments (the subsequent Subject-first refinement is below). Colour matching is the default; tonal bands also allow custom colours. `FreePaletteEditor` → `StencilState.editablePalette`, `useCustomPalette`, `setSheetColor`, `setSheetCount` → shared separator parameters. Manual palettes are independent of generated sheets; count edits preserve retained slots. Integration and device verification remain open.
+
+- [x] Separate Image → Subject → Palette → Light → Adjust; opening an image leads to Subject. Add manual remove/restore brush, zoom/pan, red overlay/cutout preview, undo, reset, draft and explicit apply. `Workspace` / `SubjectMaskControls` → `updateMaskEdits` → `MaskCorrections.apply` before lighting; explicit exclusions remain out of all cuts unless the artist opts into an opaque scene backdrop.
+- [x] Distinguish early paint constraints from deferred colour choices: choose specific paints in Palette to influence layer generation, or assign RGB to existing sheets in Inspect with `recolorSheet` → `Separation.withSheetColor`, preserving ranks, masks and paint order. Rebuilding layers discards late assignments rather than silently remapping them. Can-based paint plans retain their early catalogue selection. Integration/device verification remains open.
+
+## Flat depth relighting and image preparation (2026-11-24)
+
+- [x] Restore flat depth relighting as a separate Light mode. Fix image-relative gradient scaling, foreground-only robust range and alpha-aware differences; add independent matte mix, direction, intensity, ambient, strength and depth reversal. App caller: `StencilState.remake` → `DepthLighting.relight`. Device quality checks remain open.
+- [x] Add shared stencil-oriented source/skin and prepared-image adjustments, preserving alpha and the original source. `ImageAdjustmentEditor` → `StencilState.updateSourceAdjustments` / `updatePreparedAdjustments` → `ImageAdjustments.apply` → every separator. Seven isolated JVM fixtures passed; integrated builds and real-photo evaluation remain open.
+- [x] Add a per-sheet diagnostic view: actual cut boundaries, unsupported islands, physically fine openings and narrow-stock screening. Uses `Separation.mask` and the existing full-sheet print-tip detector; caller: `CutInspectionView` in Inspect. Read-only; one sheet at a time.
+- [x] Add interactive master value curves to both adjustment stacks; `ToneCurveEditor` → `ImageAdjustmentEditor` → existing `StencilState` adjustment setters → `ImageAdjustments.apply`. Fixed input knots, monotone cubic interpolation, independent reset and accessible output slider. Six focused JVM tests pass.
+- [ ] Evaluate diagnostic usefulness and physical output quality on real photographs.
+- [ ] Verify actual photographs, depth quality and tonal-layer usefulness on Android and Wasm.
+
+## True 3D relief and lighting (approved 2026-11-24)
+
+- [x] Connect the shared closed relief mesh to the MVP scene renderer; app caller: `StencilState.remake` → `ReliefScene.prepare` → `renderSource`. Common geometry and scene tests cover closure, shadows and orbit independence.
+- [x] Generate bounded geometry from masked depth, preserving every visible source pixel and working-image resolution in the frontal render. Coarse geometry still needs quality evaluation.
+- [x] Render an orbitable 3D scene preview and a separately locked source-aligned orthographic view with directional light, ambient fill, geometric shadows and source-alpha preservation. JVM regression tests pass; device verification below remains open.
+- [x] Route the rendered RGBA image into the existing tone/colour separator with original-lighting fallback and generation guards. Full Android/Wasm integration verification remains open.
+- [x] Add multiple positioned directional, point and spot lights, front/rear placement handle and accessible controls, key/fill/rim preset, RGB colour/intensity, per-light shadow filtering and shadow-only/combined diagnostic views. App caller: `SceneLightsEditor` → `StencilState.updateLighting` → `ReliefScene.renderSource`; orbit diagnostics do not affect separation. JVM tests cover finite light occlusion and filter behavior; device validation remains open.
+- [x] Add an optional image-sized, receive-only backdrop behind the relief with RGB and gap controls. Off by default; explicit opt-in composites the backdrop into the final image. Caller: Light stage → `ReliefScene.renderSource` and `renderOrbit`. CI/device validation remains open.
+- [x] Choose source-image skin or a custom opaque solid RGB material independently of geometry and lights. Solid covers front, walls and cap; source transparency is preserved. `SceneRgbEditor` and the Light stage update `LightingParams`, consumed by `ReliefScene.renderSource` and `renderOrbit`.
+- [x] Add smoothing, flatten/clamp, depth remapping and artist depth corrections beyond existing thickness, relief strength and depth inversion. Light → `Workspace` / `DepthGeometryControls` → `updateDepthEdits` → `DepthEdits.apply` → `DepthLighting.relight` / `ReliefScene.prepare`. Draft-only strokes and global controls; inference and subject remain unchanged. Android/Wasm visual verification remains open.
+- [x] Add optional bounded original-light compensation for flat and textured 3D lighting; preserve hue, alpha, original image and independent scene lights. Light stage → `updateOriginalLightCompensation` → guarded `StencilState.remake` → `DepthLighting.compensateOriginal` → flat relight or textured relief. Uses unedited inferred depth, shared assumed light and hue-preserving bounded gain. This is an approximation, not intrinsic albedo recovery; CI and real-photo validation remain open.
+- [ ] Run the controlled material comparison and review its outputs; evaluate licensed real captures using the [material evaluation protocol](../docs/MATERIAL_EVALUATION.md). A synthetic pass cannot close the actual-photo gate.
+- [ ] Evaluate actual-photo intrinsic material estimation and shadow/highlight separation against the compensation and solid-coat baselines.
+- [x] Add actual cut-boundary and island/cut-risk diagnostics from the committed separation (see Inspect above).
+- [ ] Verify Android and Wasm scene rendering, visual comparison, cancellation, transparent/empty/flat inputs, shadow reversal/occlusion, deterministic results, performance and hardware usability.
+
+## Approved continuation and acceptance gates (2026-11-24)
+
+The artist has approved the entire depth/stencil plan and instructed continuous implementation, not a fresh approval at each phase. Preserve Image → Subject → Palette → Light → Adjust → Edges → Inspect → export. Depth remains optional inside Light; the original-image workflow must not require inference. See [approved architecture and material plan](../docs/DEPTH_RELIGHT_DISCUSSION.md). The original plan's implementation checkpoints remain above.
+
+- [ ] Restore green JVM/Wasm regression and Android build/lint CI; verify each failure rather than weakening assertions.
+- [ ] Run automated no-depth browser import, acknowledgement, stage navigation and PNG download at wide and narrow viewports (`tools/tests/browser-smoke.py`, called by repository CI); inspect screenshots and record the passing run before closing this checkpoint.
+- [ ] Run a browser smoke test on the actual current app: image, mask correction, early/deferred arbitrary palettes, flat relight, depth draft/apply, textured and solid relief, placed lights, backdrop, cut inspection and exports. Check narrow/wide layouts and loading acknowledgement on success/failure.
+- [ ] Improve shadow quality where controlled fixtures expose acne, striping or bias; test finite and directional lights, opacity, self/cast visibility and source framing. Keep coarse mesh limits explicit.
+- [ ] Collect opt-in pipeline timing records and real device memory observations using [the performance protocol](../docs/PERFORMANCE.md); CI's small synthetic browser fixture is a telemetry smoke test, not a performance baseline.
+- [ ] Benchmark real photographs on representative Android and browser devices, then improve preview responsiveness and working-image/full-resolution processing as evidence warrants. Report actual latency and memory separately from build status.
+- [ ] Generate and inspect the controlled tonal/colour physical kit from CI, then record actual cut, registration and paint outcomes using [the physical validation protocol](../docs/PHYSICAL_VALIDATION.md). Digital evidence alone does not close this gate.
+- [ ] Assess physical stencil cuts, registration, island repairs and fine detail on real coloured and tonal artwork; continue the existing island/stroke synthesis work where findings justify changes. Do not mark hardware verification complete without evidence.
 
 ## Decisions (answered)
 
@@ -23,7 +75,7 @@ stencil-artist/
   core/         KMP library, commonMain only, no platform deps
                 tone/     StencilTones (N sheets), k-means thresholds, dark/light call
                 raster/   median blur, morphological close, flood fill   (replaces OpenCV)
-                light/    depth -> normals -> relit luminance
+                light/    depth + mask -> relief mesh -> scene render -> separation
                 vector/   contour trace, simplify, islands
                 export/   PNG planes, PDF writer + tiler, SVG, DXF, HPGL, G-code
   composeApp/   Compose Multiplatform UI and state: commonMain + androidMain + wasmJsMain
@@ -32,7 +84,7 @@ stencil-artist/
   tasks/        todo.md, lessons.md
 ~~~
 
-- Package `com.hereliesaz.stencilartist`.
+- Android application ID and launcher namespace: `com.hereliesaz.stencil_artist`. Shared app and core Kotlin packages retain `com.hereliesaz.stencilartist` as their prefix.
 - **No OpenCV.** Median, close and flood fill are rewritten in pure Kotlin so one implementation
   serves Android and Wasm. The only platform code is ONNX inference and file I/O.
 - Pipeline is byte/int-array in, byte/int-array out; the UI owns bitmaps.
@@ -131,7 +183,11 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       instead of scanning (same output, held by the OpenCV fixtures). App: "Separate by" Tone / Colour, each mode
       keeps its own settings, "Order" in Colour mode, "Base" and "Tonal bias" in Tone mode only; the sheet strip's
       number is black or white by contrast. `StencilState.setSheetColor` and `ColorParams.colors` are ready;
-      **next step: a colour picker / palette editor (no UI yet).**
+      **done in follow-up: the Free Colour-mode editor now browses top views of all catalogue cans
+      in a bounded lazy grid with search/brand filters and the existing full-can swipe carousel
+      (adjacent can edges peek).
+      A valid can colour calls `StencilState.setSheetColor`; hex/RGB editing, duplicate-colour
+      rejection and reset to image-derived colours remain.**
       Verified: 26 new tests on JVM and Wasm (flat regions of 2/5/9/24 colours, determinism, given colours,
       every order, invariants for 1..60 sheets on dark and light subjects, fewer colours than sheets, null cases,
       Oklab round trip, and a colour separation through the vectoriser, SVG/DXF/HPGL/G-code and `PrintPdf` with
@@ -139,7 +195,7 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       sheets, one sheet, composite PNG, SVG: fills are the sheet colours). Separating a 1600 px cut-out takes
       about 0.6 s on the JVM at 4 to 100 sheets. **Not verified:** Android on a device or emulator, timing in a
       browser on a phone, Colour mode with depth lighting or on photographs other than the astronaut, a sheet
-      colour edited by hand (no UI).
+      colour edited by hand on a real device (the editor is now wired).
 - [x] **14. Paint catalogue (foundation)** — `models/paints.tsv` (134 kB, 3,479 cans of 12 brands, built by
       `tools/catalogue/build.py` from the research files in `tools/catalogue/source/`; deterministic, validates hex and
       GS1 check digits, prints counts) is packaged by the same route as the models (assets on Android, `models/` on the
@@ -175,8 +231,9 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       SharedPreferences, `localStorage` in try/catch), recomputes layers off the main thread under the existing
       debounce, and has the scanner hooks `addCanByBarcode(gtin)` and `learnBarcode(gtin, can)` (no scanner UI).
       UI (`PaintPanel.kt`, `CanArt.kt`): layer stepper (up to the distinct colours the allowed cans have), brand then line
-      chips, inline collapsible picker: search, brand chips and a grid of vector can tops (60 plus Show more; hatched
-      disc for colourless cans, sampled dot, check when selected); tapping one opens a carousel (HorizontalPager, whole
+      chips, inline collapsible picker: search, brand chips and a bounded lazy grid of the original spray-can top PNG
+      over an individual per-can colour circle and one white rack background; colourless cans are omitted.
+      Tapping a top opens a carousel (HorizontalPager, whole
       can drawn side-on with maker, colour name, code, barcode, match quality in Pick for me; neighbours peek; arrows,
       keyboard arrows, touch and mouse drag); Selected strip of small tops with remove, shared-colour
       note, Paint list with match quality and Keep/Drop for unused layers, one-line data caveat. Sheet strip wraps
@@ -198,8 +255,11 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
       `PermissionDenied`, `NoCamera`, `DecoderUnavailable`, `Unsupported` (an http page has no camera API).
       Verified: `BarcodeScanTest` on JVM and Wasm; the web glue and the real Kotlin `ScannerView` in headless Chromium
       with a fake camera (EAN-13, UPC-A, UPC-E decoded, a corrupted check digit never reported, permission denied,
-      insecure origin, no device, camera tracks ended on dispose); service worker tests. **Not done:** wiring
-      `ScannerPanel` into `App.kt` (calls `addCanByBarcode`; `learnBarcode` for an unknown can), anything on an Android
+      insecure origin, no device, camera tracks ended on dispose); service worker tests. **Wired:** My cans embeds `ScannerPanel` through the Paint section in `App.kt`.
+      Known barcode scans add a colour-valued can without removing it on repeat; an unknown barcode can
+      be identified in the existing can search/carousel and saved with `learnBarcode`. The paint
+      catalogue restore/retry paths also now rebuild correctly (PR #9 feedback).
+      **Not verified:** anything on an Android
       device, a real `BarcodeDetector` (headless Chromium on Linux has none: the native path ran against a stand-in), a
       real camera, a real can, iPhone Safari.
 
@@ -232,8 +292,27 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 ## Open questions
 
-1. **Islands.** Open — waiting on Az's approach. (GraffitiXR assumes overpaint and never bridges;
-   a *cut* sheet still drops any region fully enclosed by a cut.)
+1. **Islands and stroke synthesis.** In progress: Az's black-base/grey/white
+   references establish that essential details must be reproducible from the supplied
+   cuts, even if the painter previously reconstructed them by hand. The first stage
+   adds independently overpainted cuts, exact island removal when already-placed
+   later layers restore the entire detail (black to white or black to grey and
+   white), and negative-stroke bridges only where later paint fully conceals them.
+   Small missing grey/white paint marks can now be composed when the source
+   strongly supports the colour and no later-layer stock is detached. Exposed
+   or ambiguous details remain unresolved, not silently deleted. Full
+   directional stroke-trajectory synthesis, physical-width checking and
+   real-world validation remain.
+   Brush size is adjustable (1–24 working-image pixels) in the Edges stage.
+   Separate areas narrower than the chosen brush keep their original solid
+   shapes. This is a pixel setting, not a calibrated physical spray width.
+   The opt-in Brush strokes mode now reconstructs wide later-layer regions as
+   narrow additive, flow-guided paint ribbons (with bounded deviation and a
+   retained-stock island check), leaving thin details and Classic available.
+   Semantic stroke grouping, context-sensitive island reconstruction and hardware
+   validation remain.
+   GraffitiXR originally assumed overpaint and never bridged; a *cut* sheet still
+   drops any region fully enclosed by a cut. See `docs/STROKE_ISLANDS.md`.
 2. **Depth model.** Depth Anything V2 Small (quantised, on demand) selected and benchmarked
    against MiDaS v2.1 Small on the same CI CPU runner; see `models/depth-anything-v2-small.md`.
    Device-specific latency and segmentation-quality evaluation remain for phase 12. The shared
@@ -278,11 +357,35 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
 
 **Left open by decision or for later**
 
-- Island bridging (deferred by Az). A palette editor / colour picker for colour sheets (phase 13 left `ColorParams.colors` and `StencilState.setSheetColor` ready, with no UI).
-- Custom mat and roll sizes, and G-code feed/power, are in core but have no UI yet.
-- Tiled text formats clip with Sutherland-Hodgman: a concave shape cut by a mat edge gets doubled
-  edges along that edge, which a cutter traces twice. The PDF clips properly and has none.
+- Island bridging is partly implemented (only fully concealed negative strokes, with visible islands explicitly left unresolved). Free Colour sheets have a can-top palette browser using
+  the same full-can peeking carousel as My cans, with fallback hex/RGB editing through
+  `ColorParams.colors` and `StencilState.setSheetColor`. The rack and carousel exclude
+  every can lacking a resolved RGB colour, even when an entry otherwise matches search.
+  Previously saved local #RRGGBB approximations still count as resolved for display;
+  their source is marked as user-entered, not official paint measurement.
+  The top-view rack uses the user's original five-top transparent spray-can asset
+  unmodified, with a separate solid circle in each can's colour layered underneath,
+  and one white background beneath the entire rack. The MTN 94 carousel uses the
+  other original user-provided upright transparent packshot, unmodified, with
+  an independent colour shape behind its translucent shoulder and white behind.
+  Node SHA-256 checks protect both PNGs and verify layer order; other can brands
+  retain the existing side-on vector representation. MTN maker RGB values remain
+  unavailable when no user approximation has been supplied. A live site/reference is not a redistribution license for its imagery or swatch
+  database. Visual/touch checks on actual devices remain outstanding.
+- Custom mat and roll sizes, overlap/margin validation, and G-code laser/router settings
+  (feed, travel, power, passes, safe/cut Z) are now exposed in the Cutter files UI. Invalid
+  entries and oversized tiling plans block downloads; settings flow into the exporter.
+  The resulting machine files still require dry-run verification on hardware.
+- Fixed tiled cutter clipping: SVG, DXF, HPGL and G-code now clip each shape's outer
+  ring and holes as one region, emitting disconnected pieces as separate closed paths
+  rather than retracing tile-boundary edges. Full-shape paths remain unchanged.
+  Physical cutter validation is still outstanding.
 - The web pipeline still runs on the page's only thread.
 
 
-- [x] Scanner wired into the can picker: decoded barcode -> `addCanByBarcode` -> selects the can (or teaches an unknown barcode on the next pick). Verified in headless Chromium with a fake camera (EAN-13 resolves; coloured-less makers are reported, not added).
+
+## Workspace checkpoint and contextual previews
+
+- [ ] Verify local checkpoint restoration after reload, Android activity recreation and process death; test corrupt data, blocked storage and interrupted writes.
+- [ ] Verify contextual tabs, mask/depth draft retention, paint/transform gesture exclusivity, fitted coordinate mapping and sheet diagnostics on actual Android and web devices.
+- [ ] Verify restored late sheet colours never migrate to different cut geometry, export settings persist, and pending generations remain non-exportable.

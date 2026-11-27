@@ -52,6 +52,15 @@ private fun newArray(): JsAny = js("[]")
 private fun push(array: JsAny, value: Int): Unit = js("{ array.push(value); }")
 
 @Composable
+actual fun rememberNeuralModelImporter(
+    onImported: (NeuralModelPart) -> Unit,
+    onError: (String) -> Unit,
+): (NeuralModelPart) -> Unit {
+    val error = androidx.compose.runtime.rememberUpdatedState(onError)
+    return remember { { _: NeuralModelPart -> error.value("Neural ONNX import currently requires Android.") } }
+}
+
+@Composable
 actual fun rememberModelLoader(): ModelLoader = remember { WebModelLoader }
 
 /** U²-Net is bundled, while quantised depth is requested and HTTP-cached on first use. */

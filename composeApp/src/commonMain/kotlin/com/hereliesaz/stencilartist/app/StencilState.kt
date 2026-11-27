@@ -1,14 +1,28 @@
 package com.hereliesaz.stencilartist.app
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import com.hereliesaz.stencilartist.core.ColorParams
 import com.hereliesaz.stencilartist.core.ColorSeparator
+import com.hereliesaz.stencilartist.core.PaletteColor
+import com.hereliesaz.stencilartist.core.Tones
+import com.hereliesaz.stencilartist.core.Base
+import com.hereliesaz.stencilartist.core.ReliefScene
 import com.hereliesaz.stencilartist.core.DepthLighting
+import com.hereliesaz.stencilartist.core.DepthEdits
 import com.hereliesaz.stencilartist.core.LightingParams
+import com.hereliesaz.stencilartist.core.OriginalLightCompensation
+import com.hereliesaz.stencilartist.core.LoadingNotice
+import com.hereliesaz.stencilartist.core.IslandPlanner
+import com.hereliesaz.stencilartist.core.SoftGradientZones
+import com.hereliesaz.stencilartist.core.StrokeStyler
 import com.hereliesaz.stencilartist.core.RgbaImage
+import com.hereliesaz.stencilartist.core.MaskCorrections
+import com.hereliesaz.stencilartist.core.MaskStroke
+import com.hereliesaz.stencilartist.core.ImageAdjustments
 import com.hereliesaz.stencilartist.core.Separation
 import com.hereliesaz.stencilartist.core.TonalParams
 import com.hereliesaz.stencilartist.core.TonalSeparator
@@ -21,6 +35,7 @@ import com.hereliesaz.stencilartist.core.paint.PaintPlan
 import com.hereliesaz.stencilartist.core.paint.ShoppingItem
 import com.hereliesaz.stencilartist.core.paint.SnappedLayer
 import com.hereliesaz.stencilartist.core.paint.UserBarcodes
+import com.hereliesaz.stencilartist.core.paint.UserCanColours
 import com.hereliesaz.stencilartist.core.paint.displayName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -29,9 +44,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.TimeSource
 
-/** How the subject is split into sheets: by brightness into greys, or by colour into paints. */
+/** How the subject is split into sheets: by brightness or by colour distance, with arbitrary paint colours. */
 enum class SeparationMode { TONE, COLOUR }
+
+/** Nominal retained-stock connection requested from the island planner, in working pixels. */
+internal const val NOMINAL_BRIDGE_PIXELS = 2
 
 /**
  * Everything the screen shows, and the one place it changes. The stencil is re-made whenever the
@@ -44,6 +63,7 @@ class StencilState(
     private val depthEstimator: DepthEstimator,
     private val catalogueLoader: CatalogueLoader,
     private val store: KeyValueStore = MemoryStore(),
+    private val strokeModels: ModelLoader? = null,
 ) {
 
     /** The opened image, or null before one is opened. */
@@ -51,7 +71,7 @@ class StencilState(
         private set
 
     /** Which separator makes the sheets. Each mode keeps its own settings, so switching back loses nothing. */
-    var mode: SeparationMode by mutableStateOf(SeparationMode.TONE)
+    var mode: SeparationMode by mutableStateOf(SeparationMode.COLOUR)
         private set
 
     /** The settings of the tonal separator, used in [SeparationMode.TONE]. */
@@ -73,6 +93,40 @@ class StencilState(
 
     /** Edge-closing side of the active mode. */
     val closing: Int get() = if (mode == SeparationMode.TONE) toneParams.closing else colorParams.closing
+
+    /** Optional expressive openings with small flow-aligned negative brushstrokes. */
+    var strokeBased: Boolean by mutableStateOf(false)
+        private set
+
+    val supportsNeuralStrokes get() = strokeModels?.supportsNeuralStrokes == true
+
+    /** Selected source for brush geometry. Re-importing triggers fresh inference. */
+    var strokeEngine by mutableStateOf(StrokeEngine.PROCEDURAL)
+        private set
+
+    fun selectStrokeEngine(engine: StrokeEngine) {
+        strokeEngine = engine
+        if (strokeBased) remake(settle = false)
+    }
+
+    /** The selected pixel width of ribbon marks. Retained when switching back to Classic. */
+    var strokeWidthPixels: Int by mutableStateOf(StrokeStyler.DEFAULT_BRUSH_WIDTH_PIXELS)
+        private set
+
+    /** Change the shape language without changing the chosen paints or lighting. */
+    fun useStrokeBased(enabled: Boolean) {
+        if (strokeBased == enabled) return
+        strokeBased = enabled
+        remake(settle = false)
+    }
+
+    /** Brush-size edits only regenerate masks when brush construction is enabled. */
+    fun chooseStrokeWidth(width: Int) {
+        val next = width.coerceIn(StrokeStyler.MIN_BRUSH_WIDTH_PIXELS..StrokeStyler.MAX_BRUSH_WIDTH_PIXELS)
+        if (strokeWidthPixels == next) return
+        strokeWidthPixels = next
+        if (strokeBased) remake(settle = true)
+    }
 
     // --- Paint: making the layers real cans -------------------------------------------------------
 
@@ -97,6 +151,18 @@ class StencilState(
 
     /** Barcodes the user taught the app; consulted before the catalogue by [addCanByBarcode]. */
     var userBarcodes: UserBarcodes by mutableStateOf(UserBarcodes.EMPTY)
+        private set
+
+    /** Approximate can RGB values this user entered locally, never added to bundled paint data. */
+    var userCanColours: UserCanColours by mutableStateOf(UserCanColours.EMPTY)
+        private set
+
+    /** The most recent unrecognized barcode; picker can associate it with a catalogue can. */
+    var unknownBarcode: String? by mutableStateOf(null)
+        private set
+
+    /** The last scan result, independent of stencil-generation messages. */
+    var barcodeNote: String? by mutableStateOf(null)
         private set
 
     /** The paint catalogue, null until it is first needed and has loaded. */
@@ -130,8 +196,10 @@ class StencilState(
     val layersUsed: Int get() = PaintPlan.layerCount(paintLayers, keptUnused)
 
     private var catalogueJob: Job? = null
-    private var savedCans = ""
-    private var savedAllowed = ""
+    /** Unmodified catalogue to restore the maker's RGB or missing-colour state on clearing a user value. */
+    private var bundledCatalogue: PaintCatalogue? = null
+    private var savedCans by mutableStateOf("")
+    private var savedAllowed by mutableStateOf("")
 
     init {
         // Brands and cans are text keys until the catalogue is there to resolve them (see ensureCatalogue).
@@ -140,6 +208,7 @@ class StencilState(
         savedCans = store.get(KEY_CANS).orEmpty()
         savedAllowed = store.get(KEY_ALLOWED).orEmpty()
         userBarcodes = store.get(KEY_BARCODES)?.let(UserBarcodes::decode) ?: UserBarcodes.EMPTY
+        userCanColours = store.get(KEY_USER_COLOURS)?.let(UserCanColours::decode) ?: UserCanColours.EMPTY
     }
 
     /**
@@ -150,16 +219,22 @@ class StencilState(
      */
     fun ensureCatalogue() {
         if (catalogue != null || catalogueJob?.isActive == true) return
+        val recoveringFromFailure = catalogueError != null
         catalogueLoading = true
         catalogueError = null
         catalogueJob = scope.launch {
             try {
-                val loaded = catalogueLoader.loadPaintCatalogue()
+                val bundled = catalogueLoader.loadPaintCatalogue()
+                bundledCatalogue = bundled
+                val loaded = bundled.withUserColours(userCanColours)
                 selected = PaintPersistence.decodeCans(savedCans, loaded).filter { it.rgb != null }
                 allowed = PaintPersistence.decodeAllowed(savedAllowed, loaded)
                 catalogue = loaded
                 pickMax = pickLimit(loaded, allowed)
                 pickCount = pickCount.coerceAtMost(pickMax)
+                // A failed load can leave a free-colour fallback, or one still being computed.
+                // A successful retry must replace either, even before a fallback has rendered.
+                if (recoveringFromFailure && snapped && source != null) remake(settle = false)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -227,15 +302,7 @@ class StencilState(
     fun toggleCan(can: Can) {
         if (can in selected) changeSelected(selected - can)
         else if (can.rgb == null) message = "${can.name} has no colour value, so it can't be a layer."
-        else {
-            changeSelected(selected + can)
-            // A barcode nobody knew was just scanned: the can chosen next is the one it belongs to.
-            unknownBarcode?.let { gtin ->
-                learnBarcode(gtin, can)
-                unknownBarcode = null
-                scanNote = "Remembered: ${can.displayName} has barcode $gtin."
-            }
-        }
+        else changeSelected(selected + can)
     }
 
     /** Removes [can] from the chosen cans. */
@@ -246,6 +313,45 @@ class StencilState(
     /** Clears the chosen cans. */
     fun clearCans() {
         if (selected.isNotEmpty()) changeSelected(emptyList())
+    }
+
+    /**
+     * Give a catalogue can a locally supplied approximation. The app never modifies the bundled
+     * catalogue or claims this RGB came from the maker. Every catalogue lookup, selected can,
+     * scanner result and paint-matching index immediately sees the same updated colour.
+     */
+    fun saveCanColour(can: Can, argb: Int) {
+        val bundled = bundledCatalogue ?: return
+        if (bundled.byKey(can.canKey) == null) return
+        try {
+            applyCanColours(userCanColours.withColour(can.canKey, argb), bundled)
+            message = "Saved your colour for ${can.displayName}."
+        } catch (invalid: IllegalArgumentException) {
+            message = "Enter a valid opaque colour for this can."
+        }
+    }
+
+    /** Clear a user-assigned colour and restore the catalogue's original RGB (or missing value). */
+    fun clearCanColour(can: Can) {
+        val bundled = bundledCatalogue ?: return
+        if (userCanColours.colourFor(can.canKey) == null) return
+        applyCanColours(userCanColours.withoutColour(can.canKey), bundled)
+        message = "Cleared your colour for ${can.displayName}."
+    }
+
+    /** Rebuild all catalogue indexes and selection references from the original data. */
+    private fun applyCanColours(next: UserCanColours, bundled: PaintCatalogue) {
+        userCanColours = next
+        store.put(KEY_USER_COLOURS, next.encode())
+        val updated = bundled.withUserColours(next)
+        catalogue = updated
+        selected = PaintPersistence.decodeCans(savedCans, updated).filter { it.rgb != null }
+        // A removed last known colour cannot remain secretly selected and reappear on the next load.
+        savedCans = PaintPersistence.encodeCans(selected)
+        store.put(KEY_CANS, savedCans)
+        pickMax = pickLimit(updated, allowed)
+        pickCount = pickCount.coerceAtMost(pickMax)
+        if (snapped && source != null) changedParams(sheetCount)
     }
 
     /** Keeps (or stops keeping) an unused layer of colour [rgb] on the paint list and in the print PDF's shopping list. */
@@ -262,66 +368,54 @@ class StencilState(
     fun shoppingFor(sheet: Int?): List<ShoppingItem> =
         if (!snapped) emptyList() else PaintPlan.shopping(paintLayers, sheet?.let(::listOf), keptUnused)
 
-    // --- Hooks for the barcode scanner (a later task; there is no camera or scanner UI yet) -----------
+    // --- Barcode scanner -------------------------------------------------------------------------
 
     /**
-     * HOOK FOR THE BARCODE SCANNER: call with each scanned barcode. It is looked up as the user
-     * taught it ([learnBarcode]) or else in the catalogue ([PaintCatalogue.resolve]), and the can it
-     * names is added to the chosen cans. An unknown barcode, or a can with no colour value, is said
-     * so in [message]; the scanner can then offer [learnBarcode]. Waits for the catalogue if it is still loading.
+     * Resolves a valid scanned or typed [gtin] through learned barcodes and the catalogue.
+     * Recognized cans are added, never toggled off by repeated scans. Unknown codes remain in
+     * [unknownBarcode] until identified in the can picker. Colourless cans cannot form layers.
      */
     fun addCanByBarcode(gtin: String) {
+        unknownBarcode = null
+        barcodeNote = "Looking up $gtin..."
         ensureCatalogue()
         scope.launch {
             catalogueJob?.join()
             val cat = catalogue ?: run {
-                scanNote = catalogueError ?: "The paint catalogue isn't available."
+                barcodeNote = catalogueError ?: "The paint catalogue isn't available."
+                message = barcodeNote
                 return@launch
             }
             val can = cat.resolve(gtin, userBarcodes)
             when {
                 can == null -> {
                     unknownBarcode = gtin
-                    scanNote = "No can is known for barcode $gtin. Find the can below and choose it: the app will remember this barcode."
+                    barcodeNote = "Barcode $gtin isn't in the catalogue. Find its can below to remember it."
                 }
-                can in selected -> {
-                    unknownBarcode = null
-                    scanNote = "${can.displayName} is already chosen."
-                }
-                can.rgb == null -> {
-                    unknownBarcode = null
-                    scanNote = "${can.displayName} has no colour value yet, so it can't be a layer."
-                }
+                can in selected -> barcodeNote = "${can.displayName} is already chosen."
+                can.rgb == null -> barcodeNote = "${can.displayName} has no colour value, so it can't be a layer."
                 else -> {
-                    unknownBarcode = null
-                    toggleCan(can)
-                    scanNote = "Added ${can.displayName}."
+                    changeSelected(selected + can)
+                    barcodeNote = "Added ${can.displayName}."
                 }
             }
+            message = barcodeNote
         }
     }
 
-    /** What the last scan did, worded for the scanner panel ("Added X", "No can is known for ..."); null before any. */
-    var scanNote: String? by mutableStateOf(null)
-        private set
-
     /**
-     * A barcode the scanner read that no can is known for. The next can the user chooses is taken to be
-     * that barcode's can: [toggleCan] teaches it with [learnBarcode] and clears this.
-     */
-    var unknownBarcode: String? by mutableStateOf(null)
-        private set
-
-    /**
-     * HOOK FOR THE BARCODE SCANNER: teaches the app that barcode [gtin] is [can], kept across
-     * restarts and preferred to the catalogue. An invalid barcode is refused with a message.
+     * Stores [gtin] as belonging to [can], overriding a catalogue match on future reads.
+     * A successful association is immediately resolved again to select the can when possible.
      */
     fun learnBarcode(gtin: String, can: Can) {
         try {
             userBarcodes = userBarcodes.learn(gtin, can.canKey)
             store.put(KEY_BARCODES, userBarcodes.encode())
+            if (unknownBarcode == gtin) unknownBarcode = null
+            addCanByBarcode(gtin)
         } catch (refused: IllegalArgumentException) {
-            message = "That isn't a valid barcode."
+            barcodeNote = "That isn't a valid barcode."
+            message = barcodeNote
         }
     }
 
@@ -341,16 +435,92 @@ class StencilState(
     var lighting: LightingParams by mutableStateOf(LightingParams())
         private set
 
+    /** Separate flat-mode settings retain their own defaults and do not overwrite scene lights. */
+    var flatLighting: LightingParams by mutableStateOf(LightingParams(elevation = 35f, intensity = 1f,
+        ambient = .18f, flatMatteMix = .65f))
+        private set
+
+    /** One assumed photographic light, shared by both textured lighting modes. */
+    var originalLightCompensation by mutableStateOf(OriginalLightCompensation())
+        private set
+
+    /** The current relief scene, available only for the current generation's orbit preview. */
+    var reliefScene: ReliefScene? by mutableStateOf(null)
+        private set
+
     var viewProcessedImage: Boolean by mutableStateOf(false)
         private set
 
-    private var depthMap: FloatArray? = null
+    /** Source adjustments alter the isolated image or its scene skin, not model inference. */
+    var sourceAdjustments: ImageAdjustments by mutableStateOf(ImageAdjustments())
+        private set
+
+    /** Prepared adjustments run after all lighting modes, before every separator. */
+    var preparedAdjustments: ImageAdjustments by mutableStateOf(ImageAdjustments())
+        private set
+
+    /** Update one non-destructive stack without changing the other. */
+    fun updateSourceAdjustments(next: ImageAdjustments) {
+        if (next == sourceAdjustments) return
+        sourceAdjustments = next
+        remake(settle = true)
+    }
+
+    fun updatePreparedAdjustments(next: ImageAdjustments) {
+        if (next == preparedAdjustments) return
+        preparedAdjustments = next
+        remake(settle = true)
+    }
+
+    // Inferred depth is read-only to callers; never feed corrected depth into segmentation.
+    private var depthMap: FloatArray? by mutableStateOf(null)
+    val inferredDepth: FloatArray? get() = depthMap
+
+    /** Current corrected subject, before RGB filters, for mask-aware depth editing. */
+    var depthSubject: RgbaImage? by mutableStateOf(null)
+        private set
+
+    /** Non-destructive edits are scoped to one source image. */
+    var depthEdits: DepthEdits by mutableStateOf(DepthEdits())
+        private set
+
+    /** Explicitly request inference, even when both lighting modes are off. */
+    fun requestDepth() {
+        if (busy || source == null || depthMap != null) return
+        depthRequested = true
+        depthAttempted = false
+        depthError = null
+        remake(settle = false, requestDepth = true)
+    }
+
+    /** Commit the draft once; never regenerate on brush motion. */
+    fun updateDepthEdits(expectedSource: RgbaImage, next: DepthEdits) {
+        if (source !== expectedSource || busy || depthMap == null || next == depthEdits) return
+        depthEdits = next.copy(strokes = next.strokes.map { it.copy(points = it.points.toList()) })
+        remake(settle = false)
+    }
+
     private var depthAttempted = false
     private var depthError: String? = null
     private var processed: RgbaImage? = null
 
     /** [source] with its background removed, once that has been done and found a subject. */
     private var cutOut: RgbaImage? = null
+
+    /** Automatic, unlit mask baseline for the manual editor, published for the current source. */
+    var automaticMask: RgbaImage? by mutableStateOf(null)
+        private set
+
+    /** Committed corrections survive inference setting changes, but not a new source. */
+    var maskStrokes: List<MaskStroke> by mutableStateOf(emptyList())
+        private set
+
+    /** Commit a batch of brush edits; regeneration immediately invalidates the old stencil. */
+    fun updateMaskEdits(expectedSource: RgbaImage, strokes: List<MaskStroke>) {
+        if (source !== expectedSource || !removeBackground || busy || strokes == maskStrokes) return
+        maskStrokes = strokes.map { it.copy(points = it.points.toList()) }
+        remake(settle = false)
+    }
 
     /** Whether isolation has been tried for [source], whatever came of it: it is tried once. */
     private var isolationTried = false
@@ -367,21 +537,114 @@ class StencilState(
     var preview: ImageBitmap? by mutableStateOf(null)
         private set
 
-    var busy: Boolean by mutableStateOf(false)
+    /** One tip per processing generation, including its acknowledgement phase. */
+    var loadingNotice: LoadingNotice by mutableStateOf(LoadingNotice())
+        private set
+
+    /** Actual processing state, not whether its completed notice is still visible. */
+    val busy: Boolean get() = loadingNotice.processing
+
+    /** Consume an acknowledgement only after the current job has ended. */
+    fun dismissLoadingNotice() {
+        loadingNotice = loadingNotice.dismiss()
+    }
+
+    /**
+     * Fraction of completed processing stages (depth, masking, relighting, separation,
+     * finishing). Determinate milestones, not a guess at elapsed runtime.
+     */
+    var processingProgress: Float by mutableFloatStateOf(0f)
         private set
 
     /** Something that went wrong, worded for the user; null when nothing has. */
     var message: String? by mutableStateOf(null)
         private set
 
+    /** Persist whether depth was explicitly requested even without enabled lighting. */
+    private var depthRequested by mutableStateOf(false)
+    private var lateColours: List<LateColour> by mutableStateOf(emptyList())
+    var workspaceWarning: String? by mutableStateOf(null)
+        internal set
+    var workspaceSaved: Boolean by mutableStateOf(false)
+        internal set
+
+    /** Capture authored state, never a pending generation or stale export. */
+    internal fun checkpoint(): StencilSnapshot? {
+        val image = source ?: return null
+        return StencilSnapshot(
+            source = image,
+            mode = mode,
+            toneParams = toneParams,
+            colorParams = colorParams,
+            removeBackground = removeBackground,
+            depthAssistedBackground = depthAssistedBackground,
+            lighting = lighting,
+            flatLighting = flatLighting,
+            originalLightCompensation = originalLightCompensation,
+            sourceAdjustments = sourceAdjustments,
+            preparedAdjustments = preparedAdjustments,
+            maskStrokes = maskStrokes,
+            depthEdits = depthEdits,
+            strokeBased = strokeBased,
+            strokeEngine = strokeEngine,
+            strokeWidthPixels = strokeWidthPixels,
+            paintMode = paintMode,
+            pickCount = pickCount,
+            savedCans = savedCans,
+            savedAllowed = savedAllowed,
+            shownSheet = shownSheet,
+            viewProcessedImage = viewProcessedImage,
+            lateColours = lateColours,
+            depthRequested = depthRequested || depthMap != null,
+            keptUnused = keptUnused.toList(),
+        )
+    }
+
+    /** Restore validated authoring state before starting exactly one new generation. */
+    internal fun restoreCheckpoint(saved: StencilSnapshot) {
+        source = saved.source
+        mode = saved.mode
+        toneParams = saved.toneParams
+        colorParams = saved.colorParams
+        removeBackground = saved.removeBackground
+        depthAssistedBackground = saved.depthAssistedBackground
+        lighting = saved.lighting
+        flatLighting = saved.flatLighting
+        originalLightCompensation = saved.originalLightCompensation
+        sourceAdjustments = saved.sourceAdjustments
+        preparedAdjustments = saved.preparedAdjustments
+        maskStrokes = saved.maskStrokes
+        depthEdits = saved.depthEdits
+        strokeBased = saved.strokeBased
+        strokeEngine = saved.strokeEngine
+        strokeWidthPixels = saved.strokeWidthPixels
+        paintMode = saved.paintMode
+        pickCount = saved.pickCount
+        savedCans = saved.savedCans
+        savedAllowed = saved.savedAllowed
+        shownSheet = saved.shownSheet
+        viewProcessedImage = saved.viewProcessedImage
+        depthRequested = saved.depthRequested
+        lateColours = saved.lateColours
+        keptUnused = saved.keptUnused.toSet()
+        preview = argbToImageBitmap(saved.source.pixels, saved.source.width, saved.source.height)
+        remake(settle = false, requestDepth = depthRequested, restoring = true)
+    }
+
     private var run: Job? = null
     private var generation = 0L
 
     fun open(image: RgbaImage) {
         source = image
+        depthRequested = false
+        lateColours = emptyList()
+        maskStrokes = emptyList()
+        automaticMask = null
         cutOut = null
         isolationTried = false
         depthMap = null
+        depthSubject = null
+        depthEdits = DepthEdits()
         depthAttempted = false
         depthError = null
         processed = null
@@ -416,11 +679,37 @@ class StencilState(
         changedParams(sheetCount)
     }
 
-    /** Asks the active mode for [count] sheets, with colours of its own choosing again. */
-    fun setSheetCount(count: Int) {
+    /** Explicit palette is independent of the current rendered separation, including before opening an image. */
+    val customPalette: List<Int>?
+        get() = if (mode == SeparationMode.TONE) toneParams.colors else colorParams.colors
+
+    /** Editable slots always match the requested count, even without a source or completed separation.
+     * An automatic palette is a suggestion until the artist explicitly locks or edits it. */
+    val editablePalette: List<Int>
+        get() {
+            val suggested = customPalette ?: separation?.sheets?.map { it.color }
+                ?: if (mode == SeparationMode.TONE) Tones.ramp(sheetCount, toneParams.base != Base.LIGHT).map { it.color }
+                else emptyList()
+            return PaletteColor.resize(suggested, sheetCount)
+        }
+
+    /** Lock the displayed colours or return to automatic image/tonal colours without changing count. */
+    fun useCustomPalette(on: Boolean) {
+        if (snapped || on == (customPalette != null)) return
+        val colors = if (on) editablePalette else null
         when (mode) {
-            SeparationMode.TONE -> update(toneParams.copy(sheets = count, colors = null))
-            SeparationMode.COLOUR -> update(colorParams.copy(sheets = count, colors = null))
+            SeparationMode.TONE -> update(toneParams.copy(colors = colors))
+            SeparationMode.COLOUR -> update(colorParams.copy(colors = colors))
+        }
+    }
+
+    /** Change count; retain explicitly selected colours and fill new slots with editable suggestions. */
+    fun setSheetCount(count: Int) {
+        if (count == sheetCount) return
+        val colors = customPalette?.let { PaletteColor.resize(it, count) }
+        when (mode) {
+            SeparationMode.TONE -> update(toneParams.copy(sheets = count, colors = colors))
+            SeparationMode.COLOUR -> update(colorParams.copy(sheets = count, colors = colors))
         }
     }
 
@@ -441,20 +730,18 @@ class StencilState(
     }
 
     /**
-     * Makes sheet [sheet] (a position in paint order) the colour [argb], keeping every other sheet
-     * as it is now. In colour mode the sheets' colours then become the given palette, so the other
-     * pixels are re-sorted to those colours and the order option may move the sheet. There is no
-     * screen for this yet; it is the seam a colour picker will use. Asking for a colour another
-     * sheet already has is refused with a message.
+     * Edit a requested palette slot [sheet] before or after rendering. Keep the requested count
+     * and every other slot; lock the palette on the first edit. Tonal slots are in paint order;
+     * colour matching may independently reorder the rendered sheets. Refuse duplicate RGB.
      */
     fun setSheetColor(sheet: Int, argb: Int) {
         if (snapped) {
             message = "The colours come from the cans. Change the cans instead."
             return
         }
-        val current = separation?.sheets?.map { it.color } ?: return
+        val current = editablePalette
         if (sheet !in current.indices) return
-        val colors = current.toMutableList().also { it[sheet] = argb }
+        val colors = current.toMutableList().also { it[sheet] = argb or 0xFF000000.toInt() }
         if (colors.map { it and 0xFFFFFF }.toSet().size != colors.size) {
             message = "Another sheet already has that colour."
             return
@@ -463,6 +750,20 @@ class StencilState(
             SeparationMode.TONE -> update(toneParams.copy(sheets = colors.size, colors = colors))
             SeparationMode.COLOUR -> update(colorParams.copy(sheets = colors.size, colors = colors))
         }
+    }
+
+    /** Assign paint to an already-made sheet, never to the separator's input palette.
+     * New separation identity invalidates in-flight exports. Rebuilding geometry later discards
+     * these assignments rather than silently transferring them onto unrelated shapes. */
+    fun recolorSheet(expected: Separation, sheet: Int, argb: Int): Boolean {
+        if (busy || snapped || separation !== expected || sheet !in expected.sheets.indices) return false
+        val color = argb or 0xFF000000.toInt()
+        lateColours = lateColours.filterNot { it.sheet == sheet } + LateColour(
+            sheet, color, expected.width, expected.height, expected.checkpointMask(sheet),
+        )
+        separation = expected.withSheetColor(sheet, color)
+        show(shownSheet)
+        return true
     }
 
     /** Settings changed: a sheet that no longer exists cannot stay selected, and the stencil is made again. */
@@ -491,7 +792,31 @@ class StencilState(
 
     fun updateLighting(next: LightingParams) {
         if (next == lighting) return
+        if (next.enabled && !lighting.enabled && depthMap == null) {
+            depthAttempted = false
+            depthError = null
+        }
         lighting = next
+        if (next.enabled) flatLighting = flatLighting.copy(enabled = false)
+        remake(settle = true)
+    }
+
+    /** Select flat depth relighting without changing the saved 3D scene configuration. */
+    fun updateFlatLighting(next: LightingParams) {
+        if (next == flatLighting) return
+        if (next.enabled && !flatLighting.enabled && depthMap == null) {
+            depthAttempted = false
+            depthError = null
+        }
+        flatLighting = next
+        if (next.enabled) lighting = lighting.copy(enabled = false)
+        remake(settle = true)
+    }
+
+    /** Change only the assumed original light, never the inferred depth or new scene lights. */
+    fun updateOriginalLightCompensation(next: OriginalLightCompensation) {
+        if (next == originalLightCompensation) return
+        originalLightCompensation = next
         remake(settle = true)
     }
 
@@ -511,28 +836,58 @@ class StencilState(
      * Makes the stencil again. With [settle], waits a moment first, so dragging a slider makes one
      * stencil when the drag pauses and not one per pixel of travel.
      */
-    private fun remake(settle: Boolean) {
+    private fun remake(settle: Boolean, requestDepth: Boolean = false, restoring: Boolean = false) {
         val image = source ?: return
+        if (!restoring) lateColours = emptyList()
+        val restoredColours = lateColours
+        val wantedDepthRequest = depthRequested
         val wantedMode = mode
         val wantedTone = toneParams
         val wantedColor = colorParams
         val wantedLighting = lighting
+        val wantedFlatLighting = flatLighting
+        val wantedCompensation = originalLightCompensation
+        val wantedMaskStrokes = maskStrokes
+        val wantedDepthEdits = depthEdits
+        val wantedSourceAdjustments = sourceAdjustments
+        val wantedPreparedAdjustments = preparedAdjustments
+        val wantedEngine = strokeEngine
+        val wantedStrokes = strokeBased
+        val wantedStrokeWidth = strokeWidthPixels
         val wantedPaint = if (wantedMode == SeparationMode.COLOUR) paintMode else PaintMode.FREE
-        val wantedPick = pickCount
-        val wantedAllowed = allowed
         val remove = removeBackground
         val assist = depthAssistedBackground
         val request = ++generation
         run?.cancel()
+        reliefScene = null
+        automaticMask = null
+        depthSubject = null
         separation = null
         paintLayers = emptyList()
-        busy = true
+        loadingNotice = loadingNotice.begin(LOADING_TIPS.size)
+        processingProgress = 0f
         run = scope.launch {
+            // Diagnostics are local and opt-in. No image content, paths or network telemetry.
+            val timings = if (stencilPerformanceEnabled()) ArrayList<String>() else null
+            val started = if (timings != null) TimeSource.Monotonic.markNow() else null
+            var previousMs = 0L
+            val depthCached = depthMap != null
+            var cancelledRun = false
+            fun profileStage(name: String) {
+                val elapsed = started?.elapsedNow()?.inWholeMilliseconds ?: return
+                timings?.add("$name=${elapsed - previousMs}")
+                previousMs = elapsed
+            }
+            // A previous cancelled run must never update the new run's progress.
+            fun markStage(value: Float) {
+                if (generation == request) processingProgress = value
+            }
             try {
                 if (settle) delay(SETTLE_MILLIS)
                 delay(1) // Allow the busy indicator to paint before inference in the browser.
+                profileStage("settle_ms")
                 val notes = ArrayList<String>()
-                val needsDepth = wantedLighting.enabled ||
+                val needsDepth = requestDepth || wantedDepthRequest || wantedLighting.enabled || wantedFlatLighting.enabled ||
                     (remove && assist && !image.hasTransparency())
                 if (needsDepth && depthMap == null && !depthAttempted) {
                     try {
@@ -553,8 +908,12 @@ class StencilState(
                 if (needsDepth && depthMap == null) {
                     notes += depthError ?: "Depth unavailable; using standard masking and original lighting."
                 }
+                profileStage("depth_ms")
+                markStage(0.20f)
                 if (remove && !isolationTried && !image.hasTransparency()) {
-                    when (val isolation = isolator.isolate(image, if (assist) depthMap else null)) {
+                    val isolation = isolator.isolate(image, if (assist) depthMap else null)
+                    if (generation != request) return@launch
+                    when (isolation) {
                         is Isolation.Cut -> cutOut = isolation.image
                         Isolation.NoSubject -> notes += "No subject found. Using the whole image."
                         is Isolation.Unavailable ->
@@ -562,15 +921,69 @@ class StencilState(
                     }
                     isolationTried = true
                 }
-                val isolated = cutOut?.takeIf { remove } ?: image
-                val lit = if (wantedLighting.enabled && depthMap != null) {
-                    val map = checkNotNull(depthMap)
+                profileStage("isolation_ms")
+                markStage(0.40f)
+                val automatic = cutOut?.takeIf { remove } ?: image
+                val correction = if (remove && wantedMaskStrokes.isNotEmpty()) withContext(Dispatchers.Default) {
+                    MaskCorrections.apply(image, automatic, wantedMaskStrokes)
+                } else null
+                if (generation != request) return@launch
+                profileStage("mask_edits_ms")
+                automaticMask = automatic
+                val isolated = correction?.image ?: automatic
+                depthSubject = isolated
+                val rawDepth = depthMap
+                val effectiveDepth = if (rawDepth != null && (wantedFlatLighting.enabled || wantedLighting.enabled)) {
+                    withContext(Dispatchers.Default) { wantedDepthEdits.apply(rawDepth, isolated) }
+                } else null
+                if (generation != request) return@launch
+                profileStage("depth_edits_ms")
+                val adjusted = withContext(Dispatchers.Default) { wantedSourceAdjustments.apply(isolated) }
+                if (generation != request) return@launch
+                profileStage("source_adjustments_ms")
+                // Compensate assumed original illumination using unedited inference, not
+                // the artist's new geometry or new light. Solid material ignores source RGB.
+                val compensated = if (rawDepth != null && wantedCompensation.amount > 0f &&
+                    (wantedFlatLighting.enabled || (wantedLighting.enabled && wantedLighting.useSourceTexture))) {
                     withContext(Dispatchers.Default) {
-                        DepthLighting.relight(isolated, map, wantedLighting)
+                        DepthLighting.compensateOriginal(adjusted, rawDepth, wantedCompensation)
                     }
-                } else isolated
-                // This is the processing order: source -> depth-assisted mask -> relit base image
-                // -> separation (by tone or by colour). No relighting occurs after any stencil layer is created.
+                } else adjusted
+                if (generation != request) return@launch
+                profileStage("original_light_ms")
+                val renderedImage = if (wantedFlatLighting.enabled && effectiveDepth != null) {
+                    val map = effectiveDepth
+                    withContext(Dispatchers.Default) { DepthLighting.relight(compensated, map, wantedFlatLighting) }
+                } else if (wantedLighting.enabled && effectiveDepth != null) {
+                    val map = effectiveDepth
+                    try {
+                        val rendered = withContext(Dispatchers.Default) {
+                            val scene = ReliefScene.prepare(compensated, map, wantedLighting)
+                            scene to scene.renderSource(wantedLighting)
+                        }
+                        if (generation != request) return@launch
+                        reliefScene = rendered.first
+                        rendered.second
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        notes += "3D scene rendering unavailable; using original lighting."
+                        adjusted
+                    }
+                } else adjusted
+                if (generation != request) return@launch
+                profileStage("lighting_ms")
+                val lit = withContext(Dispatchers.Default) { wantedPreparedAdjustments.apply(renderedImage) }
+                if (generation != request) return@launch
+                // Manual exclusions are authoritative unless an explicitly enabled backdrop
+                // has replaced transparency with a new background.
+                val excluded = correction?.excluded?.let { erased ->
+                    BooleanArray(erased.size) { erased[it] && lit.pixels[it] ushr 24 == 0 }
+                }
+                profileStage("prepared_adjustments_ms")
+                markStage(0.60f)
+                // The filtered prepared image feeds every separator, paint plan, island and export.
+                // Neither the original image nor an orbit/diagnostic view enters this pipeline.
                 var asked = if (wantedMode == SeparationMode.TONE) wantedTone.sheets else wantedColor.sheets
                 var layers: List<SnappedLayer> = emptyList()
                 var failure = "Couldn't make a stencil from this image."
@@ -585,6 +998,10 @@ class StencilState(
                         notes += (catalogueError ?: "The paint catalogue isn't available.") + " Using free colours."
                         free = true
                     } else {
+                        // Catalogue loading restores restrictions and clamps pickCount.
+                        // Snapshot only after it completes, never before the await.
+                        val wantedPick = pickCount
+                        val wantedAllowed = allowed
                         val chosen = selected
                         val picked = withContext(Dispatchers.Default) {
                             PaintPlan.layersFor(wantedPaint, cat, lit, wantedPick, wantedAllowed, chosen)
@@ -608,6 +1025,9 @@ class StencilState(
                         }
                     }
                 }
+                if (generation != request) return@launch
+                profileStage("separation_ms")
+                markStage(0.80f)
                 processed = lit
                 if (result == null) {
                     separation = null
@@ -615,20 +1035,105 @@ class StencilState(
                     // Show the base image, not the previous stencil, which no longer matches the settings.
                     preview = argbToImageBitmap(lit.pixels, lit.width, lit.height)
                 } else {
-                    paintLayers = layers
-                    if (result.sheets.size < asked) {
-                        notes += "The image has only ${result.sheets.size} distinct colour" +
-                            (if (result.sheets.size == 1) "" else "s") + ", so that is how many sheets it makes."
+                    // Plan islands across paint order: remove earlier stock only when later cuts
+                    // reproduce it exactly, else use fully concealed negative-stroke bridges.
+                    // Exposed corrections remain explicit island warnings.
+                    // Gradient-lift notes are derived from the processed SOURCE, not from flat masks.
+                    val finished = if (excluded == null) result else result.excluding(excluded)
+                    val planned = withContext(Dispatchers.Default) {
+                        val composed = if (wantedStrokes && finished.sheets.size <= 16 && wantedEngine != StrokeEngine.PROCEDURAL) {
+                            try {
+                                val marks = requireNotNull(strokeModels).predictMarks(lit, wantedEngine)
+                                com.hereliesaz.stencilartist.core.NeuralStrokeMask.apply(finished, List(finished.sheets.size) { marks })
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (error: Exception) {
+                                notes += "${wantedEngine.label} unavailable: ${error.message}. Used procedural brush marks."
+                                StrokeStyler.stylize(lit, finished, strokeWidthPixels = wantedStrokeWidth)
+                            }
+                        } else if (wantedStrokes) {
+                            StrokeStyler.stylize(lit, finished, strokeWidthPixels = wantedStrokeWidth)
+                        } else finished
+                        val correctedCuts = if (excluded == null) composed else composed.excluding(excluded)
+                        val bridgePlan = IslandPlanner.repair(correctedCuts, lit, minimumBridgePixels = NOMINAL_BRIDGE_PIXELS)
+                        val softEdges = SoftGradientZones.locate(lit, bridgePlan.separation)
+                        bridgePlan to bridgePlan.separation.withLiftZones(softEdges)
                     }
-                    separation = result
+                    if (generation != request) return@launch
+                    val bridgePlan = planned.first
+                    var output = planned.second
+                    // Exact stored masks prevent a late paint assignment migrating to changed geometry.
+                    if (restoring) {
+                        val valid = restoredColours.filter { saved ->
+                            saved.sheet in output.sheets.indices && saved.width == output.width &&
+                                saved.height == output.height && saved.mask == output.checkpointMask(saved.sheet)
+                        }
+                        for (saved in valid) output = output.withSheetColor(saved.sheet, saved.color)
+                        lateColours = valid
+                        if (valid.size != restoredColours.size) notes += "Some saved paint assignments no longer match the regenerated cuts."
+                    }
+                    if (bridgePlan.sourceGuidedIslands > 0) {
+                        notes += "${bridgePlan.sourceGuidedIslands} stencil island(s) were reconstructed with source-matched corrective paint marks; inspect each layer before cutting."
+                    }
+                    if (bridgePlan.unresolved > 0) {
+                        notes += "${bridgePlan.unresolved} stencil island(s) still need bridge or later-layer reconstruction; see the print notes."
+                    }
+                    if (bridgePlan.skipped) {
+                        notes += "Automatic island repair and gradient-lift hints are not available above 16 layers; check print notes for cut hazards."
+                    }
+                    if (wantedStrokes && output.sheets.size > 16) {
+                        notes += "Brushstroke styling is unavailable above 16 layers; the original masks were preserved."
+                    }
+                    paintLayers = layers
+                    if (output.sheets.size < asked) {
+                        notes += "The image has only ${output.sheets.size} distinct colour" +
+                            (if (output.sheets.size == 1) "" else "s") + ", so that is how many sheets it makes."
+                    }
+                    separation = output
                     // A colour image can make fewer sheets than asked: keep the shown one in range.
-                    shownSheet = shownSheet?.takeIf { it < result.sheets.size }
+                    shownSheet = shownSheet?.takeIf { it < output.sheets.size }
                     message = notes.joinToString(" ").ifEmpty { null }
                     preview = if (viewProcessedImage) argbToImageBitmap(lit.pixels, lit.width, lit.height)
-                        else result.toImageBitmap(shownSheet)
+                        else output.toImageBitmap(shownSheet)
+                }
+                profileStage("finish_ms")
+                markStage(1f)
+            } catch (cancelled: CancellationException) {
+                cancelledRun = true
+                throw cancelled
+            } catch (error: Exception) {
+                if (generation == request) {
+                    separation = null
+                    paintLayers = emptyList()
+                    reliefScene = null
+                    preview = null
+                    message = "Couldn't make a stencil: " + (error.message ?: "Unknown processing error.")
                 }
             } finally {
-                if (generation == request) busy = false
+                // Both success and failure unlock acknowledgement; an obsolete job cannot.
+                if (generation == request) {
+                    loadingNotice = loadingNotice.finish()
+                    if (started != null && !cancelledRun) {
+                        val mode = when {
+                            wantedFlatLighting.enabled -> "flat"
+                            wantedLighting.enabled -> "relief"
+                            else -> "original"
+                        }
+                        // Snapshot only this completed generation; elapsed times include dispatch
+                        // and model acquisition, not just CPU execution.
+                        runCatching {
+                            reportStencilPerformance(
+                                "generation=$request width=${image.width} height=${image.height} " +
+                                    "mode=$mode separator=$wantedMode sheets=${separation?.sheets?.size ?: 0} " +
+                                    "depth_cached=$depthCached depth_available=${depthMap != null} " +
+                                    "relief_available=${reliefScene != null} " +
+                                    "status=${if (separation != null) "ok" else "failed"} " +
+                                    "total_ms=${started.elapsedNow().inWholeMilliseconds} " +
+                                    timings.orEmpty().joinToString(" "),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -644,5 +1149,6 @@ class StencilState(
         const val KEY_CANS = "paint.cans"
         const val KEY_ALLOWED = "paint.allowed"
         const val KEY_BARCODES = "paint.barcodes"
+        const val KEY_USER_COLOURS = "paint.user-colours"
     }
 }
