@@ -9,38 +9,56 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.runtime.remember
+import com.hereliesaz.stencilartist.core.paint.CanTop as CanTopArtwork
 import com.hereliesaz.stencilartist.core.paint.CanColours
 
 /*
- * Spray cans drawn from nothing but their colour value. There are no photographs of cans and no
- * licence for the makers' pictures, so a can is a few shapes: deterministic, cheap, and the same on
- * every target. The colour is the can's cap, which is how most art cans are colour-coded.
+ * Spray cans, drawn from nothing but their colour value. There are no photographs of the makers' cans
+ * and no licence for their pictures. The top of a can is the owner's photograph of a bare can top,
+ * painted the can's colour (see core CanTop); the side view is a few shapes. Both are deterministic,
+ * cheap and the same on every target.
  */
 
 private fun tone(rgb: Int) = Color(rgb)
 private fun lighter(rgb: Int, by: Double) = Color(CanColours.lighten(rgb, by))
 private fun darker(rgb: Int, by: Double) = Color(CanColours.darken(rgb, by))
 
+/** The can-top photograph painted each colour, kept so scrolling a grid of 60 tops does not repaint them. */
+private val paintedTops = HashMap<Int, ImageBitmap>()
+
+private fun paintedTop(rgb: Int): ImageBitmap {
+    val key = rgb or (0xFF shl 24)
+    paintedTops[key]?.let { return it }
+    // Bounded: a long session of browsing must not hold every colour in the catalogue.
+    if (paintedTops.size >= 512) paintedTops.clear()
+    return argbToImageBitmap(CanTopArtwork.pixels(key), CanTopArtwork.SIZE, CanTopArtwork.SIZE).also { paintedTops[key] = it }
+}
+
 /**
- * A can seen from above, [size] square: a grey rim, a disc of [colour] (the cap), a soft highlight arc
- * and the nozzle. [colour] null draws a hatched grey disc, for a can with no colour value. [selected]
+ * A can seen from above, [size] square: a photograph of a can top painted [colour], with the can's own
+ * rim, light and nozzle ring. [colour] null draws a hatched grey disc, for a can with no colour value. [selected]
  * adds a thick white ring and a check; [sampled] adds a small dot, for a colour that is our own sampling.
  */
 @Composable
 internal fun CanTop(colour: Int?, selected: Boolean, sampled: Boolean, size: Dp, modifier: Modifier = Modifier) {
+    val picture = remember(colour) { colour?.let { paintedTop(it) } }
     Canvas(modifier.size(size)) {
         val c = Offset(this.size.width / 2, this.size.height / 2)
         val r = this.size.minDimension / 2 * (if (selected) 0.86f else 0.92f)
-        // Rim: two greys, so the edge of the can has a lip.
-        drawCircle(Color(0xFF9A9A9A), r, c)
-        drawCircle(Color(0xFF4A4A4A), r * 0.93f, c)
-        val disc = r * 0.80f
         if (colour == null) {
+            // Rim: two greys, so the edge of the can has a lip.
+            drawCircle(Color(0xFF9A9A9A), r, c)
+            drawCircle(Color(0xFF4A4A4A), r * 0.93f, c)
+            val disc = r * 0.80f
             drawCircle(Color(0xFF2A2A2A), disc, c)
             val clip = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, disc)) }
             clipPath(clip) {
@@ -51,24 +69,15 @@ internal fun CanTop(colour: Int?, selected: Boolean, sampled: Boolean, size: Dp,
                     x += step
                 }
             }
-        } else {
-            drawCircle(tone(colour), disc, c)
-            // The cap's own shading: darker towards the lower right, a soft highlight arc at the upper left.
-            drawCircle(
-                Brush.radialGradient(
-                    listOf(Color.Transparent, Color.Black.copy(alpha = 0.28f)),
-                    center = Offset(c.x - disc * 0.3f, c.y - disc * 0.3f), radius = disc * 1.5f,
-                ),
-                disc, c,
+        } else if (picture != null) {
+            // The photograph of a can top, painted this can's colour.
+            val side = (r * 2).toInt().coerceAtLeast(1)
+            drawImage(
+                picture,
+                srcOffset = IntOffset.Zero, srcSize = IntSize(picture.width, picture.height),
+                dstOffset = IntOffset((c.x - side / 2f).toInt(), (c.y - side / 2f).toInt()),
+                dstSize = IntSize(side, side),
             )
-            drawArc(
-                Color.White.copy(alpha = 0.45f), startAngle = 195f, sweepAngle = 70f, useCenter = false,
-                topLeft = Offset(c.x - disc * 0.62f, c.y - disc * 0.62f), size = Size(disc * 1.24f, disc * 1.24f),
-                style = Stroke(r * 0.1f, cap = StrokeCap.Round),
-            )
-            // The nozzle: a small dark-rimmed button in the middle.
-            drawCircle(darker(colour, 0.55), r * 0.2f, c)
-            drawCircle(lighter(colour, 0.35), r * 0.12f, Offset(c.x - r * 0.02f, c.y - r * 0.02f))
         }
         if (selected) {
             drawCircle(Color.White, this.size.minDimension / 2 - 1.5f, c, style = Stroke(this.size.minDimension * 0.07f))
