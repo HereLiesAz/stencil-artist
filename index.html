@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#151B1D">
+    <meta name="description" content="Turn any image into stencil layers, at any size.">
+    <title>Stencil Artist</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <style>
+        html, body { margin: 0; height: 100%; background: #151b1d; color: #efebe5; overflow: hidden;
+            font-family: system-ui, sans-serif; }
+        /* Shown until the app has drawn its first frame, and all there is if it cannot start. */
+        #loading { position: fixed; inset: 0; display: grid; place-items: center; letter-spacing: 0.2em;
+            text-transform: uppercase; font-size: 0.8rem; color: #bac8c8; }
+    </style>
+</head>
+<body>
+<div id="loading">Stencil Artist</div>
+<noscript>Stencil Artist needs JavaScript and WebAssembly.</noscript>
+<script src="stencil-artist.js"></script>
+<script>
+    // The service worker makes the app installable and keeps it working offline (see sw.js).
+    // Registered after load so it never competes with the app's own first download.
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+</script>
+</body>
+</html>
