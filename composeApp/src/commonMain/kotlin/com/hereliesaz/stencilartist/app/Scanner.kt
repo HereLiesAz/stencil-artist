@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -236,7 +237,7 @@ private fun ManualBarcodeField(onNumber: (String) -> Unit) {
                     }
                 },
             )
-            OutlinedButton(onClick = ::submit, modifier = Modifier.width(72.dp)) { Text("Add") }
+            OutlinedButton(onClick = ::submit, modifier = Modifier.width(84.dp), contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Add", maxLines = 1, softWrap = false) }
         }
         problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
     }

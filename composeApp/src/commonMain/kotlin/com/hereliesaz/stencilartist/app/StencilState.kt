@@ -227,7 +227,15 @@ class StencilState(
     fun toggleCan(can: Can) {
         if (can in selected) changeSelected(selected - can)
         else if (can.rgb == null) message = "${can.name} has no colour value, so it can't be a layer."
-        else changeSelected(selected + can)
+        else {
+            changeSelected(selected + can)
+            // A barcode nobody knew was just scanned: the can chosen next is the one it belongs to.
+            unknownBarcode?.let { gtin ->
+                learnBarcode(gtin, can)
+                unknownBarcode = null
+                scanNote = "Remembered: ${can.displayName} has barcode $gtin."
+            }
+        }
     }
 
     /** Removes [can] from the chosen cans. */
@@ -267,17 +275,42 @@ class StencilState(
         scope.launch {
             catalogueJob?.join()
             val cat = catalogue ?: run {
-                message = catalogueError ?: "The paint catalogue isn't available."
+                scanNote = catalogueError ?: "The paint catalogue isn't available."
                 return@launch
             }
             val can = cat.resolve(gtin, userBarcodes)
             when {
-                can == null -> message = "No can is known for barcode $gtin."
-                can in selected -> message = "${can.displayName} is already chosen."
-                else -> toggleCan(can)
+                can == null -> {
+                    unknownBarcode = gtin
+                    scanNote = "No can is known for barcode $gtin. Find the can below and choose it: the app will remember this barcode."
+                }
+                can in selected -> {
+                    unknownBarcode = null
+                    scanNote = "${can.displayName} is already chosen."
+                }
+                can.rgb == null -> {
+                    unknownBarcode = null
+                    scanNote = "${can.displayName} has no colour value yet, so it can't be a layer."
+                }
+                else -> {
+                    unknownBarcode = null
+                    toggleCan(can)
+                    scanNote = "Added ${can.displayName}."
+                }
             }
         }
     }
+
+    /** What the last scan did, worded for the scanner panel ("Added X", "No can is known for ..."); null before any. */
+    var scanNote: String? by mutableStateOf(null)
+        private set
+
+    /**
+     * A barcode the scanner read that no can is known for. The next can the user chooses is taken to be
+     * that barcode's can: [toggleCan] teaches it with [learnBarcode] and clears this.
+     */
+    var unknownBarcode: String? by mutableStateOf(null)
+        private set
 
     /**
      * HOOK FOR THE BARCODE SCANNER: teaches the app that barcode [gtin] is [can], kept across

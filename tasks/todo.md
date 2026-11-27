@@ -284,3 +284,5 @@ Each phase is a commit series on `ccr-14f6f879-ovc7dn`, one draft PR, verified b
   edges along that edge, which a cutter traces twice. The PDF clips properly and has none.
 - The web pipeline still runs on the page's only thread.
 
+
+- [x] Scanner wired into the can picker: decoded barcode -> `addCanByBarcode` -> selects the can (or teaches an unknown barcode on the next pick). Verified in headless Chromium with a fake camera (EAN-13 resolves; coloured-less makers are reported, not added).

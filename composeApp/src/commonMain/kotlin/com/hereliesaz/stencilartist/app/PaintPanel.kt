@@ -219,6 +219,7 @@ private fun CanPicker(state: StencilState) {
         if (open != null) {
             CanCarousel(state, open.cans, open.start, readOnly = false, onBack = { browsing = null })
         } else {
+            ScannerPanel(onGtin = { state.addCanByBarcode(it) }, onClose = {}, resultNote = state.scanNote)
             SearchField(query, onChange = { query = it; shown = TOPS })
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 SmallChoice("All brands", selected = brand == null) { brand = null; shown = TOPS }
